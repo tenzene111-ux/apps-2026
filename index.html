@@ -5,10 +5,29 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover" />
   <title>Reelflix — Short Drama</title>
   <link rel="icon" type="image/svg+xml" href="favicon.svg" />
-  <link rel="apple-touch-icon" href="favicon.svg" />
-  <link rel="stylesheet" href="style.css?v=3" />
+  <link rel="apple-touch-icon" href="icon-192.png" />
+  <link rel="manifest" href="manifest.json" />
+  <meta name="theme-color" content="#0b0b10" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Reelflix" />
+  <link rel="stylesheet" href="style.css?v=4" />
 </head>
 <body>
+  <div id="splash">
+    <svg viewBox="0 0 64 64" width="72" height="72">
+      <defs>
+        <linearGradient id="sg" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stop-color="#ff3860"/>
+          <stop offset="100%" stop-color="#ff7a45"/>
+        </linearGradient>
+      </defs>
+      <rect width="64" height="64" rx="16" fill="url(#sg)"/>
+      <path d="M25 20 L46 32 L25 44 Z" fill="#ffffff"/>
+    </svg>
+    <div id="splash-title">Reel<span>flix</span></div>
+  </div>
   <div id="app">
 
     <!-- HOME -->
@@ -142,6 +161,6 @@
     </div>
   </div>
 
-  <script src="app.js?v=3"></script>
+  <script src="app.js?v=4"></script>
 </body>
 </html>

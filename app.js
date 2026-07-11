@@ -237,25 +237,49 @@ function buildPlayerCard(d, epNum) {
     ${!unlocked ? lockOverlayHTML(d, epNum) : ""}
   `;
 
+  function setLiked(forceOn) {
+    if (forceOn && state.likes[likeKey]) return;
+    state.likes[likeKey] = forceOn ? true : !state.likes[likeKey];
+    saveState();
+    const btn = card.querySelector(".like-btn");
+    btn.classList.toggle("liked", state.likes[likeKey]);
+    btn.querySelector("span").textContent = formatCount(baseLikes + (state.likes[likeKey] ? 1 : 0));
+  }
+
   card.querySelector('[data-back="detail"]').addEventListener("click", () => openDetail(d.id));
   card.querySelector(".mute-btn").addEventListener("click", (e) => {
     e.currentTarget.textContent = e.currentTarget.textContent.trim() === "🔊" ? "🔇" : "🔊";
   });
-  card.querySelector(".like-btn").addEventListener("click", (e) => {
-    const key = e.currentTarget.dataset.like;
-    state.likes[key] = !state.likes[key];
-    saveState();
-    e.currentTarget.classList.toggle("liked", state.likes[key]);
-    const span = e.currentTarget.querySelector("span");
-    span.textContent = formatCount(baseLikes + (state.likes[key] ? 1 : 0));
-  });
+  card.querySelector(".like-btn").addEventListener("click", () => setLiked(false));
   card.querySelector(".comment-btn").addEventListener("click", () => openComments(d, epNum));
   card.querySelector(".share-btn2").addEventListener("click", () => openModal("shareModal"));
   card.querySelector(".coin-shortcut").addEventListener("click", () => openModal("coinModal"));
 
+  let lastTap = 0;
+  card.addEventListener("pointerup", (e) => {
+    if (e.target.closest("button") || e.target.closest(".lock-overlay")) return;
+    const now = Date.now();
+    if (now - lastTap < 320) {
+      setLiked(true);
+      spawnHeartBurst(card, e.clientX, e.clientY);
+    }
+    lastTap = now;
+  });
+
   if (!unlocked) wireLockOverlay(card, d, epNum);
 
   return card;
+}
+
+function spawnHeartBurst(card, x, y) {
+  const rect = card.getBoundingClientRect();
+  const heart = document.createElement("div");
+  heart.className = "heart-burst";
+  heart.textContent = "❤️";
+  heart.style.left = (x - rect.left) + "px";
+  heart.style.top = (y - rect.top) + "px";
+  card.appendChild(heart);
+  heart.addEventListener("animationend", () => heart.remove());
 }
 
 function episodeSubtitle(epNum) {
@@ -431,5 +455,12 @@ function init() {
   renderFeed("all");
   switchView("home");
   renderCoinPackages();
+
+  const splash = document.getElementById("splash");
+  setTimeout(() => splash.classList.add("hide"), 900);
+
+  if ("serviceWorker" in navigator && location.protocol !== "file:") {
+    navigator.serviceWorker.register("sw.js").catch(() => {});
+  }
 }
 init();
