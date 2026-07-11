@@ -12,14 +12,14 @@ const GRADIENTS = [
 ];
 
 const DRAMAS = [
-  { id: "d1", title: "The Billionaire's Fake Fiancée", genre: "romance", tag: "HOT", views: "42.1M", desc: "She signed a fake engagement contract to save her family. He never told her the ring was real.", episodes: 42, free: 3 },
-  { id: "d2", title: "CEO's Secret Baby", genre: "romance", tag: "HOT", views: "38.7M", desc: "Five years after she vanished, she returns with his son — and he wants them both back.", episodes: 36, free: 3 },
-  { id: "d3", title: "Revenge of the Discarded Wife", genre: "revenge", tag: "NEW", views: "21.4M", desc: "Cast aside for a socialite, she rebuilds herself into the one woman this city cannot ignore.", episodes: 50, free: 4 },
-  { id: "d4", title: "Alpha's Rejected Mate", genre: "fantasy", tag: "HOT", views: "55.9M", desc: "Rejected by her wolf mate in front of the pack, she discovers a power older than the moon itself.", episodes: 60, free: 3 },
-  { id: "d5", title: "Married to the Mafia King", genre: "revenge", tag: "", views: "19.2M", desc: "A marriage of convenience turns dangerous when she becomes the only one he trusts.", episodes: 34, free: 3 },
-  { id: "d6", title: "My Ex-Husband is a Billionaire", genre: "romance", tag: "NEW", views: "15.8M", desc: "She didn't know the man she divorced broke was secretly worth billions — until he showed up at her wedding.", episodes: 28, free: 3 },
-  { id: "d7", title: "The Contract Bride", genre: "romance", tag: "", views: "12.3M", desc: "One signature bound them together. Neither expected to fall for the terms of the deal.", episodes: 30, free: 3 },
-  { id: "d8", title: "Twin Swap Wedding", genre: "fantasy", tag: "HOT", views: "27.6M", desc: "She took her twin's place at the altar to save the family — now she can't escape the marriage, or her feelings.", episodes: 40, free: 3 },
+  { id: "d1", title: "The Billionaire's Fake Fiancée", genre: "romance", label: "Age Gap", badge: "Trending", views: "42.1M", desc: "She signed a fake engagement contract to save her family. He never told her the ring was real.", episodes: 42, free: 3 },
+  { id: "d2", title: "CEO's Secret Baby", genre: "romance", label: "Young Adult", badge: "Hot", views: "38.7M", desc: "Five years after she vanished, she returns with his son — and he wants them both back.", episodes: 36, free: 3 },
+  { id: "d3", title: "Revenge of the Discarded Wife", genre: "revenge", label: "Revenge", badge: "New", views: "21.4M", desc: "Cast aside for a socialite, she rebuilds herself into the one woman this city cannot ignore.", episodes: 50, free: 4 },
+  { id: "d4", title: "Alpha's Rejected Mate", genre: "fantasy", label: "Werewolf", badge: "Trending", views: "55.9M", desc: "Rejected by her wolf mate in front of the pack, she discovers a power older than the moon itself.", episodes: 60, free: 3 },
+  { id: "d5", title: "Married to the Mafia King", genre: "revenge", label: "Family Drama", badge: "", views: "19.2M", desc: "A marriage of convenience turns dangerous when she becomes the only one he trusts.", episodes: 34, free: 3 },
+  { id: "d6", title: "My Ex-Husband is a Billionaire", genre: "romance", label: "Age Gap", badge: "New", views: "15.8M", desc: "She didn't know the man she divorced broke was secretly worth billions — until he showed up at her wedding.", episodes: 28, free: 3 },
+  { id: "d7", title: "The Contract Bride", genre: "romance", label: "Young Adult", badge: "Dubbed", views: "12.3M", desc: "One signature bound them together. Neither expected to fall for the terms of the deal.", episodes: 30, free: 3 },
+  { id: "d8", title: "Twin Swap Wedding", genre: "fantasy", label: "Male Lead", badge: "Hot", views: "27.6M", desc: "She took her twin's place at the altar to save the family — now she can't escape the marriage, or her feelings.", episodes: 40, free: 3 },
 ];
 
 const COIN_PACKAGES = [
@@ -39,6 +39,12 @@ const state = {
   view: "home",
   currentDrama: null,
   currentEpIndex: 0,
+  topTab: "hot",
+  subGenre: "all",
+  searchTerm: "",
+  vip: false,
+  checkedInDays: 0,
+  lastCheckIn: null,
 };
 
 function loadState() {
@@ -89,35 +95,54 @@ function switchView(name) {
   document.getElementById("view-" + name).classList.add("active");
   state.view = name;
   document.getElementById("bottomNav").style.display = (name === "player") ? "none" : "flex";
-  if (name === "home" || name === "discover" || name === "mylist" || name === "mine") {
-    document.querySelectorAll(".nav-item").forEach(b => b.classList.toggle("active", b.dataset.tab === name || (name==="home" && b.dataset.tab==="home")));
+  const tabForView = { home: "home", foryou: "foryou", mylist: "mylist", rewards: "rewards", mine: "profile" };
+  if (tabForView[name]) {
+    document.querySelectorAll(".nav-item").forEach(b => b.classList.toggle("active", b.dataset.tab === tabForView[name]));
   }
 }
 
-function renderFeed(filterGenre) {
+function renderFeed() {
   const feed = document.getElementById("feed");
   feed.innerHTML = "";
-  const list = DRAMAS.filter(d => !filterGenre || filterGenre === "all" || d.genre === filterGenre);
+  document.getElementById("subGenreTabs").style.display = state.topTab === "category" ? "flex" : "none";
+
+  let list;
+  if (state.topTab === "anime" || state.topTab === "novel") {
+    feed.innerHTML = '<div class="empty-state">More ' + state.topTab + ' titles launching soon.</div>';
+    return;
+  } else if (state.topTab === "new") {
+    list = DRAMAS.filter(d => d.badge === "New");
+  } else if (state.topTab === "ranking") {
+    list = [...DRAMAS].sort((a, b) => parseFloat(b.views) - parseFloat(a.views));
+  } else if (state.topTab === "category") {
+    list = DRAMAS.filter(d => state.subGenre === "all" || d.genre === state.subGenre);
+  } else {
+    list = DRAMAS;
+  }
+
+  if (state.searchTerm) {
+    const q = state.searchTerm.toLowerCase();
+    list = list.filter(d => d.title.toLowerCase().includes(q));
+  }
+
   if (!list.length) {
-    feed.innerHTML = '<div class="empty-state">No dramas in this category yet.</div>';
+    feed.innerHTML = '<div class="empty-state">No dramas found.</div>';
     return;
   }
+
   list.forEach((d, i) => {
     const card = document.createElement("div");
-    card.className = "drama-card";
+    card.className = "poster-card";
+    const rankBadge = state.topTab === "ranking" && i < 3
+      ? `<span class="poster-rank rank-${i + 1}">#${i + 1}</span>`
+      : (d.badge ? `<span class="poster-badge ${d.badge.toLowerCase()}">${d.badge}</span>` : "");
     card.innerHTML = `
-      <div class="drama-cover" style="background:${gradientFor(d.id)}">
-        ${d.tag ? `<span class="badge ${d.tag === 'HOT' ? 'hot' : ''}">${d.tag}</span>` : ""}
-        <span class="play-glyph">▶</span>
+      <div class="poster-cover" style="background:${gradientFor(d.id)}">
+        ${rankBadge}
+        <span class="poster-views">▶ ${d.views}</span>
       </div>
-      <div class="drama-info">
-        <h3>${d.title}</h3>
-        <p class="desc">${d.desc}</p>
-        <div class="drama-meta">
-          <span class="tag">${d.episodes} EP</span>
-          <span>👁 ${d.views}</span>
-        </div>
-      </div>`;
+      <h3 class="poster-title">${d.title}</h3>
+      <p class="poster-genre">${d.label}</p>`;
     card.addEventListener("click", () => openDetail(d.id));
     feed.appendChild(card);
   });
@@ -421,23 +446,158 @@ document.querySelectorAll(".nav-item").forEach(btn => {
     document.querySelectorAll(".nav-item").forEach(b => b.classList.remove("active"));
     btn.classList.add("active");
     const tab = btn.dataset.tab;
-    if (tab === "home") { switchView("home"); renderFeed("all"); document.querySelectorAll(".genre-tab").forEach(t=>t.classList.toggle("active", t.dataset.genre==="all")); }
-    if (tab === "discover") { switchView("home"); renderFeed("all"); }
+    if (tab === "home") { switchView("home"); renderFeed(); }
+    if (tab === "foryou") { switchView("foryou"); renderForYouFeed(); }
     if (tab === "mylist") { switchView("mylist"); renderMyList(); }
-    if (tab === "mine") { switchView("mine"); renderMine(); }
+    if (tab === "rewards") { switchView("rewards"); renderRewards(); }
+    if (tab === "profile") { switchView("mine"); renderMine(); }
   });
 });
 
-document.querySelectorAll(".genre-tab").forEach(tab => {
+document.querySelectorAll("#genreTabsV2 .gtab").forEach(tab => {
   tab.addEventListener("click", () => {
-    document.querySelectorAll(".genre-tab").forEach(t => t.classList.remove("active"));
+    document.querySelectorAll("#genreTabsV2 .gtab").forEach(t => t.classList.remove("active"));
     tab.classList.add("active");
-    renderFeed(tab.dataset.genre);
+    state.topTab = tab.dataset.top;
+    renderFeed();
   });
+});
+
+document.querySelectorAll("#subGenreTabs .genre-tab").forEach(tab => {
+  tab.addEventListener("click", () => {
+    document.querySelectorAll("#subGenreTabs .genre-tab").forEach(t => t.classList.remove("active"));
+    tab.classList.add("active");
+    state.subGenre = tab.dataset.genre;
+    renderFeed();
+  });
+});
+
+document.getElementById("searchInput").addEventListener("input", (e) => {
+  state.searchTerm = e.target.value.trim();
+  renderFeed();
+});
+document.getElementById("filterBtn").addEventListener("click", () => toast("More filters coming soon"));
+document.getElementById("subscribeVipBtn").addEventListener("click", () => {
+  state.vip = true;
+  saveState();
+  toast("Welcome to VIP! All series unlocked.");
+  closeModal("vipModal");
 });
 
 document.querySelectorAll('[data-back="home"]').forEach(btn => {
   btn.addEventListener("click", () => switchView("home"));
+});
+
+/* ---------------- For You (cross-series swipe discovery) ---------------- */
+function renderForYouFeed() {
+  const feed = document.getElementById("forYouFeed");
+  feed.innerHTML = "";
+  DRAMAS.forEach((d) => feed.appendChild(buildForYouCard(d)));
+  observeForYouCards();
+}
+
+function buildForYouCard(d) {
+  const card = document.createElement("div");
+  card.className = "player-card";
+  const likeKey = d.id + ":foryou";
+  const baseLikes = 2000 + (d.id.charCodeAt(1) * 53) % 3000;
+  const liked = !!state.likes[likeKey];
+  card.innerHTML = `
+    <div class="player-bg" style="background:${gradientFor(d.id, 1)}"></div>
+    <div class="player-vignette"></div>
+    <div class="player-topbar">
+      <div></div>
+      <button class="icon-btn mute-btn">🔊</button>
+    </div>
+    <div class="player-rail">
+      <button class="rail-btn like-btn ${liked ? 'liked' : ''}" data-like="${likeKey}">❤️<span>${formatCount(baseLikes + (liked ? 1 : 0))}</span></button>
+      <button class="rail-btn comment-btn">💬<span>${200 + d.episodes % 50}</span></button>
+      <button class="rail-btn share-btn2">↗️<span>Share</span></button>
+    </div>
+    <div class="player-bottom player-bottom-nav-spacer">
+      <h3>${d.title}</h3>
+      <p class="ep-label">${d.label} · ${d.episodes} Episodes</p>
+      <p class="ep-desc">${d.desc}</p>
+      <button class="btn-primary foryou-cta">▶ Watch Full Series</button>
+    </div>
+  `;
+  card.querySelector(".like-btn").addEventListener("click", (e) => {
+    state.likes[likeKey] = !state.likes[likeKey];
+    saveState();
+    e.currentTarget.classList.toggle("liked", state.likes[likeKey]);
+    e.currentTarget.querySelector("span").textContent = formatCount(baseLikes + (state.likes[likeKey] ? 1 : 0));
+  });
+  card.querySelector(".comment-btn").addEventListener("click", () => openComments(d, 1));
+  card.querySelector(".share-btn2").addEventListener("click", () => openModal("shareModal"));
+  card.querySelector(".mute-btn").addEventListener("click", (e) => {
+    e.currentTarget.textContent = e.currentTarget.textContent.trim() === "🔊" ? "🔇" : "🔊";
+  });
+  card.querySelector(".foryou-cta").addEventListener("click", () => openDetail(d.id));
+
+  let lastTap = 0;
+  card.addEventListener("pointerup", (e) => {
+    if (e.target.closest("button")) return;
+    const now = Date.now();
+    if (now - lastTap < 320) {
+      if (!state.likes[likeKey]) card.querySelector(".like-btn").click();
+      spawnHeartBurst(card, e.clientX, e.clientY);
+    }
+    lastTap = now;
+  });
+
+  return card;
+}
+
+function observeForYouCards() {
+  const cards = document.querySelectorAll("#forYouFeed .player-card");
+  const io = new IntersectionObserver(() => {}, { threshold: [0.6], root: document.getElementById("forYouFeed") });
+  cards.forEach(c => io.observe(c));
+}
+
+/* ---------------- Rewards ---------------- */
+function renderRewards() {
+  const today = new Date().toDateString();
+  if (state.lastCheckIn !== today) {
+    document.getElementById("rewardsDot").style.display = "block";
+  } else {
+    document.getElementById("rewardsDot").style.display = "none";
+  }
+
+  const row = document.getElementById("streakRow");
+  row.innerHTML = "";
+  for (let day = 1; day <= 7; day++) {
+    const claimed = day <= state.checkedInDays;
+    const isNext = day === state.checkedInDays + 1;
+    const chip = document.createElement("div");
+    chip.className = "day-chip " + (claimed ? "claimed" : isNext ? "next" : "");
+    chip.innerHTML = `<span>Day ${day}</span><b>🪙${day * 5}</b>`;
+    if (isNext && state.lastCheckIn !== today) {
+      chip.addEventListener("click", () => {
+        state.checkedInDays += 1;
+        state.lastCheckIn = today;
+        state.coins += day * 5;
+        saveState();
+        updateCoinDisplays();
+        toast(`+${day * 5} coins — Day ${day} claimed!`);
+        renderRewards();
+      });
+    }
+    row.appendChild(chip);
+  }
+  updateCoinDisplays();
+}
+
+document.getElementById("watchAdBtn").addEventListener("click", () => {
+  state.coins += 10;
+  saveState();
+  updateCoinDisplays();
+  toast("+10 coins earned");
+});
+document.getElementById("inviteBtn").addEventListener("click", () => {
+  state.coins += 50;
+  saveState();
+  updateCoinDisplays();
+  toast("+50 coins — invite link copied!");
 });
 
 function renderMine() {
@@ -452,7 +612,7 @@ function renderMine() {
 function init() {
   loadState();
   updateCoinDisplays();
-  renderFeed("all");
+  renderFeed();
   switchView("home");
   renderCoinPackages();
 

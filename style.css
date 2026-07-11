@@ -67,6 +67,152 @@ input { font: inherit; color: inherit; }
   background-clip: text;
   color: transparent;
 }
+/* ---------- Top bar v2 (Home, ReelShort-style) ---------- */
+.topbar-v2 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px 8px;
+}
+.brand-mark { width: 32px; height: 32px; flex-shrink: 0; }
+.brand-mark svg { width: 100%; height: 100%; display: block; }
+.search-bar {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 8px 10px 8px 14px;
+  min-width: 0;
+}
+.search-bar svg { width: 16px; height: 16px; color: var(--text-dim); flex-shrink: 0; }
+.search-bar input {
+  flex: 1;
+  min-width: 0;
+  background: none;
+  border: none;
+  outline: none;
+  color: var(--text);
+  font-size: 13px;
+}
+.search-bar input::placeholder { color: var(--text-dim); }
+.filter-btn { width: 22px; height: 22px; color: var(--text-dim); flex-shrink: 0; }
+.filter-btn svg { width: 100%; height: 100%; }
+.vip-badge {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: linear-gradient(90deg, #3a2a08, #1a1408);
+  border: 1px solid var(--gold);
+  color: var(--gold);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  padding: 7px 12px;
+  border-radius: 999px;
+  flex-shrink: 0;
+}
+.vip-badge .crown { font-size: 12px; }
+
+.genre-tabs-v2 {
+  display: flex;
+  gap: 18px;
+  padding: 4px 16px 10px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.genre-tabs-v2::-webkit-scrollbar { display: none; }
+.gtab {
+  position: relative;
+  white-space: nowrap;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  color: var(--text-dim);
+  padding-bottom: 4px;
+}
+.gtab.active { color: var(--text); font-size: 14px; }
+.gdot {
+  position: absolute;
+  top: -2px;
+  right: -8px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+.sub-genre-tabs { padding-top: 0; padding-bottom: 8px; }
+
+/* ---------- Poster grid ---------- */
+.poster-grid {
+  flex: 1;
+  overflow-y: auto;
+  padding: 4px 12px 90px;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px 8px;
+  align-content: start;
+}
+.poster-card { min-width: 0; }
+.poster-cover {
+  position: relative;
+  aspect-ratio: 2 / 3;
+  border-radius: 10px;
+  overflow: hidden;
+  margin-bottom: 6px;
+}
+.poster-badge {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  font-size: 9.5px;
+  font-weight: 800;
+  letter-spacing: 0.3px;
+  padding: 3px 7px;
+  border-radius: 6px;
+  color: #fff;
+  text-transform: uppercase;
+}
+.poster-badge.trending { background: linear-gradient(90deg, var(--accent), #7b2ff7); }
+.poster-badge.hot { background: var(--accent); }
+.poster-badge.new { background: #2ecc71; }
+.poster-badge.dubbed { background: var(--accent-2); }
+.poster-rank {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  font-size: 12px;
+  font-weight: 900;
+  padding: 2px 7px;
+  border-radius: 6px;
+  color: #1a1408;
+}
+.poster-rank.rank-1 { background: linear-gradient(90deg, #ffe07a, #ffb52e); }
+.poster-rank.rank-2 { background: linear-gradient(90deg, #e6e6ee, #b8b8c8); }
+.poster-rank.rank-3 { background: linear-gradient(90deg, #e3a26a, #c97a3f); }
+.poster-views {
+  position: absolute;
+  bottom: 6px;
+  right: 6px;
+  font-size: 10px;
+  font-weight: 700;
+  background: rgba(0,0,0,0.55);
+  padding: 2px 6px;
+  border-radius: 6px;
+}
+.poster-title {
+  font-size: 12.5px;
+  font-weight: 700;
+  line-height: 1.3;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.poster-genre { font-size: 11px; color: var(--text-dim); margin-top: 2px; }
+
 .coin-pill {
   display: flex;
   align-items: center;
@@ -400,6 +546,16 @@ input { font: inherit; color: inherit; }
 .nav-item svg { width: 22px; height: 22px; transition: color 0.15s; }
 .nav-item span { font-size: 10.5px; font-weight: 600; }
 .nav-item.active { color: var(--text); }
+.nav-icon-wrap { position: relative; display: inline-flex; }
+.nav-dot {
+  display: none;
+  position: absolute;
+  top: -2px; right: -4px;
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: 1.5px solid var(--bg);
+}
 
 /* ---------- Modals ---------- */
 .modal-backdrop {
@@ -533,6 +689,42 @@ input { font: inherit; color: inherit; }
 .toast.show { opacity: 1; transform: translateX(-50%) translateY(-6px); }
 
 .empty-state { text-align: center; color: var(--text-dim); padding: 60px 20px; font-size: 13.5px; }
+
+/* ---------- Rewards ---------- */
+.reward-balance-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: linear-gradient(135deg, #2a1206, #1a0d1e);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 16px 18px;
+  margin-bottom: 18px;
+}
+.reward-balance-label { font-size: 12px; color: var(--text-dim); margin-bottom: 4px; }
+.reward-balance-amt { font-size: 20px; font-weight: 800; color: var(--gold); }
+.reward-section-title { font-size: 13px; font-weight: 700; color: var(--text-dim); margin: 14px 0 10px; text-transform: uppercase; letter-spacing: 0.4px; }
+.streak-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.day-chip {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 10px 4px;
+  text-align: center;
+  color: var(--text-dim);
+}
+.day-chip span { display: block; font-size: 10.5px; font-weight: 700; margin-bottom: 4px; }
+.day-chip b { font-size: 12px; color: var(--text-dim); }
+.day-chip.claimed { background: var(--panel-2); color: var(--text); }
+.day-chip.claimed b { color: var(--gold); }
+.day-chip.next { border-color: var(--accent); color: var(--text); }
+.day-chip.next b { color: var(--gold); }
+
+/* ---------- VIP modal ---------- */
+.vip-perks { list-style: none; margin: 8px 0 4px; display: flex; flex-direction: column; gap: 8px; }
+.vip-perks li { font-size: 13.5px; color: var(--text); }
+
+.player-bottom-nav-spacer { padding-bottom: 70px; }
+.foryou-cta { margin-top: 10px; }
 
 /* ---------- Double-tap heart burst ---------- */
 .heart-burst {
