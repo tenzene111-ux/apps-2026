@@ -12,7 +12,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="Reelflix" />
-  <link rel="stylesheet" href="style.css?v=6" />
+  <link rel="stylesheet" href="style.css?v=7" />
 </head>
 <body>
   <div id="splash">
@@ -163,7 +163,7 @@
             <button class="vgtab" data-vgtab="redemption">Redemption</button>
           </div>
 
-          <div class="vg-panel active" id="vgPanel-benefits">
+          <div class="vg-panel" id="vgSectionBenefits">
             <div class="balance-row"><span>My VIP Gems ›</span><span class="balance-amt">💎 <b data-gem-balance>0</b></span></div>
             <div class="crackbox-card">
               <h3>Crack the Box! Huge Gems Drop!</h3>
@@ -174,7 +174,12 @@
             </div>
           </div>
 
-          <div class="vg-panel" id="vgPanel-redemption" style="display:none">
+          <div class="vipgems-subtabs vipgems-subtabs-sticky">
+            <button class="vgtab" data-vgtab="benefits">VIP Benefits</button>
+            <button class="vgtab active" data-vgtab="redemption">Redemption</button>
+          </div>
+
+          <div class="vg-panel" id="vgSectionRedemption">
             <div class="my-items-row">My Items <span>›</span></div>
             <div class="redeem-grid" id="redeemGrid"></div>
             <div class="points-redemption-link">Points Redemption <span class="info-dot">?</span></div>
@@ -285,6 +290,6 @@
     </div>
   </div>
 
-  <script src="app.js?v=6"></script>
+  <script src="app.js?v=7"></script>
 </body>
 </html>

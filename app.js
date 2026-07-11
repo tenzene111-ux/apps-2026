@@ -805,14 +805,12 @@ document.querySelectorAll("#rewardsToptabs .rtab").forEach((btn) => {
   });
 });
 
-document.querySelectorAll("#vipGemsSubtabs .vgtab").forEach((btn) => {
+document.querySelectorAll(".vgtab").forEach((btn) => {
   btn.addEventListener("click", () => {
-    document.querySelectorAll("#vipGemsSubtabs .vgtab").forEach((b) => b.classList.remove("active"));
-    btn.classList.add("active");
     const tab = btn.dataset.vgtab;
-    document.getElementById("vgPanel-benefits").classList.toggle("active", tab === "benefits");
-    document.getElementById("vgPanel-benefits").style.display = tab === "benefits" ? "block" : "none";
-    document.getElementById("vgPanel-redemption").style.display = tab === "redemption" ? "block" : "none";
+    document.querySelectorAll(".vgtab").forEach((b) => b.classList.toggle("active", b.dataset.vgtab === tab));
+    const target = document.getElementById(tab === "benefits" ? "vgSectionBenefits" : "vgSectionRedemption");
+    target.scrollIntoView({ behavior: "smooth", block: "start" });
   });
 });
 

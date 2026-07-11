@@ -890,8 +890,7 @@ input { font: inherit; color: inherit; }
 }
 .vgtab { flex: 1; padding: 9px; border-radius: 8px; font-size: 13px; font-weight: 700; color: var(--text-dim); }
 .vgtab.active { background: var(--panel); color: var(--gold); }
-.vg-panel { display: none; }
-.vg-panel.active { display: block; }
+.vipgems-subtabs-sticky { margin: 22px 0 16px; }
 
 .crackbox-card {
   background: radial-gradient(circle at 50% 0%, #3a2308, #17100a);
