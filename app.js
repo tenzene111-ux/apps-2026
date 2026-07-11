@@ -23,10 +23,10 @@ const DRAMAS = [
 ];
 
 const COIN_PACKAGES = [
-  { coins: 100, price: "Nu. 85" },
-  { coins: 350, price: "Nu. 250" },
-  { coins: 800, price: "Nu. 500" },
-  { coins: 2000, price: "Nu. 1,090" },
+  { coins: 100, price: "Nu. 25" },
+  { coins: 350, price: "Nu. 79" },
+  { coins: 800, price: "Nu. 169" },
+  { coins: 2000, price: "Nu. 399" },
 ];
 
 const UNLOCK_COST = 30;
