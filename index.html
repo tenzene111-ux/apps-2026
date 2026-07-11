@@ -12,7 +12,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="Reelflix" />
-  <link rel="stylesheet" href="style.css?v=12" />
+  <link rel="stylesheet" href="style.css?v=13" />
 </head>
 <body>
   <svg width="0" height="0" style="position:absolute" aria-hidden="true">
@@ -130,6 +130,24 @@
 
     <symbol id="ic-play" viewBox="0 0 24 24">
       <path d="M7 5v14l12-7z" fill="currentColor"/>
+    </symbol>
+
+    <symbol id="ic-search" viewBox="0 0 24 24">
+      <circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" stroke-width="2"/>
+      <path d="M21 21l-4.3-4.3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+    </symbol>
+
+    <symbol id="ic-bookmark" viewBox="0 0 24 24">
+      <path d="M6 4h12v17l-6-4-6 4z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>
+    </symbol>
+    <symbol id="ic-bookmark-filled" viewBox="0 0 24 24">
+      <path d="M6 4h12v17l-6-4-6 4z" fill="currentColor"/>
+    </symbol>
+
+    <symbol id="ic-more" viewBox="0 0 24 24">
+      <circle cx="5" cy="12" r="1.7" fill="currentColor"/>
+      <circle cx="12" cy="12" r="1.7" fill="currentColor"/>
+      <circle cx="19" cy="12" r="1.7" fill="currentColor"/>
     </symbol>
   </svg>
 
@@ -425,6 +443,16 @@
     </div>
   </div>
 
+  <div class="modal-backdrop" id="moreModal">
+    <div class="modal">
+      <h3>More</h3>
+      <div class="more-row" data-more="comment"><svg class="ic"><use href="#ic-comment"/></svg> Comments</div>
+      <div class="more-row" data-more="share"><svg class="ic"><use href="#ic-share"/></svg> Share</div>
+      <div class="more-row" data-more="report"><svg class="ic"><use href="#ic-fire"/></svg> Report</div>
+      <button class="modal-close" data-close="moreModal">✕</button>
+    </div>
+  </div>
+
   <div class="modal-backdrop" id="inviteModal">
     <div class="modal">
       <h3>Invitation Code</h3>
@@ -471,6 +499,6 @@
     </div>
   </div>
 
-  <script src="app.js?v=12"></script>
+  <script src="app.js?v=13"></script>
 </body>
 </html>

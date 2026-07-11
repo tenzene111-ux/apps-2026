@@ -393,6 +393,19 @@ function observePlayerCards() {
   cards.forEach(c => io.observe(c));
 }
 
+/* ---------------- More action sheet (For You) ---------------- */
+let moreModalTarget = null;
+document.querySelectorAll("#moreModal .more-row").forEach((row) => {
+  row.addEventListener("click", () => {
+    const action = row.dataset.more;
+    closeModal("moreModal");
+    if (!moreModalTarget) return;
+    if (action === "comment") openComments(moreModalTarget, 1);
+    if (action === "share") openModal("shareModal");
+    if (action === "report") toast("Report submitted — thanks for the feedback");
+  });
+});
+
 /* ---------------- Comments ---------------- */
 const SAMPLE_NAMES = ["Mia", "Jordan", "Aaliyah", "Sam", "Priya", "Leo", "Nora", "Ken"];
 function openComments(drama, epNum) {
@@ -526,29 +539,46 @@ function renderForYouFeed() {
 
 function buildForYouCard(d) {
   const card = document.createElement("div");
-  card.className = "player-card";
+  card.className = "player-card foryou-card";
   const likeKey = d.id + ":foryou";
+  const claimKey = "foryouClaim:" + d.id;
   const baseLikes = 2000 + (d.id.charCodeAt(1) * 53) % 3000;
+  const baseSaves = 8000 + (d.id.charCodeAt(1) * 337) % 30000;
   const liked = !!state.likes[likeKey];
+  const saved = !!state.followed[d.id];
+  const claimed = !!state.claimedTasks[claimKey];
+
   card.innerHTML = `
     <div class="player-bg" style="background:${gradientFor(d.id, 1)}"></div>
     <div class="player-vignette"></div>
-    <div class="player-topbar">
-      <div></div>
-      <button class="icon-btn mute-btn" data-muted="false">${muteIconHTML(false)}</button>
+    <div class="fyu-topbar">
+      <div class="fyu-logo"><svg viewBox="0 0 64 64"><rect width="64" height="64" rx="16" fill="url(#coinGrad)" opacity="0"/><rect x="1" y="1" width="62" height="62" rx="15" fill="none" stroke="currentColor" stroke-width="3"/><text x="32" y="42" font-size="30" font-weight="800" text-anchor="middle" fill="currentColor" font-family="Arial, sans-serif">R</text></svg></div>
+      <button class="fyu-search-btn"><svg class="ic"><use href="#ic-search"/></svg></button>
     </div>
-    <div class="player-rail">
+    <div class="center-play-btn"><svg class="ic"><use href="#ic-play"/></svg></div>
+    <div class="player-rail fyu-rail">
+      ${!claimed ? `
+      <button class="rail-btn claim-btn" data-claim="${claimKey}">
+        <span class="claim-coin"><svg class="ic ic-coin"><use href="#ic-coin"/></svg></span>
+        <span class="claim-pill">Claim</span>
+      </button>` : ""}
+      <button class="rail-btn bookmark-btn ${saved ? 'saved' : ''}" data-bookmark="${d.id}"><svg class="ic"><use href="#ic-bookmark${saved ? '-filled' : ''}"/></svg><span>${formatCount(baseSaves + (saved ? 1 : 0))}</span></button>
       <button class="rail-btn like-btn ${liked ? 'liked' : ''}" data-like="${likeKey}">${heartIconHTML(liked)}<span>${formatCount(baseLikes + (liked ? 1 : 0))}</span></button>
-      <button class="rail-btn comment-btn"><svg class="ic"><use href="#ic-comment"/></svg><span>${200 + d.episodes % 50}</span></button>
-      <button class="rail-btn share-btn2"><svg class="ic"><use href="#ic-share"/></svg><span>Share</span></button>
+      <button class="rail-btn more-btn"><svg class="ic"><use href="#ic-more"/></svg><span>More</span></button>
     </div>
-    <div class="player-bottom player-bottom-nav-spacer">
-      <h3>${d.title}</h3>
-      <p class="ep-label">${d.label} · ${d.episodes} Episodes</p>
-      <p class="ep-desc">${d.desc}</p>
-      <button class="btn-primary foryou-cta"><svg class="ic"><use href="#ic-play"/></svg> Watch Full Series</button>
+    <div class="player-bottom player-bottom-nav-spacer fyu-bottom">
+      <div class="fyu-title-row">
+        <div class="fyu-thumb" style="background:${gradientFor(d.id)}"></div>
+        <div class="fyu-title-info">
+          <h3>${d.title} <span class="chevron">›</span></h3>
+          <span class="fyu-tag">${d.label}</span>
+        </div>
+      </div>
+      <p class="ep-desc">${d.desc} <span class="more-link">More</span></p>
+      <button class="btn-watch-now foryou-cta"><svg class="ic"><use href="#ic-play"/></svg> Watch Now</button>
     </div>
   `;
+
   card.querySelector(".like-btn").addEventListener("click", (e) => {
     state.likes[likeKey] = !state.likes[likeKey];
     saveState();
@@ -556,23 +586,46 @@ function buildForYouCard(d) {
     e.currentTarget.querySelector("use").setAttribute("href", state.likes[likeKey] ? "#ic-heart-filled" : "#ic-heart");
     e.currentTarget.querySelector("span").textContent = formatCount(baseLikes + (state.likes[likeKey] ? 1 : 0));
   });
-  card.querySelector(".comment-btn").addEventListener("click", () => openComments(d, 1));
-  card.querySelector(".share-btn2").addEventListener("click", () => openModal("shareModal"));
-  card.querySelector(".mute-btn").addEventListener("click", (e) => {
+  card.querySelector(".bookmark-btn").addEventListener("click", (e) => {
+    state.followed[d.id] = !state.followed[d.id];
+    saveState();
     const btn = e.currentTarget;
-    const muted = btn.dataset.muted !== "true";
-    btn.dataset.muted = String(muted);
-    btn.querySelector("use").setAttribute("href", muted ? "#ic-mute" : "#ic-unmute");
+    btn.classList.toggle("saved", state.followed[d.id]);
+    btn.querySelector("use").setAttribute("href", state.followed[d.id] ? "#ic-bookmark-filled" : "#ic-bookmark");
+    btn.querySelector("span").textContent = formatCount(baseSaves + (state.followed[d.id] ? 1 : 0));
+    toast(state.followed[d.id] ? "Added to My List" : "Removed from My List");
   });
+  const claimBtn = card.querySelector(".claim-btn");
+  if (claimBtn) {
+    claimBtn.addEventListener("click", () => {
+      state.claimedTasks[claimKey] = true;
+      state.coins += 5;
+      saveState();
+      updateCoinDisplays();
+      toast("+5 coins claimed!");
+      claimBtn.remove();
+    });
+  }
+  card.querySelector(".more-btn").addEventListener("click", () => {
+    moreModalTarget = d;
+    openModal("moreModal");
+  });
+  card.querySelector(".fyu-search-btn").addEventListener("click", () => toast("Search coming soon"));
   card.querySelector(".foryou-cta").addEventListener("click", () => openDetail(d.id));
+  card.querySelector(".fyu-title-row").addEventListener("click", () => openDetail(d.id));
+  card.querySelector(".more-link").addEventListener("click", () => openDetail(d.id));
 
   let lastTap = 0;
+  let singleTapTimer = null;
   card.addEventListener("pointerup", (e) => {
-    if (e.target.closest("button")) return;
+    if (e.target.closest("button, .fyu-title-row, .more-link")) return;
     const now = Date.now();
     if (now - lastTap < 320) {
+      clearTimeout(singleTapTimer);
       if (!state.likes[likeKey]) card.querySelector(".like-btn").click();
       spawnHeartBurst(card, e.clientX, e.clientY);
+    } else {
+      singleTapTimer = setTimeout(() => card.classList.toggle("paused"), 300);
     }
     lastTap = now;
   });

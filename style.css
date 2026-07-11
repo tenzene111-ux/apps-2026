@@ -1188,3 +1188,86 @@ input { font: inherit; color: inherit; }
 .app-icon .ic { width: 24px; height: 24px; }
 .uid-copy .ic { width: 13px; height: 13px; }
 .share-btn .ic { width: 15px; height: 15px; margin-right: 2px; }
+
+/* ---------- For You card (ReelShort-style) ---------- */
+.fyu-topbar {
+  position: relative;
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 14px 0;
+}
+.fyu-logo { width: 30px; height: 30px; color: #fff; filter: drop-shadow(0 1px 3px rgba(0,0,0,0.5)); }
+.fyu-logo svg { width: 100%; height: 100%; }
+.fyu-search-btn { width: 22px; height: 22px; color: #fff; filter: drop-shadow(0 1px 3px rgba(0,0,0,0.5)); }
+.fyu-search-btn .ic { width: 100%; height: 100%; }
+
+.center-play-btn {
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 3;
+  width: 64px; height: 64px;
+  border-radius: 50%;
+  background: rgba(0,0,0,0.45);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  pointer-events: none;
+}
+.center-play-btn .ic { width: 26px; height: 26px; margin-left: 3px; }
+.foryou-card.paused .center-play-btn { display: flex; }
+
+.fyu-rail { gap: 20px; }
+.claim-btn { align-items: center; }
+.claim-coin { display: flex; }
+.claim-coin .ic { width: 30px; height: 30px; }
+.claim-pill {
+  background: linear-gradient(90deg, #ffb52e, var(--gold));
+  color: #1a1408;
+  font-size: 11px;
+  font-weight: 800;
+  padding: 3px 10px;
+  border-radius: 999px;
+  margin-top: 2px;
+}
+.bookmark-btn.saved { color: var(--gold); }
+
+.fyu-bottom { padding-right: 68px; }
+.fyu-title-row { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; cursor: pointer; }
+.fyu-thumb { width: 40px; height: 40px; border-radius: 8px; flex-shrink: 0; }
+.fyu-title-info { min-width: 0; }
+.fyu-title-info h3 { font-size: 15.5px; font-weight: 800; display: flex; align-items: center; gap: 2px; }
+.fyu-title-info .chevron { color: var(--text-dim); font-weight: 700; }
+.fyu-tag { font-size: 11.5px; color: var(--text-dim); }
+.more-link { color: var(--text-dim); font-weight: 700; cursor: pointer; }
+
+.btn-watch-now {
+  width: 100%;
+  background: #e8242b;
+  color: #fff;
+  font-weight: 800;
+  font-size: 14.5px;
+  padding: 13px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 10px;
+}
+.btn-watch-now .ic { width: 15px; height: 15px; }
+
+.more-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 4px;
+  border-bottom: 1px solid var(--line);
+  font-size: 14px;
+  cursor: pointer;
+}
+.more-row:last-of-type { border-bottom: none; }
+.more-row .ic { width: 19px; height: 19px; color: var(--text-dim); }
