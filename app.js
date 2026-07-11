@@ -43,8 +43,14 @@ const state = {
   subGenre: "all",
   searchTerm: "",
   vip: false,
-  checkedInDays: 0,
-  lastCheckIn: null,
+  gems: 0,
+  adsWatchedToday: 0,
+  adsDate: null,
+  claimedTasks: {},
+  questClaimed: {},
+  freshClaimed: {},
+  redeemed: {},
+  sessionStart: null,
 };
 
 function loadState() {
@@ -56,6 +62,12 @@ function loadState() {
   if (typeof state.coinsInit === "undefined") {
     state.coins = 120;
     state.coinsInit = true;
+  }
+  if (!state.sessionStart) state.sessionStart = Date.now();
+  const today = new Date().toDateString();
+  if (state.adsDate !== today) {
+    state.adsDate = today;
+    state.adsWatchedToday = 0;
   }
 }
 function saveState() {
@@ -87,6 +99,7 @@ function toast(msg) {
 
 function updateCoinDisplays() {
   document.querySelectorAll("[data-coin-balance]").forEach(el => el.textContent = state.coins);
+  document.querySelectorAll("[data-gem-balance]").forEach(el => el.textContent = state.gems);
 }
 
 /* ---------------- Views ---------------- */
@@ -555,49 +568,252 @@ function observeForYouCards() {
 }
 
 /* ---------------- Rewards ---------------- */
-function renderRewards() {
-  const today = new Date().toDateString();
-  if (state.lastCheckIn !== today) {
-    document.getElementById("rewardsDot").style.display = "block";
-  } else {
-    document.getElementById("rewardsDot").style.display = "none";
-  }
+const QUEST_TIERS = [
+  { seconds: 30, coins: 1 },
+  { seconds: 60, coins: 1 },
+  { seconds: 120, coins: 2 },
+  { seconds: 240, coins: 4 },
+  { seconds: 420, coins: 6 },
+  { seconds: 600, coins: 6 },
+];
+const FRESH_TIERS = [
+  { seconds: 30, coins: 3 },
+  { seconds: 120, coins: 9 },
+  { seconds: 300, coins: 18 },
+  { seconds: 600, coins: 30 },
+];
+const REDEEM_ITEMS = [
+  { id: "vip1", name: "1-Day VIP Pass", cost: 3000, max: 3, icon: "👑" },
+  { id: "vote", name: "Vote Prop", cost: 200, max: null, icon: "🔥" },
+  { id: "choice1", name: "Interactive Choice Pass", cost: 1000, max: null, icon: "🎫" },
+  { id: "vip3", name: "3-Day VIP Pass", cost: 8000, max: 1, icon: "👑" },
+  { id: "choice3", name: "Interactive Choice Pass x3", cost: 2500, max: null, icon: "🎫" },
+];
+const APP_PROMOS = [
+  { icon: "💬", label: "StoryMe", bg: "linear-gradient(135deg,#7b2ff7,#f107a3)" },
+  { icon: "📮", label: "MailDash", bg: "linear-gradient(135deg,#2b5876,#4e4376)" },
+  { icon: "⚡", label: "QuizFlash", bg: "linear-gradient(135deg,#ff7a45,#c91e63)" },
+  { icon: "🧩", label: "PuzzleHit", bg: "linear-gradient(135deg,#0f2027,#2c5364)" },
+];
 
-  const row = document.getElementById("streakRow");
-  row.innerHTML = "";
-  for (let day = 1; day <= 7; day++) {
-    const claimed = day <= state.checkedInDays;
-    const isNext = day === state.checkedInDays + 1;
-    const chip = document.createElement("div");
-    chip.className = "day-chip " + (claimed ? "claimed" : isNext ? "next" : "");
-    chip.innerHTML = `<span>Day ${day}</span><b>🪙${day * 5}</b>`;
-    if (isNext && state.lastCheckIn !== today) {
-      chip.addEventListener("click", () => {
-        state.checkedInDays += 1;
-        state.lastCheckIn = today;
-        state.coins += day * 5;
-        saveState();
-        updateCoinDisplays();
-        toast(`+${day * 5} coins — Day ${day} claimed!`);
-        renderRewards();
-      });
-    }
-    row.appendChild(chip);
-  }
-  updateCoinDisplays();
+let rewardsTickInterval = null;
+
+function elapsedSeconds() {
+  return Math.floor((Date.now() - state.sessionStart) / 1000);
 }
 
-document.getElementById("watchAdBtn").addEventListener("click", () => {
-  state.coins += 10;
-  saveState();
+function stopRewardsTicker() {
+  if (rewardsTickInterval) { clearInterval(rewardsTickInterval); rewardsTickInterval = null; }
+}
+
+function renderRewards() {
+  document.getElementById("rewardsTabDot").style.display = "block";
+  renderQuestStrip();
+  renderFreshDramaStrip();
+  renderAdSlots();
+  renderRedeemGrid();
+  renderAppPromos();
+  applyClaimedTaskButtons();
   updateCoinDisplays();
-  toast("+10 coins earned");
+  document.getElementById("fullDramaProgress").textContent = state.claimedTasks.fulldrama ? "1" : "0";
+  stopRewardsTicker();
+  rewardsTickInterval = setInterval(() => {
+    if (state.view !== "rewards") { stopRewardsTicker(); return; }
+    renderQuestStrip();
+    renderFreshDramaStrip();
+  }, 5000);
+}
+
+function renderQuestStrip() {
+  const el = elapsedSeconds();
+  const strip = document.getElementById("questStrip");
+  strip.innerHTML = "";
+  let nextLocked = null;
+  QUEST_TIERS.forEach((tier, i) => {
+    const unlocked = el >= tier.seconds;
+    const claimed = !!state.questClaimed[i];
+    if (!unlocked && nextLocked === null) nextLocked = tier;
+    const chip = document.createElement("div");
+    chip.className = "quest-tier " + (claimed ? "claimed" : unlocked ? "unlocked" : "");
+    chip.innerHTML = `<span class="qcoin">🪙${tier.coins}</span><span class="qtime">${formatTierTime(tier.seconds)}</span>`;
+    strip.appendChild(chip);
+  });
+  document.getElementById("questSubText").textContent = nextLocked
+    ? `Watch ${nextLocked.seconds - el}s more to earn 🪙${nextLocked.coins}`
+    : "All coin tiers unlocked!";
+}
+
+function formatTierTime(s) {
+  if (s < 60) return s + "s";
+  return Math.round(s / 60) + "min";
+}
+
+document.getElementById("claimAllQuestBtn").addEventListener("click", () => {
+  const el = elapsedSeconds();
+  let total = 0;
+  QUEST_TIERS.forEach((tier, i) => {
+    if (el >= tier.seconds && !state.questClaimed[i]) {
+      state.questClaimed[i] = true;
+      total += tier.coins;
+    }
+  });
+  if (total > 0) {
+    state.coins += total;
+    saveState();
+    updateCoinDisplays();
+    renderQuestStrip();
+    toast(`+${total} coins claimed!`);
+  } else {
+    toast("Nothing to claim yet — keep watching!");
+  }
 });
-document.getElementById("inviteBtn").addEventListener("click", () => {
-  state.coins += 50;
+
+function renderFreshDramaStrip() {
+  const el = elapsedSeconds();
+  const strip = document.getElementById("freshDramaStrip");
+  strip.innerHTML = "";
+  FRESH_TIERS.forEach((tier, i) => {
+    const unlocked = el >= tier.seconds;
+    const claimed = !!state.freshClaimed[i];
+    const tile = document.createElement("div");
+    tile.className = "fresh-tile " + (claimed ? "claimed" : unlocked ? "unlocked" : "");
+    tile.innerHTML = `<b>${tier.coins}</b><span>${formatTierTime(tier.seconds)}</span>`;
+    if (unlocked && !claimed) {
+      tile.addEventListener("click", () => {
+        state.freshClaimed[i] = true;
+        state.coins += tier.coins;
+        saveState();
+        updateCoinDisplays();
+        toast(`+${tier.coins} coins claimed!`);
+        renderFreshDramaStrip();
+      });
+    }
+    strip.appendChild(tile);
+  });
+}
+
+function renderAdSlots() {
+  const wrap = document.getElementById("adSlots");
+  wrap.innerHTML = "";
+  document.getElementById("adsWatchedCount").textContent = state.adsWatchedToday;
+  for (let i = 1; i <= 5; i++) {
+    const claimed = i <= state.adsWatchedToday;
+    const slot = document.createElement("div");
+    slot.className = "ad-slot " + (claimed ? "claimed" : "");
+    slot.innerHTML = `<b>🪙10</b>Ad.${i}`;
+    wrap.appendChild(slot);
+  }
+}
+
+function watchAd() {
+  if (state.adsWatchedToday >= 12) { toast("No more ads available today"); return; }
+  toast("▶ Ad playing…");
+  setTimeout(() => {
+    state.adsWatchedToday += 1;
+    state.coins += 10;
+    saveState();
+    updateCoinDisplays();
+    renderAdSlots();
+    toast("+10 coins earned!");
+  }, 900);
+}
+document.getElementById("watchAdMainBtn").addEventListener("click", watchAd);
+
+document.addEventListener("click", (e) => {
+  const btn = e.target.closest(".task-btn[data-task]");
+  if (!btn || btn.disabled) return;
+  const key = btn.dataset.task;
+  if (state.claimedTasks[key]) return;
+  const coins = Number(btn.dataset.coins) || 0;
+  state.claimedTasks[key] = true;
+  state.coins += coins;
   saveState();
   updateCoinDisplays();
-  toast("+50 coins — invite link copied!");
+  btn.textContent = "Claimed";
+  btn.disabled = true;
+  btn.classList.add("claimed-btn");
+  toast(`+${coins} coins claimed!`);
+  if (key === "fulldrama") document.getElementById("fullDramaProgress").textContent = "1";
+});
+
+function applyClaimedTaskButtons() {
+  document.querySelectorAll(".task-btn[data-task]").forEach((btn) => {
+    if (state.claimedTasks[btn.dataset.task]) {
+      btn.textContent = "Claimed";
+      btn.disabled = true;
+      btn.classList.add("claimed-btn");
+    }
+  });
+}
+
+function renderRedeemGrid() {
+  const grid = document.getElementById("redeemGrid");
+  grid.innerHTML = "";
+  REDEEM_ITEMS.forEach((item) => {
+    const owned = state.redeemed[item.id] || 0;
+    const maxedOut = item.max !== null && owned >= item.max;
+    const card = document.createElement("div");
+    card.className = "redeem-card";
+    card.innerHTML = `
+      ${item.max !== null ? `<span class="redeem-owned">${owned}/${item.max}</span>` : ""}
+      <div class="redeem-icon">${item.icon}</div>
+      <div class="redeem-name">${item.name}</div>
+      <button class="redeem-cost-btn" ${maxedOut ? "disabled" : ""}>${maxedOut ? "Maxed" : "💎 " + item.cost}</button>
+    `;
+    if (!maxedOut) {
+      card.querySelector(".redeem-cost-btn").addEventListener("click", () => {
+        if (state.gems < item.cost) { toast("Not enough gems"); return; }
+        state.gems -= item.cost;
+        state.redeemed[item.id] = owned + 1;
+        saveState();
+        updateCoinDisplays();
+        toast(`Redeemed ${item.name}!`);
+        renderRedeemGrid();
+      });
+    }
+    grid.appendChild(card);
+  });
+}
+
+function renderAppPromos() {
+  const row = document.getElementById("appsRow");
+  row.innerHTML = "";
+  APP_PROMOS.forEach((app) => {
+    const tile = document.createElement("div");
+    tile.className = "app-tile";
+    tile.innerHTML = `<div class="app-icon" style="background:${app.bg}">${app.icon}</div>${app.label}`;
+    row.appendChild(tile);
+  });
+}
+
+document.getElementById("crackBoxBtn").addEventListener("click", () => {
+  state.gems += 3000;
+  saveState();
+  updateCoinDisplays();
+  toast("Subscribed! +3000 gems");
+  renderRedeemGrid();
+});
+
+document.querySelectorAll("#rewardsToptabs .rtab").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll("#rewardsToptabs .rtab").forEach((b) => b.classList.remove("active"));
+    btn.classList.add("active");
+    const tab = btn.dataset.rtab;
+    document.getElementById("panel-rewards").classList.toggle("active", tab === "rewards");
+    document.getElementById("panel-vipgems").classList.toggle("active", tab === "vipgems");
+    if (tab === "vipgems") document.getElementById("rewardsTabDot").style.display = "none";
+  });
+});
+
+document.querySelectorAll("#vipGemsSubtabs .vgtab").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll("#vipGemsSubtabs .vgtab").forEach((b) => b.classList.remove("active"));
+    btn.classList.add("active");
+    const tab = btn.dataset.vgtab;
+    document.getElementById("vgPanel-benefits").classList.toggle("active", tab === "benefits");
+    document.getElementById("vgPanel-benefits").style.display = tab === "benefits" ? "block" : "none";
+    document.getElementById("vgPanel-redemption").style.display = tab === "redemption" ? "block" : "none";
+  });
 });
 
 function renderMine() {
@@ -615,6 +831,7 @@ function init() {
   renderFeed();
   switchView("home");
   renderCoinPackages();
+  document.getElementById("rewardsDot").style.display = "block";
 
   const splash = document.getElementById("splash");
   setTimeout(() => splash.classList.add("hide"), 900);

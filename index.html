@@ -12,7 +12,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="Reelflix" />
-  <link rel="stylesheet" href="style.css?v=5" />
+  <link rel="stylesheet" href="style.css?v=6" />
 </head>
 <body>
   <div id="splash">
@@ -102,20 +102,84 @@
 
     <!-- REWARDS -->
     <section id="view-rewards" class="view">
-      <header class="topbar"><h1 class="logo">Rewards</h1></header>
-      <div class="mine-view">
-        <div class="reward-balance-card">
-          <div>
-            <div class="reward-balance-label">Your Balance</div>
-            <div class="reward-balance-amt">🪙 <span data-coin-balance>0</span></div>
+      <header class="rewards-toptabs" id="rewardsToptabs">
+        <button class="rtab active" data-rtab="rewards">🪙 Rewards<span class="rdot" id="rewardsTabDot"></span></button>
+        <button class="rtab" data-rtab="vipgems">💎 VIP Gems</button>
+      </header>
+
+      <div class="rewards-scroll" id="rewardsScroll">
+        <!-- REWARDS PANEL -->
+        <div class="rewards-panel active" id="panel-rewards">
+          <div class="rewards-hero">
+            <h2>EARN <span class="accent-text">COINS</span>,<br>UNLOCK EPISODES</h2>
+            <div class="coin-illustration">🪙</div>
           </div>
-          <button class="btn-primary" data-open="coinModal">Top Up</button>
+          <div class="balance-row">
+            <span>Balance ›</span>
+            <span class="balance-amt">🪙 <b data-coin-balance>0</b></span>
+          </div>
+
+          <div class="quest-card">
+            <div class="quest-card-title">Watch dramas and quest coins <span class="info-dot">?</span></div>
+            <div class="quest-card-sub" id="questSubText">Keep watching to unlock more coins</div>
+            <div class="quest-strip" id="questStrip"></div>
+            <button class="btn-claim-all" id="claimAllQuestBtn">Claim All</button>
+          </div>
+
+          <div class="benefits-card">
+            <div class="benefits-header"><span>Today's Benefits</span><span class="reset-text">Reset At 0:00</span></div>
+
+            <div class="task-row">
+              <div class="task-info"><b>🪙<span id="adsMaxCoins">120</span> at most</b><p>Watch ads (<span id="adsWatchedCount">0</span>/12) <span class="info-dot">?</span></p><small>Get 10 coins each time</small></div>
+              <button class="task-btn" id="watchAdMainBtn">Watch</button>
+            </div>
+            <div class="ad-slots" id="adSlots"></div>
+
+            <div class="task-row"><div class="task-info"><b>🪙20</b><p>Login rewards</p></div><button class="task-btn" data-task="login" data-coins="20">Go</button></div>
+            <div class="task-row"><div class="task-info"><b>🪙10</b><p>Turn on notifications</p></div><button class="task-btn" data-task="notif" data-coins="10">Claim</button></div>
+            <div class="task-row"><div class="task-info"><b>🪙10</b><p>Bind email</p></div><button class="task-btn" data-task="email" data-coins="10">Go</button></div>
+
+            <div class="task-row no-border"><div class="task-info"><b>🪙100 at most</b><p>Watch fresh dramas <span class="info-dot">?</span></p></div></div>
+            <div class="fresh-drama-strip" id="freshDramaStrip"></div>
+          </div>
+
+          <h4 class="reward-section-title">Quick Quests</h4>
+          <div class="task-row"><div class="task-info"><b>🪙10</b><p>Add 1 series to "My List"</p></div><button class="task-btn" data-task="addlist" data-coins="10">Claim</button></div>
+          <div class="task-row"><div class="task-info"><b>🪙200</b><p>Watch a full drama (<span id="fullDramaProgress">0</span>/1)</p></div><button class="task-btn" data-task="fulldrama" data-coins="200">Go</button></div>
+          <div class="task-row"><div class="task-info"><b>🪙5</b><p>Follow us on Facebook</p></div><button class="task-btn" data-task="fb" data-coins="5">Go</button></div>
+          <div class="task-row"><div class="task-info"><b>🪙5</b><p>Follow us on Instagram</p></div><button class="task-btn" data-task="ig" data-coins="5">Go</button></div>
+          <div class="task-row"><div class="task-info"><b>🪙5</b><p>Follow us on Youtube</p></div><button class="task-btn" data-task="yt" data-coins="5">Go</button></div>
+          <div class="task-row"><div class="task-info"><b>🪙5</b><p>Follow us on Tiktok</p></div><button class="task-btn" data-task="tiktok" data-coins="5">Go</button></div>
+          <div class="task-row"><div class="task-info"><p>Check in at meal time</p><small>Watch now! Get coins at 6 AM tomorrow! +🪙5</small></div><button class="task-btn claimed-btn" disabled>Claimed</button></div>
+
+          <h4 class="reward-section-title">Apps and Games <span class="apps-max">🪙2850 at most</span></h4>
+          <div class="apps-row" id="appsRow"></div>
         </div>
-        <h4 class="reward-section-title">Daily Check-in</h4>
-        <div class="streak-row" id="streakRow"></div>
-        <h4 class="reward-section-title">Earn More</h4>
-        <div class="mine-row"><span>📺 Watch an Ad</span><button id="watchAdBtn">+10 🪙</button></div>
-        <div class="mine-row"><span>🎁 Invite Friends</span><button id="inviteBtn">+50 🪙</button></div>
+
+        <!-- VIP GEMS PANEL -->
+        <div class="rewards-panel" id="panel-vipgems">
+          <div class="vipgems-subtabs" id="vipGemsSubtabs">
+            <button class="vgtab active" data-vgtab="benefits">VIP Benefits</button>
+            <button class="vgtab" data-vgtab="redemption">Redemption</button>
+          </div>
+
+          <div class="vg-panel active" id="vgPanel-benefits">
+            <div class="balance-row"><span>My VIP Gems ›</span><span class="balance-amt">💎 <b data-gem-balance>0</b></span></div>
+            <div class="crackbox-card">
+              <h3>Crack the Box! Huge Gems Drop!</h3>
+              <div class="social-proof">👤 just redeemed 1-Day VIP Pass</div>
+              <div class="chest-emoji">🎁</div>
+              <p class="chest-caption">Daily Drop: 100% Chance to Win, Max 💎3000 Gems!</p>
+              <button class="btn-subscribe" id="crackBoxBtn">Subscribe to claim<br><small>USD 5.99/week</small></button>
+            </div>
+          </div>
+
+          <div class="vg-panel" id="vgPanel-redemption" style="display:none">
+            <div class="my-items-row">My Items <span>›</span></div>
+            <div class="redeem-grid" id="redeemGrid"></div>
+            <div class="points-redemption-link">Points Redemption <span class="info-dot">?</span></div>
+          </div>
+        </div>
       </div>
     </section>
 
@@ -221,6 +285,6 @@
     </div>
   </div>
 
-  <script src="app.js?v=5"></script>
+  <script src="app.js?v=6"></script>
 </body>
 </html>
