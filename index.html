@@ -12,7 +12,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="Reelflix" />
-  <link rel="stylesheet" href="style.css?v=7" />
+  <link rel="stylesheet" href="style.css?v=8" />
 </head>
 <body>
   <div id="splash">
@@ -190,24 +190,41 @@
 
     <!-- PROFILE -->
     <section id="view-mine" class="view">
-      <header class="topbar"><h1 class="logo">Profile</h1></header>
-      <div class="mine-view">
-        <div class="mine-header">
-          <div class="mine-avatar">R</div>
-          <div>
-            <div style="font-weight:800;font-size:16px;">Guest Viewer</div>
-            <div style="color:var(--text-dim);font-size:12.5px;">Tap to sign in for backups</div>
+      <div class="profile-scroll">
+        <div class="profile-header">
+          <button class="firstlogin-badge task-btn" data-task="firstlogin" data-coins="20">🎁 Get 20 first login Coins!</button>
+          <div class="profile-id-row">
+            <div class="profile-avatar">👤</div>
+            <div class="profile-id">
+              <div class="profile-name">Guest</div>
+              <div class="profile-uid">UID: <span id="uidText">1062724055</span> <button class="uid-copy" id="copyUidBtn">⧉</button></div>
+            </div>
+            <button class="signin-btn" id="signInBtn">Sign in</button>
           </div>
         </div>
-        <div class="mine-stats">
-          <div><b data-coin-balance>0</b><span>Coins</span></div>
-          <div><b id="mineUnlocked">0</b><span>Unlocked</span></div>
-          <div><b id="mineFollowed">0</b><span>Following</span></div>
+
+        <div class="vip-promo-card">
+          <h3>Become a VIP – Enjoy all benefits</h3>
+          <div class="vip-promo-feats">
+            <div><span class="vip-feat-icon">📺</span>Short Drama Viewing</div>
+            <div><span class="vip-feat-icon">🎁</span>Daily VIP Reward</div>
+            <div><span class="vip-feat-icon">1080</span>1080P</div>
+          </div>
+          <button class="btn-go" data-open="vipModal">GO</button>
         </div>
-        <div class="mine-row"><span>🪙 Recharge Coins</span><button data-open="coinModal">Top up ›</button></div>
-        <div class="mine-row"><span>⭐ VIP Membership</span><button data-open="vipModal">View ›</button></div>
-        <div class="mine-row"><span>⚙️ Settings</span><button>›</button></div>
-        <div class="mine-row"><span>💬 Support</span><button>›</button></div>
+
+        <div class="wallet-card">
+          <div class="wallet-header">My Wallet <span>›</span></div>
+          <div class="wallet-row">
+            <div>
+              <div class="wallet-label">Coins</div>
+              <div class="wallet-amt">🪙 <b data-coin-balance>0</b></div>
+            </div>
+            <button class="refill-btn" data-open="coinModal">Refill</button>
+          </div>
+        </div>
+
+        <div class="profile-menu" id="profileMenu"></div>
       </div>
     </section>
 
@@ -290,6 +307,52 @@
     </div>
   </div>
 
-  <script src="app.js?v=7"></script>
+  <div class="modal-backdrop" id="inviteModal">
+    <div class="modal">
+      <h3>Invitation Code</h3>
+      <p>Enter a friend's invite code to claim bonus coins.</p>
+      <input id="inviteCodeInput" class="modal-input" placeholder="Enter code" />
+      <button class="btn-primary" id="applyInviteBtn">Apply — +50 🪙</button>
+      <button class="modal-close" data-close="inviteModal">✕</button>
+    </div>
+  </div>
+
+  <div class="modal-backdrop" id="feedbackModal">
+    <div class="modal">
+      <h3>Feedback</h3>
+      <p>Tell us what you think or report an issue.</p>
+      <textarea id="feedbackInput" class="modal-textarea" placeholder="Your feedback..."></textarea>
+      <button class="btn-primary" id="submitFeedbackBtn">Submit</button>
+      <button class="modal-close" data-close="feedbackModal">✕</button>
+    </div>
+  </div>
+
+  <div class="modal-backdrop" id="languageModal">
+    <div class="modal">
+      <h3>Language</h3>
+      <div class="lang-list" id="langList"></div>
+      <button class="modal-close" data-close="languageModal">✕</button>
+    </div>
+  </div>
+
+  <div class="modal-backdrop" id="settingsModal">
+    <div class="modal">
+      <h3>Settings</h3>
+      <div class="setting-row"><span>Push Notifications</span><button class="toggle-switch" id="toggleNotif"></button></div>
+      <div class="setting-row"><span>Autoplay Next Episode</span><button class="toggle-switch" id="toggleAutoplay"></button></div>
+      <button class="modal-close" data-close="settingsModal">✕</button>
+    </div>
+  </div>
+
+  <div class="modal-backdrop" id="aboutModal">
+    <div class="modal">
+      <h3>About Reelflix</h3>
+      <p>Version 1.0.0</p>
+      <p>A fan-made short-drama app prototype inspired by ReelShort and GoodShort. Built as a demo — no real payments, video hosting, or accounts.</p>
+      <button class="modal-close" data-close="aboutModal">✕</button>
+    </div>
+  </div>
+
+  <script src="app.js?v=8"></script>
 </body>
 </html>

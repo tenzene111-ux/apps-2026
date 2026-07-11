@@ -51,6 +51,10 @@ const state = {
   freshClaimed: {},
   redeemed: {},
   sessionStart: null,
+  language: "English",
+  notifOn: true,
+  autoplayNext: true,
+  profileNotifSeen: false,
 };
 
 function loadState() {
@@ -814,13 +818,147 @@ document.querySelectorAll(".vgtab").forEach((btn) => {
   });
 });
 
+const PROFILE_ICONS = {
+  following: '<circle cx="10" cy="8" r="3.2"/><path d="M4 19c0-3.3 2.7-5.5 6-5.5"/><path d="M16.5 12.8c1.9-1.3 4.3.4 3.4 2.5-.5 1.2-2.1 2.4-3.4 3.2-1.3-.8-2.9-2-3.4-3.2-.9-2.1 1.5-3.8 3.4-2.5z"/>',
+  earnrewards: '<rect x="3" y="8" width="18" height="4" rx="1"/><rect x="4" y="12" width="16" height="8" rx="1"/><path d="M12 8v12M9 8c-2-2.5-4.5-1-3 1s4 .5 3-1zM15 8c2-2.5 4.5-1 3 1s-4 .5-3-1z"/>',
+  mylist: '<rect x="4" y="4" width="16" height="16" rx="2"/><path d="M8 9h5M8 13h8"/>',
+  notifications: '<path d="M6 10a6 6 0 0 1 12 0c0 4 1.5 5.5 1.5 5.5h-15S6 14 6 10z"/><path d="M10 18a2 2 0 0 0 4 0"/>',
+  invite: '<path d="M4 8a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v2a2 2 0 0 0 0 4v2a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-2a2 2 0 0 0 0-4V8z"/><path d="M12 6v12" stroke-dasharray="2 2"/>',
+  myitems: '<path d="M11 4H6a2 2 0 0 0-2 2v5l9.5 9.5a2 2 0 0 0 2.8 0l4.2-4.2a2 2 0 0 0 0-2.8L11 4z"/><circle cx="8.5" cy="8.5" r="1.1"/>',
+  feedback: '<circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 0 1 4.8 1c0 1.5-2.3 1.8-2.3 3.5"/><path d="M12 17.2v.1"/>',
+  language: '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.5 2.5 15.5 0 18M12 3c-2.5 2.5-2.5 15.5 0 18"/>',
+  setting: '<circle cx="12" cy="12" r="3.2"/><path d="M19 12a7 7 0 0 0-.15-1.4l1.9-1.3-1.8-3.1-2.15.75a7 7 0 0 0-2.4-1.4L14 3h-3.6l-.4 2.55a7 7 0 0 0-2.4 1.4L5.45 6.2 3.65 9.3l1.9 1.3A7 7 0 0 0 5.4 12c0 .48.05.94.15 1.4l-1.9 1.3 1.8 3.1 2.15-.75a7 7 0 0 0 2.4 1.4L10.4 21H14l.4-2.55a7 7 0 0 0 2.4-1.4l2.15.75 1.8-3.1-1.9-1.3c.1-.46.15-.92.15-1.4z"/>',
+  about: '<circle cx="12" cy="12" r="9"/><path d="M12 8h.01M11 11h1v6h1"/>',
+};
+
+const PROFILE_MENU = [
+  { key: "following", label: "Following" },
+  { key: "earnrewards", label: "Earn Rewards" },
+  { key: "mylist", label: "My List" },
+  { key: "notifications", label: "Notifications", dot: true },
+  { key: "invite", label: "Invitation Code" },
+  { key: "myitems", label: "My Items" },
+  { key: "feedback", label: "Feedback" },
+  { key: "language", label: "Language" },
+  { key: "setting", label: "Setting" },
+  { key: "about", label: "About Us", version: "V1.0.0" },
+];
+
 function renderMine() {
-  const unlockedCount = Object.keys(state.unlocked).length;
-  const followedCount = Object.keys(state.followed).filter(k => state.followed[k]).length;
-  document.getElementById("mineUnlocked").textContent = unlockedCount;
-  document.getElementById("mineFollowed").textContent = followedCount;
   updateCoinDisplays();
+  document.querySelector(".firstlogin-badge").classList.toggle("claimed-btn", !!state.claimedTasks.firstlogin);
+  renderProfileMenu();
 }
+
+function renderProfileMenu() {
+  const wrap = document.getElementById("profileMenu");
+  wrap.innerHTML = "";
+  PROFILE_MENU.forEach((item) => {
+    const row = document.createElement("button");
+    row.className = "profile-row";
+    row.dataset.action = item.key;
+    row.innerHTML = `
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${PROFILE_ICONS[item.key]}</svg>
+      ${item.dot && !state.profileNotifSeen ? '<span class="row-dot"></span>' : ""}
+      <span class="row-label">${item.label}</span>
+      ${item.version ? `<span class="row-version">${item.version}</span>` : ""}
+      <span class="row-chevron">›</span>
+    `;
+    wrap.appendChild(row);
+  });
+}
+
+document.getElementById("profileMenu").addEventListener("click", (e) => {
+  const row = e.target.closest(".profile-row");
+  if (!row) return;
+  const action = row.dataset.action;
+  if (action === "following" || action === "mylist") {
+    document.querySelectorAll(".nav-item").forEach((b) => b.classList.toggle("active", b.dataset.tab === "mylist"));
+    switchView("mylist");
+    renderMyList();
+  } else if (action === "earnrewards") {
+    document.querySelectorAll(".nav-item").forEach((b) => b.classList.toggle("active", b.dataset.tab === "rewards"));
+    switchView("rewards");
+    renderRewards();
+  } else if (action === "notifications") {
+    state.profileNotifSeen = true;
+    saveState();
+    toast("No new notifications");
+    renderProfileMenu();
+  } else if (action === "myitems") {
+    document.querySelectorAll(".nav-item").forEach((b) => b.classList.toggle("active", b.dataset.tab === "rewards"));
+    switchView("rewards");
+    renderRewards();
+    document.querySelector('.rtab[data-rtab="vipgems"]').click();
+    setTimeout(() => document.getElementById("vgSectionRedemption").scrollIntoView({ behavior: "smooth" }), 100);
+  } else if (["invite", "feedback", "language", "setting", "about"].includes(action)) {
+    const modalIds = { invite: "inviteModal", feedback: "feedbackModal", language: "languageModal", setting: "settingsModal", about: "aboutModal" };
+    if (action === "language") renderLanguageOptions();
+    if (action === "setting") renderSettingsToggles();
+    openModal(modalIds[action]);
+  }
+});
+
+document.getElementById("signInBtn").addEventListener("click", () => toast("Guest sign-in coming soon — this is a demo build."));
+document.getElementById("copyUidBtn").addEventListener("click", () => {
+  const uid = document.getElementById("uidText").textContent;
+  navigator.clipboard.writeText(uid).then(() => toast("UID copied")).catch(() => toast("UID copied"));
+});
+
+document.getElementById("applyInviteBtn").addEventListener("click", () => {
+  const code = document.getElementById("inviteCodeInput").value.trim();
+  if (!code) { toast("Enter a code first"); return; }
+  if (state.claimedTasks.invite) { toast("Invite bonus already claimed"); closeModal("inviteModal"); return; }
+  state.claimedTasks.invite = true;
+  state.coins += 50;
+  saveState();
+  updateCoinDisplays();
+  toast("+50 coins — invite code applied!");
+  document.getElementById("inviteCodeInput").value = "";
+  closeModal("inviteModal");
+});
+
+document.getElementById("submitFeedbackBtn").addEventListener("click", () => {
+  const text = document.getElementById("feedbackInput").value.trim();
+  if (!text) { toast("Write something first"); return; }
+  document.getElementById("feedbackInput").value = "";
+  toast("Thanks for your feedback!");
+  closeModal("feedbackModal");
+});
+
+const LANGUAGES = ["English", "Español", "中文", "Bahasa Indonesia", "Tiếng Việt"];
+function renderLanguageOptions() {
+  const list = document.getElementById("langList");
+  list.innerHTML = "";
+  LANGUAGES.forEach((lang) => {
+    const row = document.createElement("div");
+    row.className = "lang-option" + (state.language === lang ? " selected" : "");
+    row.innerHTML = `<span>${lang}</span><span class="check">✓</span>`;
+    row.addEventListener("click", () => {
+      state.language = lang;
+      saveState();
+      toast(`Language set to ${lang}`);
+      renderLanguageOptions();
+      closeModal("languageModal");
+    });
+    list.appendChild(row);
+  });
+}
+
+function renderSettingsToggles() {
+  document.getElementById("toggleNotif").classList.toggle("on", state.notifOn);
+  document.getElementById("toggleAutoplay").classList.toggle("on", state.autoplayNext);
+}
+document.getElementById("toggleNotif").addEventListener("click", () => {
+  state.notifOn = !state.notifOn;
+  saveState();
+  renderSettingsToggles();
+});
+document.getElementById("toggleAutoplay").addEventListener("click", () => {
+  state.autoplayNext = !state.autoplayNext;
+  saveState();
+  renderSettingsToggles();
+});
 
 /* ---------------- Init ---------------- */
 function init() {
