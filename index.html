@@ -12,9 +12,127 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="Reelflix" />
-  <link rel="stylesheet" href="style.css?v=10" />
+  <link rel="stylesheet" href="style.css?v=11" />
 </head>
 <body>
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <defs>
+      <linearGradient id="coinGrad" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0%" stop-color="#ffe07a"/>
+        <stop offset="100%" stop-color="#d69a1f"/>
+      </linearGradient>
+      <linearGradient id="gemGrad" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0%" stop-color="#7fd9ff"/>
+        <stop offset="100%" stop-color="#2e8fd6"/>
+      </linearGradient>
+    </defs>
+
+    <symbol id="ic-coin" viewBox="0 0 24 24">
+      <circle cx="12" cy="12" r="10" fill="url(#coinGrad)" stroke="#8a5e10" stroke-width="1"/>
+      <circle cx="12" cy="12" r="7" fill="none" stroke="#8a5e10" stroke-width="1" opacity="0.6"/>
+      <text x="12" y="15.5" font-size="9" font-weight="800" text-anchor="middle" fill="#8a5e10" font-family="Arial, sans-serif">R</text>
+    </symbol>
+
+    <symbol id="ic-gem" viewBox="0 0 24 24">
+      <path d="M4 9l4-5h8l4 5-8 11z" fill="url(#gemGrad)" stroke="#1b5c8c" stroke-width="1" stroke-linejoin="round"/>
+      <path d="M4 9h16M9 4l1.5 5L12 4M15 4l-1.5 5L12 4M8 9l4 11 4-11" stroke="#e9f7ff" stroke-width="0.6" fill="none" opacity="0.7"/>
+    </symbol>
+
+    <symbol id="ic-crown" viewBox="0 0 24 24">
+      <path d="M4 17l-1.5-8L7 12l5-6 5 6 4.5-3L20 17H4z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
+      <circle cx="4.5" cy="8" r="1.1" fill="currentColor"/>
+      <circle cx="12" cy="5" r="1.1" fill="currentColor"/>
+      <circle cx="19.5" cy="8" r="1.1" fill="currentColor"/>
+    </symbol>
+
+    <symbol id="ic-heart" viewBox="0 0 24 24">
+      <path d="M12 20s-7-4.35-9.5-8.5C1 8 2.5 5 6 5c2 0 3.5 1.2 4 2.5C10.5 6.2 12 5 14 5c3.5 0 5 3 3.5 6.5C15 15.65 12 20 12 20z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>
+    </symbol>
+    <symbol id="ic-heart-filled" viewBox="0 0 24 24">
+      <path d="M12 20s-7-4.35-9.5-8.5C1 8 2.5 5 6 5c2 0 3.5 1.2 4 2.5C10.5 6.2 12 5 14 5c3.5 0 5 3 3.5 6.5C15 15.65 12 20 12 20z" fill="currentColor"/>
+    </symbol>
+
+    <symbol id="ic-comment" viewBox="0 0 24 24">
+      <path d="M4 5h16a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H9l-4 4v-4H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>
+    </symbol>
+
+    <symbol id="ic-share" viewBox="0 0 24 24">
+      <path d="M14 4h6v6M20 4l-9 9M6 6H5a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-1" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+    </symbol>
+
+    <symbol id="ic-gift" viewBox="0 0 24 24">
+      <rect x="3" y="8" width="18" height="4" rx="1" fill="none" stroke="currentColor" stroke-width="1.6"/>
+      <rect x="4" y="12" width="16" height="8" rx="1" fill="none" stroke="currentColor" stroke-width="1.6"/>
+      <path d="M12 8v12M12 8c-1.5-3-5-3-5-1s2 1 5 1zM12 8c1.5-3 5-3 5-1s-2 1-5 1z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
+    </symbol>
+
+    <symbol id="ic-fire" viewBox="0 0 24 24">
+      <path d="M12 2c1 3-3 4-3 8a3 3 0 1 0 6 0c0-1-1-1.5-1-3 2 1 4 4 4 7a6 6 0 1 1-12 0c0-5 3-7 6-12z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
+    </symbol>
+
+    <symbol id="ic-tv" viewBox="0 0 24 24">
+      <rect x="3" y="5" width="18" height="13" rx="2" fill="none" stroke="currentColor" stroke-width="1.6"/>
+      <path d="M8 21h8M12 18v3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+      <path d="M10 9.5v4l3.5-2z" fill="currentColor"/>
+    </symbol>
+
+    <symbol id="ic-ticket" viewBox="0 0 24 24">
+      <path d="M4 8a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v2a2 2 0 0 0 0 4v2a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-2a2 2 0 0 0 0-4V8z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
+      <path d="M12 6v12" stroke="currentColor" stroke-width="1.4" stroke-dasharray="2 2"/>
+    </symbol>
+
+    <symbol id="ic-mute" viewBox="0 0 24 24">
+      <path d="M4 9v6h4l5 4V5L8 9H4z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
+      <path d="M16 9a4 4 0 0 1 0 6M18.5 6.5a8 8 0 0 1 0 11" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+    </symbol>
+    <symbol id="ic-unmute" viewBox="0 0 24 24">
+      <path d="M4 9v6h4l5 4V5L8 9H4z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
+      <path d="M16 9l5 6M21 9l-5 6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+    </symbol>
+
+    <symbol id="ic-person" viewBox="0 0 24 24">
+      <circle cx="12" cy="8" r="3.5" fill="none" stroke="currentColor" stroke-width="1.6"/>
+      <path d="M5 20c1.2-4 4-6 7-6s5.8 2 7 6" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+    </symbol>
+
+    <symbol id="ic-clipboard" viewBox="0 0 24 24">
+      <rect x="6" y="4" width="12" height="17" rx="2" fill="none" stroke="currentColor" stroke-width="1.6"/>
+      <rect x="9" y="2" width="6" height="4" rx="1" fill="none" stroke="currentColor" stroke-width="1.6"/>
+    </symbol>
+
+    <symbol id="ic-camera" viewBox="0 0 24 24">
+      <rect x="3" y="7" width="18" height="13" rx="2" fill="none" stroke="currentColor" stroke-width="1.6"/>
+      <circle cx="12" cy="13.5" r="4" fill="none" stroke="currentColor" stroke-width="1.6"/>
+      <path d="M8 7l1.5-2h5L16 7" fill="none" stroke="currentColor" stroke-width="1.6"/>
+    </symbol>
+
+    <symbol id="ic-x" viewBox="0 0 24 24">
+      <path d="M4 4l16 16M20 4L4 20" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+    </symbol>
+
+    <symbol id="ic-mail" viewBox="0 0 24 24">
+      <rect x="3" y="5" width="18" height="14" rx="2" fill="none" stroke="currentColor" stroke-width="1.6"/>
+      <path d="M4 6l8 7 8-7" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+    </symbol>
+
+    <symbol id="ic-bolt" viewBox="0 0 24 24">
+      <path d="M13 2 4 14h6l-1 8 9-12h-6l1-8z" fill="currentColor"/>
+    </symbol>
+
+    <symbol id="ic-puzzle" viewBox="0 0 24 24">
+      <path d="M5 5h4a2 2 0 1 1 4 0h4a1 1 0 0 1 1 1v4a2 2 0 1 1 0 4v4a1 1 0 0 1-1 1h-4a2 2 0 1 0-4 0H5a1 1 0 0 1-1-1v-4a2 2 0 1 0 0-4V6a1 1 0 0 1 1-1z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
+    </symbol>
+
+    <symbol id="ic-lock" viewBox="0 0 24 24">
+      <rect x="5" y="11" width="14" height="9" rx="2" fill="none" stroke="currentColor" stroke-width="1.7"/>
+      <path d="M8 11V8a4 4 0 0 1 8 0v3" fill="none" stroke="currentColor" stroke-width="1.7"/>
+    </symbol>
+
+    <symbol id="ic-play" viewBox="0 0 24 24">
+      <path d="M7 5v14l12-7z" fill="currentColor"/>
+    </symbol>
+  </svg>
+
   <div id="splash">
     <svg viewBox="0 0 64 64" width="72" height="72">
       <defs>
@@ -43,7 +161,7 @@
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M7 12h10M10 18h4"/></svg>
           </button>
         </div>
-        <button class="vip-badge" data-open="vipModal"><span class="crown">👑</span>VIP</button>
+        <button class="vip-badge" data-open="vipModal"><span class="crown"><svg class="ic"><use href="#ic-crown"/></svg></span>VIP</button>
       </header>
       <nav class="genre-tabs-v2" id="genreTabsV2">
         <button class="gtab active" data-top="hot">HOT</button>
@@ -67,7 +185,7 @@
       <header class="detail-header">
         <button class="icon-btn" data-back="home">←</button>
         <button class="coin-pill" data-open="coinModal">
-          <span class="coin-icon">🪙</span><span data-coin-balance>0</span>
+          <span class="coin-icon"><svg class="ic ic-coin"><use href="#ic-coin"/></svg></span><span data-coin-balance>0</span>
         </button>
       </header>
       <div class="detail-hero" id="detailHero">
@@ -76,7 +194,7 @@
           <p id="detailMeta"></p>
           <p id="detailDesc"></p>
           <div class="detail-actions">
-            <button class="btn-primary" id="playFirstBtn">▶ Play Episode 1</button>
+            <button class="btn-primary" id="playFirstBtn"><svg class="ic"><use href="#ic-play"/></svg> Play Episode 1</button>
             <button class="btn-ghost" id="followBtn">+ Follow</button>
           </div>
         </div>
@@ -103,8 +221,8 @@
     <!-- REWARDS -->
     <section id="view-rewards" class="view">
       <header class="rewards-toptabs" id="rewardsToptabs">
-        <button class="rtab active" data-rtab="rewards">🪙 Rewards<span class="rdot" id="rewardsTabDot"></span></button>
-        <button class="rtab" data-rtab="vipgems">💎 VIP Gems</button>
+        <button class="rtab active" data-rtab="rewards"><svg class="ic ic-coin"><use href="#ic-coin"/></svg> Rewards<span class="rdot" id="rewardsTabDot"></span></button>
+        <button class="rtab" data-rtab="vipgems"><svg class="ic ic-gem"><use href="#ic-gem"/></svg> VIP Gems</button>
       </header>
 
       <div class="rewards-scroll" id="rewardsScroll">
@@ -112,11 +230,11 @@
         <div class="rewards-panel active" id="panel-rewards">
           <div class="rewards-hero">
             <h2>EARN <span class="accent-text">COINS</span>,<br>UNLOCK EPISODES</h2>
-            <div class="coin-illustration">🪙</div>
+            <div class="coin-illustration"><svg class="ic ic-coin"><use href="#ic-coin"/></svg></div>
           </div>
           <div class="balance-row">
             <span>Balance ›</span>
-            <span class="balance-amt">🪙 <b data-coin-balance>0</b></span>
+            <span class="balance-amt"><svg class="ic ic-coin"><use href="#ic-coin"/></svg> <b data-coin-balance>0</b></span>
           </div>
 
           <div class="quest-card">
@@ -130,29 +248,29 @@
             <div class="benefits-header"><span>Today's Benefits</span><span class="reset-text">Reset At 0:00</span></div>
 
             <div class="task-row">
-              <div class="task-info"><b>🪙<span id="adsMaxCoins">120</span> at most</b><p>Watch ads (<span id="adsWatchedCount">0</span>/12) <span class="info-dot">?</span></p><small>Get 10 coins each time</small></div>
+              <div class="task-info"><b><svg class="ic ic-coin"><use href="#ic-coin"/></svg><span id="adsMaxCoins">120</span> at most</b><p>Watch ads (<span id="adsWatchedCount">0</span>/12) <span class="info-dot">?</span></p><small>Get 10 coins each time</small></div>
               <button class="task-btn" id="watchAdMainBtn">Watch</button>
             </div>
             <div class="ad-slots" id="adSlots"></div>
 
-            <div class="task-row"><div class="task-info"><b>🪙20</b><p>Login rewards</p></div><button class="task-btn" data-task="login" data-coins="20">Go</button></div>
-            <div class="task-row"><div class="task-info"><b>🪙10</b><p>Turn on notifications</p></div><button class="task-btn" data-task="notif" data-coins="10">Claim</button></div>
-            <div class="task-row"><div class="task-info"><b>🪙10</b><p>Bind email</p></div><button class="task-btn" data-task="email" data-coins="10">Go</button></div>
+            <div class="task-row"><div class="task-info"><b><svg class="ic ic-coin"><use href="#ic-coin"/></svg>20</b><p>Login rewards</p></div><button class="task-btn" data-task="login" data-coins="20">Go</button></div>
+            <div class="task-row"><div class="task-info"><b><svg class="ic ic-coin"><use href="#ic-coin"/></svg>10</b><p>Turn on notifications</p></div><button class="task-btn" data-task="notif" data-coins="10">Claim</button></div>
+            <div class="task-row"><div class="task-info"><b><svg class="ic ic-coin"><use href="#ic-coin"/></svg>10</b><p>Bind email</p></div><button class="task-btn" data-task="email" data-coins="10">Go</button></div>
 
-            <div class="task-row no-border"><div class="task-info"><b>🪙100 at most</b><p>Watch fresh dramas <span class="info-dot">?</span></p></div></div>
+            <div class="task-row no-border"><div class="task-info"><b><svg class="ic ic-coin"><use href="#ic-coin"/></svg>100 at most</b><p>Watch fresh dramas <span class="info-dot">?</span></p></div></div>
             <div class="fresh-drama-strip" id="freshDramaStrip"></div>
           </div>
 
           <h4 class="reward-section-title">Quick Quests</h4>
-          <div class="task-row"><div class="task-info"><b>🪙10</b><p>Add 1 series to "My List"</p></div><button class="task-btn" data-task="addlist" data-coins="10">Claim</button></div>
-          <div class="task-row"><div class="task-info"><b>🪙200</b><p>Watch a full drama (<span id="fullDramaProgress">0</span>/1)</p></div><button class="task-btn" data-task="fulldrama" data-coins="200">Go</button></div>
-          <div class="task-row"><div class="task-info"><b>🪙5</b><p>Follow us on Facebook</p></div><button class="task-btn" data-task="fb" data-coins="5">Go</button></div>
-          <div class="task-row"><div class="task-info"><b>🪙5</b><p>Follow us on Instagram</p></div><button class="task-btn" data-task="ig" data-coins="5">Go</button></div>
-          <div class="task-row"><div class="task-info"><b>🪙5</b><p>Follow us on Youtube</p></div><button class="task-btn" data-task="yt" data-coins="5">Go</button></div>
-          <div class="task-row"><div class="task-info"><b>🪙5</b><p>Follow us on Tiktok</p></div><button class="task-btn" data-task="tiktok" data-coins="5">Go</button></div>
-          <div class="task-row"><div class="task-info"><p>Check in at meal time</p><small>Watch now! Get coins at 6 AM tomorrow! +🪙5</small></div><button class="task-btn claimed-btn" disabled>Claimed</button></div>
+          <div class="task-row"><div class="task-info"><b><svg class="ic ic-coin"><use href="#ic-coin"/></svg>10</b><p>Add 1 series to "My List"</p></div><button class="task-btn" data-task="addlist" data-coins="10">Claim</button></div>
+          <div class="task-row"><div class="task-info"><b><svg class="ic ic-coin"><use href="#ic-coin"/></svg>200</b><p>Watch a full drama (<span id="fullDramaProgress">0</span>/1)</p></div><button class="task-btn" data-task="fulldrama" data-coins="200">Go</button></div>
+          <div class="task-row"><div class="task-info"><b><svg class="ic ic-coin"><use href="#ic-coin"/></svg>5</b><p>Follow us on Facebook</p></div><button class="task-btn" data-task="fb" data-coins="5">Go</button></div>
+          <div class="task-row"><div class="task-info"><b><svg class="ic ic-coin"><use href="#ic-coin"/></svg>5</b><p>Follow us on Instagram</p></div><button class="task-btn" data-task="ig" data-coins="5">Go</button></div>
+          <div class="task-row"><div class="task-info"><b><svg class="ic ic-coin"><use href="#ic-coin"/></svg>5</b><p>Follow us on Youtube</p></div><button class="task-btn" data-task="yt" data-coins="5">Go</button></div>
+          <div class="task-row"><div class="task-info"><b><svg class="ic ic-coin"><use href="#ic-coin"/></svg>5</b><p>Follow us on Tiktok</p></div><button class="task-btn" data-task="tiktok" data-coins="5">Go</button></div>
+          <div class="task-row"><div class="task-info"><p>Check in at meal time</p><small>Watch now! Get coins at 6 AM tomorrow! +<svg class="ic ic-coin"><use href="#ic-coin"/></svg>5</small></div><button class="task-btn claimed-btn" disabled>Claimed</button></div>
 
-          <h4 class="reward-section-title">Apps and Games <span class="apps-max">🪙2850 at most</span></h4>
+          <h4 class="reward-section-title">Apps and Games <span class="apps-max"><svg class="ic ic-coin"><use href="#ic-coin"/></svg>2850 at most</span></h4>
           <div class="apps-row" id="appsRow"></div>
         </div>
 
@@ -164,12 +282,12 @@
           </div>
 
           <div class="vg-panel" id="vgSectionBenefits">
-            <div class="balance-row"><span>My VIP Gems ›</span><span class="balance-amt">💎 <b data-gem-balance>0</b></span></div>
+            <div class="balance-row"><span>My VIP Gems ›</span><span class="balance-amt"><svg class="ic ic-gem"><use href="#ic-gem"/></svg> <b data-gem-balance>0</b></span></div>
             <div class="crackbox-card">
               <h3>Crack the Box! Huge Gems Drop!</h3>
-              <div class="social-proof">👤 just redeemed 1-Day VIP Pass</div>
-              <div class="chest-emoji">🎁</div>
-              <p class="chest-caption">Daily Drop: 100% Chance to Win, Max 💎3000 Gems!</p>
+              <div class="social-proof"><svg class="ic"><use href="#ic-person"/></svg> just redeemed 1-Day VIP Pass</div>
+              <div class="chest-emoji"><svg class="ic"><use href="#ic-gift"/></svg></div>
+              <p class="chest-caption">Daily Drop: 100% Chance to Win, Max <svg class="ic ic-gem"><use href="#ic-gem"/></svg>3000 Gems!</p>
               <button class="btn-subscribe" id="crackBoxBtn">Subscribe to claim<br><small>Nu. 49/week</small></button>
             </div>
           </div>
@@ -192,9 +310,9 @@
     <section id="view-mine" class="view">
       <div class="profile-scroll">
         <div class="profile-header">
-          <button class="firstlogin-badge task-btn" data-task="firstlogin" data-coins="20">🎁 Get 20 first login Coins!</button>
+          <button class="firstlogin-badge task-btn" data-task="firstlogin" data-coins="20"><svg class="ic"><use href="#ic-gift"/></svg> Get 20 first login Coins!</button>
           <div class="profile-id-row">
-            <div class="profile-avatar">👤</div>
+            <div class="profile-avatar"><svg class="ic"><use href="#ic-person"/></svg></div>
             <div class="profile-id">
               <div class="profile-name">Guest</div>
               <div class="profile-uid">UID: <span id="uidText">1062724055</span> <button class="uid-copy" id="copyUidBtn">⧉</button></div>
@@ -206,8 +324,8 @@
         <div class="vip-promo-card">
           <h3>Become a VIP – Enjoy all benefits</h3>
           <div class="vip-promo-feats">
-            <div><span class="vip-feat-icon">📺</span>Short Drama Viewing</div>
-            <div><span class="vip-feat-icon">🎁</span>Daily VIP Reward</div>
+            <div><span class="vip-feat-icon"><svg class="ic"><use href="#ic-tv"/></svg></span>Short Drama Viewing</div>
+            <div><span class="vip-feat-icon"><svg class="ic"><use href="#ic-gift"/></svg></span>Daily VIP Reward</div>
             <div><span class="vip-feat-icon">1080</span>1080P</div>
           </div>
           <button class="btn-go" data-open="vipModal">GO</button>
@@ -218,7 +336,7 @@
           <div class="wallet-row">
             <div>
               <div class="wallet-label">Coins</div>
-              <div class="wallet-amt">🪙 <b data-coin-balance>0</b></div>
+              <div class="wallet-amt"><svg class="ic ic-coin"><use href="#ic-coin"/></svg> <b data-coin-balance>0</b></div>
             </div>
             <button class="refill-btn" data-open="coinModal">Refill</button>
           </div>
@@ -282,7 +400,7 @@
 
   <div class="modal-backdrop" id="vipModal">
     <div class="modal">
-      <h3>👑 Reelflix VIP</h3>
+      <h3><svg class="ic"><use href="#ic-crown"/></svg> Reelflix VIP</h3>
       <p>Unlock every series, no coins needed.</p>
       <ul class="vip-perks">
         <li>✓ Unlimited access to all series</li>
@@ -298,10 +416,10 @@
     <div class="modal">
       <h3>Share this episode</h3>
       <div class="share-row">
-        <button class="share-btn">📋 Copy Link</button>
-        <button class="share-btn">💬 Message</button>
-        <button class="share-btn">📷 Instagram</button>
-        <button class="share-btn">🐦 X</button>
+        <button class="share-btn"><svg class="ic"><use href="#ic-clipboard"/></svg> Copy Link</button>
+        <button class="share-btn"><svg class="ic"><use href="#ic-comment"/></svg> Message</button>
+        <button class="share-btn"><svg class="ic"><use href="#ic-camera"/></svg> Instagram</button>
+        <button class="share-btn"><svg class="ic"><use href="#ic-x"/></svg> X</button>
       </div>
       <button class="modal-close" data-close="shareModal">✕</button>
     </div>
@@ -312,7 +430,7 @@
       <h3>Invitation Code</h3>
       <p>Enter a friend's invite code to claim bonus coins.</p>
       <input id="inviteCodeInput" class="modal-input" placeholder="Enter code" />
-      <button class="btn-primary" id="applyInviteBtn">Apply — +50 🪙</button>
+      <button class="btn-primary" id="applyInviteBtn">Apply — +50 <svg class="ic ic-coin"><use href="#ic-coin"/></svg></button>
       <button class="modal-close" data-close="inviteModal">✕</button>
     </div>
   </div>
@@ -353,6 +471,6 @@
     </div>
   </div>
 
-  <script src="app.js?v=10"></script>
+  <script src="app.js?v=11"></script>
 </body>
 </html>

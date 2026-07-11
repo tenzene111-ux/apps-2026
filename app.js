@@ -156,7 +156,7 @@ function renderFeed() {
     card.innerHTML = `
       <div class="poster-cover" style="background:${gradientFor(d.id)}">
         ${rankBadge}
-        <span class="poster-views">▶ ${d.views}</span>
+        <span class="poster-views"><svg class="ic"><use href="#ic-play"/></svg> ${d.views}</span>
       </div>
       <h3 class="poster-title">${d.title}</h3>
       <p class="poster-genre">${d.label}</p>`;
@@ -178,7 +178,7 @@ function renderMyList() {
     card.className = "drama-card";
     card.innerHTML = `
       <div class="drama-cover" style="background:${gradientFor(d.id)}">
-        <span class="play-glyph">▶</span>
+        <span class="play-glyph"><svg class="ic"><use href="#ic-play"/></svg></span>
       </div>
       <div class="drama-info">
         <h3>${d.title}</h3>
@@ -208,7 +208,7 @@ function openDetail(dramaId) {
     const unlocked = isUnlocked(d.id, n, d.free) || isDramaFullyUnlocked(d);
     const btn = document.createElement("button");
     btn.className = "ep-btn " + (unlocked ? "unlocked" : "locked");
-    btn.textContent = n;
+    btn.innerHTML = `${n}<svg class="ic ep-badge-icon"><use href="#ic-${unlocked ? "play" : "lock"}"/></svg>`;
     btn.addEventListener("click", () => openPlayer(d.id, n - 1));
     grid.appendChild(btn);
   }
@@ -263,13 +263,13 @@ function buildPlayerCard(d, epNum) {
     <div class="player-topbar">
       <button class="icon-btn" data-back="detail">←</button>
       <div class="player-dots">${dots}</div>
-      <button class="icon-btn mute-btn">🔊</button>
+      <button class="icon-btn mute-btn" data-muted="false">${muteIconHTML(false)}</button>
     </div>
     <div class="player-rail">
-      <button class="rail-btn like-btn ${liked ? 'liked' : ''}" data-like="${likeKey}">❤️<span>${formatCount(baseLikes + (liked ? 1 : 0))}</span></button>
-      <button class="rail-btn comment-btn">💬<span>${120 + epNum % 40}</span></button>
-      <button class="rail-btn share-btn2">↗️<span>Share</span></button>
-      <button class="rail-btn coin-shortcut" data-open="coinModal">🪙<span data-coin-balance>${state.coins}</span></button>
+      <button class="rail-btn like-btn ${liked ? 'liked' : ''}" data-like="${likeKey}">${heartIconHTML(liked)}<span>${formatCount(baseLikes + (liked ? 1 : 0))}</span></button>
+      <button class="rail-btn comment-btn"><svg class="ic"><use href="#ic-comment"/></svg><span>${120 + epNum % 40}</span></button>
+      <button class="rail-btn share-btn2"><svg class="ic"><use href="#ic-share"/></svg><span>Share</span></button>
+      <button class="rail-btn coin-shortcut" data-open="coinModal"><svg class="ic ic-coin"><use href="#ic-coin"/></svg><span data-coin-balance>${state.coins}</span></button>
     </div>
     <div class="player-bottom">
       <h3>${d.title}</h3>
@@ -285,12 +285,16 @@ function buildPlayerCard(d, epNum) {
     saveState();
     const btn = card.querySelector(".like-btn");
     btn.classList.toggle("liked", state.likes[likeKey]);
+    btn.querySelector("use").setAttribute("href", state.likes[likeKey] ? "#ic-heart-filled" : "#ic-heart");
     btn.querySelector("span").textContent = formatCount(baseLikes + (state.likes[likeKey] ? 1 : 0));
   }
 
   card.querySelector('[data-back="detail"]').addEventListener("click", () => openDetail(d.id));
   card.querySelector(".mute-btn").addEventListener("click", (e) => {
-    e.currentTarget.textContent = e.currentTarget.textContent.trim() === "🔊" ? "🔇" : "🔊";
+    const btn = e.currentTarget;
+    const muted = btn.dataset.muted !== "true";
+    btn.dataset.muted = String(muted);
+    btn.querySelector("use").setAttribute("href", muted ? "#ic-mute" : "#ic-unmute");
   });
   card.querySelector(".like-btn").addEventListener("click", () => setLiked(false));
   card.querySelector(".comment-btn").addEventListener("click", () => openComments(d, epNum));
@@ -317,7 +321,7 @@ function spawnHeartBurst(card, x, y) {
   const rect = card.getBoundingClientRect();
   const heart = document.createElement("div");
   heart.className = "heart-burst";
-  heart.textContent = "❤️";
+  heart.innerHTML = '<svg class="ic"><use href="#ic-heart-filled"/></svg>';
   heart.style.left = (x - rect.left) + "px";
   heart.style.top = (y - rect.top) + "px";
   card.appendChild(heart);
@@ -334,14 +338,21 @@ function formatCount(n) {
   return String(n);
 }
 
+function heartIconHTML(liked) {
+  return `<svg class="ic"><use href="#ic-heart${liked ? "-filled" : ""}"/></svg>`;
+}
+function muteIconHTML(muted) {
+  return `<svg class="ic"><use href="#ic-${muted ? "mute" : "unmute"}"/></svg>`;
+}
+
 function lockOverlayHTML(d, epNum) {
   return `
     <div class="lock-overlay" data-lock-for="${epNum}">
-      <div class="lock-icon">🔒</div>
+      <div class="lock-icon"><svg class="ic"><use href="#ic-lock"/></svg></div>
       <h4>Episode ${epNum} is locked</h4>
       <p>Unlock this episode for ${UNLOCK_COST} coins, or unlock the whole series.</p>
-      <button class="btn-primary" data-unlock-one="${epNum}">Unlock for ${UNLOCK_COST} 🪙</button>
-      <button class="btn-ghost" data-unlock-all="1">Unlock All — ${d.episodes * UNLOCK_COST * 0.4 | 0} 🪙</button>
+      <button class="btn-primary" data-unlock-one="${epNum}">Unlock for ${UNLOCK_COST} <svg class="ic ic-coin"><use href="#ic-coin"/></svg></button>
+      <button class="btn-ghost" data-unlock-all="1">Unlock All — ${d.episodes * UNLOCK_COST * 0.4 | 0} <svg class="ic ic-coin"><use href="#ic-coin"/></svg></button>
       <button class="btn-outline" data-open="coinModal">Get More Coins</button>
     </div>`;
 }
@@ -431,7 +442,7 @@ function renderCoinPackages() {
   COIN_PACKAGES.forEach(p => {
     const el = document.createElement("div");
     el.className = "coin-pack";
-    el.innerHTML = `<div class="amt">🪙 ${p.coins}</div><div class="price">${p.price}</div><button>Buy</button>`;
+    el.innerHTML = `<div class="amt"><svg class="ic ic-coin"><use href="#ic-coin"/></svg> ${p.coins}</div><div class="price">${p.price}</div><button>Buy</button>`;
     el.querySelector("button").addEventListener("click", () => {
       state.coins += p.coins;
       saveState();
@@ -524,30 +535,34 @@ function buildForYouCard(d) {
     <div class="player-vignette"></div>
     <div class="player-topbar">
       <div></div>
-      <button class="icon-btn mute-btn">🔊</button>
+      <button class="icon-btn mute-btn" data-muted="false">${muteIconHTML(false)}</button>
     </div>
     <div class="player-rail">
-      <button class="rail-btn like-btn ${liked ? 'liked' : ''}" data-like="${likeKey}">❤️<span>${formatCount(baseLikes + (liked ? 1 : 0))}</span></button>
-      <button class="rail-btn comment-btn">💬<span>${200 + d.episodes % 50}</span></button>
-      <button class="rail-btn share-btn2">↗️<span>Share</span></button>
+      <button class="rail-btn like-btn ${liked ? 'liked' : ''}" data-like="${likeKey}">${heartIconHTML(liked)}<span>${formatCount(baseLikes + (liked ? 1 : 0))}</span></button>
+      <button class="rail-btn comment-btn"><svg class="ic"><use href="#ic-comment"/></svg><span>${200 + d.episodes % 50}</span></button>
+      <button class="rail-btn share-btn2"><svg class="ic"><use href="#ic-share"/></svg><span>Share</span></button>
     </div>
     <div class="player-bottom player-bottom-nav-spacer">
       <h3>${d.title}</h3>
       <p class="ep-label">${d.label} · ${d.episodes} Episodes</p>
       <p class="ep-desc">${d.desc}</p>
-      <button class="btn-primary foryou-cta">▶ Watch Full Series</button>
+      <button class="btn-primary foryou-cta"><svg class="ic"><use href="#ic-play"/></svg> Watch Full Series</button>
     </div>
   `;
   card.querySelector(".like-btn").addEventListener("click", (e) => {
     state.likes[likeKey] = !state.likes[likeKey];
     saveState();
     e.currentTarget.classList.toggle("liked", state.likes[likeKey]);
+    e.currentTarget.querySelector("use").setAttribute("href", state.likes[likeKey] ? "#ic-heart-filled" : "#ic-heart");
     e.currentTarget.querySelector("span").textContent = formatCount(baseLikes + (state.likes[likeKey] ? 1 : 0));
   });
   card.querySelector(".comment-btn").addEventListener("click", () => openComments(d, 1));
   card.querySelector(".share-btn2").addEventListener("click", () => openModal("shareModal"));
   card.querySelector(".mute-btn").addEventListener("click", (e) => {
-    e.currentTarget.textContent = e.currentTarget.textContent.trim() === "🔊" ? "🔇" : "🔊";
+    const btn = e.currentTarget;
+    const muted = btn.dataset.muted !== "true";
+    btn.dataset.muted = String(muted);
+    btn.querySelector("use").setAttribute("href", muted ? "#ic-mute" : "#ic-unmute");
   });
   card.querySelector(".foryou-cta").addEventListener("click", () => openDetail(d.id));
 
@@ -587,17 +602,17 @@ const FRESH_TIERS = [
   { seconds: 600, coins: 30 },
 ];
 const REDEEM_ITEMS = [
-  { id: "vip1", name: "1-Day VIP Pass", cost: 3000, max: 3, icon: "👑" },
-  { id: "vote", name: "Vote Prop", cost: 200, max: null, icon: "🔥" },
-  { id: "choice1", name: "Interactive Choice Pass", cost: 1000, max: null, icon: "🎫" },
-  { id: "vip3", name: "3-Day VIP Pass", cost: 8000, max: 1, icon: "👑" },
-  { id: "choice3", name: "Interactive Choice Pass x3", cost: 2500, max: null, icon: "🎫" },
+  { id: "vip1", name: "1-Day VIP Pass", cost: 3000, max: 3, icon: '<svg class="ic"><use href="#ic-crown"/></svg>' },
+  { id: "vote", name: "Vote Prop", cost: 200, max: null, icon: '<svg class="ic"><use href="#ic-fire"/></svg>' },
+  { id: "choice1", name: "Interactive Choice Pass", cost: 1000, max: null, icon: '<svg class="ic"><use href="#ic-ticket"/></svg>' },
+  { id: "vip3", name: "3-Day VIP Pass", cost: 8000, max: 1, icon: '<svg class="ic"><use href="#ic-crown"/></svg>' },
+  { id: "choice3", name: "Interactive Choice Pass x3", cost: 2500, max: null, icon: '<svg class="ic"><use href="#ic-ticket"/></svg>' },
 ];
 const APP_PROMOS = [
-  { icon: "💬", label: "StoryMe", bg: "linear-gradient(135deg,#7b2ff7,#f107a3)" },
-  { icon: "📮", label: "MailDash", bg: "linear-gradient(135deg,#2b5876,#4e4376)" },
-  { icon: "⚡", label: "QuizFlash", bg: "linear-gradient(135deg,#ff7a45,#c91e63)" },
-  { icon: "🧩", label: "PuzzleHit", bg: "linear-gradient(135deg,#0f2027,#2c5364)" },
+  { icon: '<svg class="ic"><use href="#ic-comment"/></svg>', label: "StoryMe", bg: "linear-gradient(135deg,#7b2ff7,#f107a3)" },
+  { icon: '<svg class="ic"><use href="#ic-mail"/></svg>', label: "MailDash", bg: "linear-gradient(135deg,#2b5876,#4e4376)" },
+  { icon: '<svg class="ic"><use href="#ic-bolt"/></svg>', label: "QuizFlash", bg: "linear-gradient(135deg,#ff7a45,#c91e63)" },
+  { icon: '<svg class="ic"><use href="#ic-puzzle"/></svg>', label: "PuzzleHit", bg: "linear-gradient(135deg,#0f2027,#2c5364)" },
 ];
 
 let rewardsTickInterval = null;
@@ -639,11 +654,11 @@ function renderQuestStrip() {
     if (!unlocked && nextLocked === null) nextLocked = tier;
     const chip = document.createElement("div");
     chip.className = "quest-tier " + (claimed ? "claimed" : unlocked ? "unlocked" : "");
-    chip.innerHTML = `<span class="qcoin">🪙${tier.coins}</span><span class="qtime">${formatTierTime(tier.seconds)}</span>`;
+    chip.innerHTML = `<span class="qcoin"><svg class="ic ic-coin"><use href="#ic-coin"/></svg>${tier.coins}</span><span class="qtime">${formatTierTime(tier.seconds)}</span>`;
     strip.appendChild(chip);
   });
-  document.getElementById("questSubText").textContent = nextLocked
-    ? `Watch ${nextLocked.seconds - el}s more to earn 🪙${nextLocked.coins}`
+  document.getElementById("questSubText").innerHTML = nextLocked
+    ? `Watch ${nextLocked.seconds - el}s more to earn <svg class="ic ic-coin"><use href="#ic-coin"/></svg>${nextLocked.coins}`
     : "All coin tiers unlocked!";
 }
 
@@ -704,7 +719,7 @@ function renderAdSlots() {
     const claimed = i <= state.adsWatchedToday;
     const slot = document.createElement("div");
     slot.className = "ad-slot " + (claimed ? "claimed" : "");
-    slot.innerHTML = `<b>🪙10</b>Ad.${i}`;
+    slot.innerHTML = `<b><svg class="ic ic-coin"><use href="#ic-coin"/></svg>10</b>Ad.${i}`;
     wrap.appendChild(slot);
   }
 }
@@ -762,7 +777,7 @@ function renderRedeemGrid() {
       ${item.max !== null ? `<span class="redeem-owned">${owned}/${item.max}</span>` : ""}
       <div class="redeem-icon">${item.icon}</div>
       <div class="redeem-name">${item.name}</div>
-      <button class="redeem-cost-btn" ${maxedOut ? "disabled" : ""}>${maxedOut ? "Maxed" : "💎 " + item.cost}</button>
+      <button class="redeem-cost-btn" ${maxedOut ? "disabled" : ""}>${maxedOut ? "Maxed" : '<svg class="ic"><use href="#ic-gem"/></svg> ' + item.cost}</button>
     `;
     if (!maxedOut) {
       card.querySelector(".redeem-cost-btn").addEventListener("click", () => {
