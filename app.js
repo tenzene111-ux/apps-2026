@@ -708,8 +708,25 @@ function stopRewardsTicker() {
   if (rewardsTickInterval) { clearInterval(rewardsTickInterval); rewardsTickInterval = null; }
 }
 
+const SIMPLE_CLAIMABLE_TASKS = ["firstlogin", "login", "notif", "email", "addlist", "fulldrama", "fb", "ig", "yt", "tiktok"];
+
+function hasClaimableRewards() {
+  const el = elapsedSeconds();
+  if (SIMPLE_CLAIMABLE_TASKS.some((key) => !state.claimedTasks[key])) return true;
+  if (QUEST_TIERS.some((tier, i) => el >= tier.seconds && !state.questClaimed[i])) return true;
+  if (FRESH_TIERS.some((tier, i) => el >= tier.seconds && !state.freshClaimed[i])) return true;
+  return false;
+}
+
+function updateRewardsDots() {
+  const claimable = hasClaimableRewards();
+  document.getElementById("rewardsDot").style.display = claimable ? "block" : "none";
+  const tabDot = document.getElementById("rewardsTabDot");
+  if (tabDot) tabDot.style.display = claimable ? "block" : "none";
+}
+
 function renderRewards() {
-  document.getElementById("rewardsTabDot").style.display = "block";
+  updateRewardsDots();
   renderQuestStrip();
   renderFreshDramaStrip();
   renderAdSlots();
@@ -764,6 +781,7 @@ document.getElementById("claimAllQuestBtn").addEventListener("click", () => {
     saveState();
     updateCoinDisplays();
     renderQuestStrip();
+    updateRewardsDots();
     toast(`+${total} coins claimed!`);
   } else {
     toast("Nothing to claim yet — keep watching!");
@@ -788,6 +806,7 @@ function renderFreshDramaStrip() {
         updateCoinDisplays();
         toast(`+${tier.coins} coins claimed!`);
         renderFreshDramaStrip();
+        updateRewardsDots();
       });
     }
     strip.appendChild(tile);
@@ -835,6 +854,7 @@ document.addEventListener("click", (e) => {
   btn.disabled = true;
   btn.classList.add("claimed-btn");
   toast(`+${coins} coins claimed!`);
+  updateRewardsDots();
   if (key === "fulldrama") document.getElementById("fullDramaProgress").textContent = "1";
 });
 
@@ -903,7 +923,7 @@ document.querySelectorAll("#rewardsToptabs .rtab").forEach((btn) => {
     const tab = btn.dataset.rtab;
     document.getElementById("panel-rewards").classList.toggle("active", tab === "rewards");
     document.getElementById("panel-vipgems").classList.toggle("active", tab === "vipgems");
-    if (tab === "vipgems") document.getElementById("rewardsTabDot").style.display = "none";
+    document.getElementById("rewardsTabDot").style.display = (tab === "rewards" && hasClaimableRewards()) ? "block" : "none";
   });
 });
 
@@ -1162,8 +1182,10 @@ function renderLiveStrip() {
     const wrap = document.createElement("div");
     wrap.className = "live-avatar-wrap";
     wrap.innerHTML = `
-      <div class="live-ring"><div class="live-avatar-inner" style="background:${gradientFor(host.id)}">${host.name[0]}</div></div>
-      <span class="live-tag-badge">LIVE</span>
+      <div class="live-ring">
+        <div class="live-avatar-inner" style="background:${gradientFor(host.id)}">${host.name[0]}</div>
+        <span class="live-tag-badge">LIVE</span>
+      </div>
       <span class="live-name">${host.name}</span>
     `;
     wrap.addEventListener("click", () => openLiveGuest(host));
@@ -1304,7 +1326,8 @@ function init() {
   renderLiveStrip();
   switchView("home");
   renderCoinPackages();
-  document.getElementById("rewardsDot").style.display = "block";
+  updateRewardsDots();
+  setInterval(updateRewardsDots, 5000);
 
   const splash = document.getElementById("splash");
   setTimeout(() => splash.classList.add("hide"), 900);

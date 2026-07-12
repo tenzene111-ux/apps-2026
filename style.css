@@ -176,6 +176,7 @@ input { font: inherit; color: inherit; }
   width: 62px;
 }
 .live-ring {
+  position: relative;
   width: 56px; height: 56px;
   border-radius: 50%;
   padding: 2.5px;
@@ -197,7 +198,7 @@ input { font: inherit; color: inherit; }
 }
 .live-tag-badge {
   position: absolute;
-  bottom: -3px; left: 50%;
+  bottom: -6px; left: 50%;
   transform: translateX(-50%);
   background: var(--accent);
   color: #fff;
@@ -207,9 +208,9 @@ input { font: inherit; color: inherit; }
   padding: 1.5px 6px;
   border-radius: 999px;
   white-space: nowrap;
+  z-index: 2;
 }
-.live-avatar-wrap { position: relative; }
-.live-name { font-size: 10.5px; color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 60px; margin-top: 4px; }
+.live-name { font-size: 10.5px; color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 60px; margin-top: 6px; }
 .poster-card { min-width: 0; }
 .poster-cover {
   position: relative;
