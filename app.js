@@ -534,8 +534,37 @@ document.querySelectorAll('[data-back="home"]').forEach(btn => {
 function renderForYouFeed() {
   const feed = document.getElementById("forYouFeed");
   feed.innerHTML = "";
+  [...LIVE_HOSTS].sort((a, b) => b.viewers - a.viewers).forEach((host) => feed.appendChild(buildLiveTeaserCard(host)));
   DRAMAS.forEach((d) => feed.appendChild(buildForYouCard(d)));
   observeForYouCards();
+}
+
+function buildLiveTeaserCard(host) {
+  const card = document.createElement("div");
+  card.className = "player-card live-teaser-card";
+  card.innerHTML = `
+    <div class="player-bg" style="background:${gradientFor(host.id, 2)}"></div>
+    <div class="player-vignette"></div>
+    <div class="fyu-topbar">
+      <div class="fyu-logo"><svg viewBox="0 0 64 64"><rect x="1" y="1" width="62" height="62" rx="15" fill="none" stroke="currentColor" stroke-width="3"/><text x="32" y="42" font-size="30" font-weight="800" text-anchor="middle" fill="currentColor" font-family="Arial, sans-serif">R</text></svg></div>
+      <span class="live-teaser-badge">LIVE</span>
+    </div>
+    <div class="live-teaser-center">
+      <div class="live-teaser-avatar" style="background:${gradientFor(host.id)}">${host.name[0]}</div>
+      <div class="live-teaser-ring"></div>
+    </div>
+    <div class="player-bottom player-bottom-nav-spacer">
+      <h3>${host.name} <span class="chevron">›</span></h3>
+      <span class="fyu-tag">${host.tag} · <svg class="ic"><use href="#ic-person"/></svg> ${formatCount(host.viewers)} watching</span>
+      <button class="btn-watch-now live-teaser-cta">Watch Live</button>
+    </div>
+  `;
+  card.querySelector(".live-teaser-cta").addEventListener("click", () => openLiveGuest(host));
+  card.addEventListener("pointerup", (e) => {
+    if (e.target.closest("button")) return;
+    openLiveGuest(host);
+  });
+  return card;
 }
 
 function buildForYouCard(d) {
