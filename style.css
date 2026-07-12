@@ -455,7 +455,8 @@ input { font: inherit; color: inherit; }
   background: linear-gradient(180deg, rgba(0,0,0,0.45) 0%, rgba(0,0,0,0) 30%, rgba(0,0,0,0.15) 60%, rgba(0,0,0,0.75) 100%);
 }
 .player-topbar {
-  position: relative;
+  position: absolute;
+  top: 0; left: 0; right: 0;
   z-index: 4;
   display: flex;
   align-items: center;
@@ -1191,7 +1192,8 @@ input { font: inherit; color: inherit; }
 
 /* ---------- For You card (ReelShort-style) ---------- */
 .fyu-topbar {
-  position: relative;
+  position: absolute;
+  top: 0; left: 0; right: 0;
   z-index: 4;
   display: flex;
   align-items: center;
