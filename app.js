@@ -1043,5 +1043,7 @@ function init() {
   if ("serviceWorker" in navigator && location.protocol !== "file:") {
     navigator.serviceWorker.register("sw.js").catch(() => {});
   }
+
+  document.getElementById("brandRefreshBtn").addEventListener("click", () => location.reload());
 }
 init();
