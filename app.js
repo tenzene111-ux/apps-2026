@@ -55,6 +55,7 @@ const state = {
   notifOn: true,
   autoplayNext: true,
   profileNotifSeen: false,
+  hostGiftsEarned: 0,
 };
 
 function loadState() {
@@ -111,7 +112,7 @@ function switchView(name) {
   document.querySelectorAll(".view").forEach(v => v.classList.remove("active"));
   document.getElementById("view-" + name).classList.add("active");
   state.view = name;
-  document.getElementById("bottomNav").style.display = (name === "player") ? "none" : "flex";
+  document.getElementById("bottomNav").style.display = (name === "player" || name === "live-host" || name === "live-guest") ? "none" : "flex";
   const tabForView = { home: "home", foryou: "foryou", mylist: "mylist", rewards: "rewards", mine: "profile" };
   if (tabForView[name]) {
     document.querySelectorAll(".nav-item").forEach(b => b.classList.toggle("active", b.dataset.tab === tabForView[name]));
@@ -887,6 +888,7 @@ document.querySelectorAll(".vgtab").forEach((btn) => {
 });
 
 const PROFILE_ICONS = {
+  golive: '<rect x="3" y="6" width="13" height="12" rx="2"/><path d="M16 10l5-3v10l-5-3z"/>',
   following: '<circle cx="10" cy="8" r="3.2"/><path d="M4 19c0-3.3 2.7-5.5 6-5.5"/><path d="M16.5 12.8c1.9-1.3 4.3.4 3.4 2.5-.5 1.2-2.1 2.4-3.4 3.2-1.3-.8-2.9-2-3.4-3.2-.9-2.1 1.5-3.8 3.4-2.5z"/>',
   earnrewards: '<rect x="3" y="8" width="18" height="4" rx="1"/><rect x="4" y="12" width="16" height="8" rx="1"/><path d="M12 8v12M9 8c-2-2.5-4.5-1-3 1s4 .5 3-1zM15 8c2-2.5 4.5-1 3 1s-4 .5-3-1z"/>',
   mylist: '<rect x="4" y="4" width="16" height="16" rx="2"/><path d="M8 9h5M8 13h8"/>',
@@ -900,6 +902,7 @@ const PROFILE_ICONS = {
 };
 
 const PROFILE_MENU = [
+  { key: "golive", label: "Go Live" },
   { key: "following", label: "Following" },
   { key: "earnrewards", label: "Earn Rewards" },
   { key: "mylist", label: "My List" },
@@ -940,7 +943,9 @@ document.getElementById("profileMenu").addEventListener("click", (e) => {
   const row = e.target.closest(".profile-row");
   if (!row) return;
   const action = row.dataset.action;
-  if (action === "following" || action === "mylist") {
+  if (action === "golive") {
+    openLiveHost();
+  } else if (action === "following" || action === "mylist") {
     document.querySelectorAll(".nav-item").forEach((b) => b.classList.toggle("active", b.dataset.tab === "mylist"));
     switchView("mylist");
     renderMyList();
@@ -1028,11 +1033,246 @@ document.getElementById("toggleAutoplay").addEventListener("click", () => {
   renderSettingsToggles();
 });
 
+/* ---------------- Gifts ---------------- */
+const GIFT_ITEMS = [
+  { id: "rose", name: "Rose", cost: 10, icon: "ic-rose", color: "#ff5c8a" },
+  { id: "heart", name: "Heart", cost: 50, icon: "ic-heart-filled", color: "#ff3860" },
+  { id: "crown", name: "Crown", cost: 500, icon: "ic-crown", color: "#ffc93c" },
+  { id: "rocket", name: "Rocket", cost: 1000, icon: "ic-rocket", color: "#4fc3f7" },
+  { id: "diamond", name: "Diamond", cost: 5000, icon: "ic-gem", color: "#7fd9ff" },
+];
+
+let giftTargetStage = null;
+
+function renderGiftGrid() {
+  const grid = document.getElementById("giftGrid");
+  grid.innerHTML = "";
+  GIFT_ITEMS.forEach((g) => {
+    const card = document.createElement("button");
+    card.className = "gift-card";
+    const affordable = state.coins >= g.cost;
+    card.disabled = !affordable;
+    card.innerHTML = `
+      <svg class="ic gift-icon" style="color:${g.color}"><use href="#${g.icon}"/></svg>
+      <div class="gift-name">${g.name}</div>
+      <div class="gift-cost"><svg class="ic ic-coin"><use href="#ic-coin"/></svg>${g.cost}</div>
+    `;
+    card.addEventListener("click", () => sendGift(g));
+    grid.appendChild(card);
+  });
+}
+
+function sendGift(gift) {
+  if (state.coins < gift.cost) { toast("Not enough coins"); closeModal("giftModal"); openModal("coinModal"); return; }
+  state.coins -= gift.cost;
+  state.hostGiftsEarned += gift.cost;
+  saveState();
+  updateCoinDisplays();
+  closeModal("giftModal");
+  const stage = document.getElementById(giftTargetStage);
+  spawnGiftFly(stage, gift);
+  const chatFeedId = giftTargetStage === "liveHostStage" ? "hostChatFeed" : "guestChatFeed";
+  addLiveChatMessage(chatFeedId, "You", `sent a ${gift.name}!`, true);
+}
+
+function spawnGiftFly(stage, gift) {
+  const fly = document.createElement("div");
+  fly.className = "gift-fly";
+  fly.innerHTML = `<svg class="ic" style="color:${gift.color}"><use href="#${gift.icon}"/></svg><span class="gift-fly-label">${gift.name} x1</span>`;
+  stage.appendChild(fly);
+  fly.addEventListener("animationend", () => fly.remove());
+}
+
+/* ---------------- Live ---------------- */
+const LIVE_HOSTS = [
+  { id: "l1", name: "Sonam D.", tag: "Chit-chat", viewers: 1240 },
+  { id: "l2", name: "Tenzin K.", tag: "Singing", viewers: 342 },
+  { id: "l3", name: "Pema W.", tag: "Q&A", viewers: 891 },
+  { id: "l4", name: "Karma L.", tag: "Just Chatting", viewers: 56 },
+];
+const LIVE_CHAT_NAMES = ["Dorji", "Yeshi", "Chimi", "Ugyen", "Sangay", "Namgay"];
+const LIVE_CHAT_LINES = ["Hi from Thimphu! 👋", "This is fun", "😂😂😂", "how long have you been live?", "nice!", "🔥🔥", "hello everyone"];
+
+let liveHostStream = null;
+let liveGuestStream = null;
+let liveIntervals = [];
+
+function clearLiveIntervals() {
+  liveIntervals.forEach((id) => clearInterval(id));
+  liveIntervals = [];
+}
+function stopStream(stream) {
+  if (stream) stream.getTracks().forEach((t) => t.stop());
+}
+
+function addLiveChatMessage(feedId, name, text, isGift) {
+  const feed = document.getElementById(feedId);
+  if (!feed) return;
+  const row = document.createElement("div");
+  row.className = "live-chat-msg" + (isGift ? " gift-msg" : "");
+  row.innerHTML = `<b>${name}</b> ${text}`;
+  feed.appendChild(row);
+  feed.scrollTop = feed.scrollHeight;
+  while (feed.children.length > 30) feed.removeChild(feed.firstChild);
+}
+
+async function startCamera(videoEl) {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+    videoEl.srcObject = stream;
+    return stream;
+  } catch (e) {
+    return null;
+  }
+}
+
+function renderLiveStrip() {
+  const strip = document.getElementById("liveStrip");
+  strip.innerHTML = "";
+  LIVE_HOSTS.forEach((host) => {
+    const wrap = document.createElement("div");
+    wrap.className = "live-avatar-wrap";
+    wrap.innerHTML = `
+      <div class="live-ring"><div class="live-avatar-inner" style="background:${gradientFor(host.id)}">${host.name[0]}</div></div>
+      <span class="live-tag-badge">LIVE</span>
+      <span class="live-name">${host.name}</span>
+    `;
+    wrap.addEventListener("click", () => openLiveGuest(host));
+    strip.appendChild(wrap);
+  });
+}
+
+async function openLiveHost() {
+  switchView("live-host");
+  document.getElementById("hostChatFeed").innerHTML = "";
+  document.getElementById("hostEarnedCoins").textContent = "0";
+  document.getElementById("hostViewerCount").textContent = "1";
+  giftTargetStage = "liveHostStage";
+
+  const video = document.getElementById("hostCamPreview");
+  const fallback = document.getElementById("hostFallbackBg");
+  liveHostStream = await startCamera(video);
+  video.style.display = liveHostStream ? "block" : "none";
+  fallback.style.display = liveHostStream ? "none" : "block";
+  fallback.style.background = gradientFor("host-live");
+
+  clearLiveIntervals();
+  let viewers = 1;
+  liveIntervals.push(setInterval(() => {
+    viewers = Math.max(1, viewers + (Math.random() > 0.4 ? 1 : -1) * Math.round(Math.random() * 3));
+    document.getElementById("hostViewerCount").textContent = viewers;
+  }, 2500));
+
+  liveIntervals.push(setInterval(() => {
+    const name = LIVE_CHAT_NAMES[Math.floor(Math.random() * LIVE_CHAT_NAMES.length)];
+    if (Math.random() < 0.3) {
+      const gift = GIFT_ITEMS[Math.floor(Math.random() * 3)];
+      state.hostGiftsEarned += gift.cost;
+      saveState();
+      document.getElementById("hostEarnedCoins").textContent = state.hostGiftsEarned;
+      spawnGiftFly(document.getElementById("liveHostStage"), gift);
+      addLiveChatMessage("hostChatFeed", name, `sent a ${gift.name}!`, true);
+    } else {
+      const line = LIVE_CHAT_LINES[Math.floor(Math.random() * LIVE_CHAT_LINES.length)];
+      addLiveChatMessage("hostChatFeed", name, line, false);
+    }
+  }, 2200));
+}
+
+function closeLiveHost() {
+  clearLiveIntervals();
+  stopStream(liveHostStream);
+  liveHostStream = null;
+  switchView("mine");
+  renderMine();
+  toast(`Live ended — ${state.hostGiftsEarned} coins earned (demo)`);
+}
+document.getElementById("hostExitBtn").addEventListener("click", closeLiveHost);
+document.getElementById("endLiveBtn").addEventListener("click", closeLiveHost);
+
+function openLiveGuest(host) {
+  switchView("live-guest");
+  giftTargetStage = "liveGuestStage";
+  document.getElementById("guestChatFeed").innerHTML = "";
+  document.getElementById("liveHostName").textContent = host.name;
+  document.getElementById("liveHostTag").textContent = host.tag;
+  document.getElementById("liveHostAvatar").style.background = gradientFor(host.id);
+  document.getElementById("liveGuestBg").style.background = gradientFor(host.id, 2);
+  document.getElementById("guestViewerCount").textContent = host.viewers;
+
+  const joinBtn = document.getElementById("joinGuestBtn");
+  joinBtn.textContent = "Join";
+  joinBtn.classList.remove("joined");
+  const pip = document.getElementById("guestCamPip");
+  pip.style.display = "none";
+
+  clearLiveIntervals();
+  let viewers = host.viewers;
+  liveIntervals.push(setInterval(() => {
+    viewers = Math.max(1, viewers + Math.round((Math.random() - 0.4) * 5));
+    document.getElementById("guestViewerCount").textContent = viewers;
+  }, 2500));
+
+  liveIntervals.push(setInterval(() => {
+    const name = LIVE_CHAT_NAMES[Math.floor(Math.random() * LIVE_CHAT_NAMES.length)];
+    const line = LIVE_CHAT_LINES[Math.floor(Math.random() * LIVE_CHAT_LINES.length)];
+    addLiveChatMessage("guestChatFeed", name, line, false);
+  }, 2800));
+
+  addLiveChatMessage("guestChatFeed", host.name, "Welcome to my live! 🎉", false);
+}
+
+function closeLiveGuest() {
+  clearLiveIntervals();
+  stopStream(liveGuestStream);
+  liveGuestStream = null;
+  switchView("home");
+}
+document.getElementById("guestExitBtn").addEventListener("click", closeLiveGuest);
+
+document.getElementById("joinGuestBtn").addEventListener("click", async (e) => {
+  const btn = e.currentTarget;
+  if (btn.classList.contains("joined")) {
+    stopStream(liveGuestStream);
+    liveGuestStream = null;
+    document.getElementById("guestCamPip").style.display = "none";
+    btn.classList.remove("joined");
+    btn.textContent = "Join";
+    return;
+  }
+  const pip = document.getElementById("guestCamPip");
+  liveGuestStream = await startCamera(pip);
+  if (liveGuestStream) {
+    pip.style.display = "block";
+    btn.classList.add("joined");
+    btn.textContent = "Leave";
+    addLiveChatMessage("guestChatFeed", "You", "joined as a guest!", false);
+  } else {
+    toast("Camera access denied");
+  }
+});
+
+document.getElementById("liveGiftBtn").addEventListener("click", () => {
+  giftTargetStage = "liveGuestStage";
+  renderGiftGrid();
+  openModal("giftModal");
+});
+
+document.getElementById("liveChatInput").addEventListener("keydown", (e) => {
+  if (e.key !== "Enter") return;
+  const input = e.currentTarget;
+  const text = input.value.trim();
+  if (!text) return;
+  addLiveChatMessage("guestChatFeed", "You", text, false);
+  input.value = "";
+});
+
 /* ---------------- Init ---------------- */
 function init() {
   loadState();
   updateCoinDisplays();
   renderFeed();
+  renderLiveStrip();
   switchView("home");
   renderCoinPackages();
   document.getElementById("rewardsDot").style.display = "block";
