@@ -1019,6 +1019,17 @@ input { font: inherit; color: inherit; }
   margin-left: auto;
   animation: liveBadgeBlink 1.6s ease-in-out infinite;
 }
+
+.mutual-badge {
+  background: rgba(0,0,0,0.45);
+  border: 1px solid var(--gold);
+  color: var(--gold);
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.3px;
+  padding: 4px 10px;
+  border-radius: 999px;
+}
 @keyframes liveBadgeBlink { 0%, 100% { opacity: 1; } 50% { opacity: 0.55; } }
 
 .live-teaser-center {

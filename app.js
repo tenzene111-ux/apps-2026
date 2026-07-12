@@ -16,7 +16,7 @@ const DRAMAS = [
   { id: "d2", title: "CEO's Secret Baby", genre: "romance", label: "Young Adult", badge: "Hot", views: "38.7M", desc: "Five years after she vanished, she returns with his son — and he wants them both back.", episodes: 36, free: 3 },
   { id: "d3", title: "Revenge of the Discarded Wife", genre: "revenge", label: "Revenge", badge: "New", views: "21.4M", desc: "Cast aside for a socialite, she rebuilds herself into the one woman this city cannot ignore.", episodes: 50, free: 4 },
   { id: "d4", title: "Alpha's Rejected Mate", genre: "fantasy", label: "Werewolf", badge: "Trending", views: "55.9M", desc: "Rejected by her wolf mate in front of the pack, she discovers a power older than the moon itself.", episodes: 60, free: 3 },
-  { id: "d5", title: "Married to the Mafia King", genre: "revenge", label: "Family Drama", badge: "", views: "19.2M", desc: "A marriage of convenience turns dangerous when she becomes the only one he trusts.", episodes: 34, free: 3 },
+  { id: "d5", title: "Married to the Mafia King", genre: "revenge", label: "Family Drama", badge: "", views: "19.2M", desc: "A marriage of convenience turns dangerous when she becomes the only one he trusts.", episodes: 34, free: 3, mutual: true },
   { id: "d6", title: "My Ex-Husband is a Billionaire", genre: "romance", label: "Age Gap", badge: "New", views: "15.8M", desc: "She didn't know the man she divorced broke was secretly worth billions — until he showed up at her wedding.", episodes: 28, free: 3 },
   { id: "d7", title: "The Contract Bride", genre: "romance", label: "Young Adult", badge: "Dubbed", views: "12.3M", desc: "One signature bound them together. Neither expected to fall for the terms of the deal.", episodes: 30, free: 3 },
   { id: "d8", title: "Twin Swap Wedding", genre: "fantasy", label: "Male Lead", badge: "Hot", views: "27.6M", desc: "She took her twin's place at the altar to save the family — now she can't escape the marriage, or her feelings.", episodes: 40, free: 3 },
@@ -534,8 +534,23 @@ document.querySelectorAll('[data-back="home"]').forEach(btn => {
 function renderForYouFeed() {
   const feed = document.getElementById("forYouFeed");
   feed.innerHTML = "";
-  [...LIVE_HOSTS].sort((a, b) => b.viewers - a.viewers).forEach((host) => feed.appendChild(buildLiveTeaserCard(host)));
-  DRAMAS.forEach((d) => feed.appendChild(buildForYouCard(d)));
+
+  const maxLiveViewers = Math.max(...LIVE_HOSTS.map((h) => h.viewers));
+  const maxDramaViews = Math.max(...DRAMAS.map((d) => parseFloat(d.views)));
+
+  const items = [
+    ...LIVE_HOSTS.map((host) => ({ type: "live", data: host, mutual: !!host.mutual, score: host.viewers / maxLiveViewers })),
+    ...DRAMAS.map((d) => ({ type: "drama", data: d, mutual: !!d.mutual, score: parseFloat(d.views) / maxDramaViews })),
+  ];
+
+  items.sort((a, b) => {
+    if (a.mutual !== b.mutual) return a.mutual ? -1 : 1;
+    return b.score - a.score;
+  });
+
+  items.forEach((item) => {
+    feed.appendChild(item.type === "live" ? buildLiveTeaserCard(item.data) : buildForYouCard(item.data));
+  });
   observeForYouCards();
 }
 
@@ -547,6 +562,7 @@ function buildLiveTeaserCard(host) {
     <div class="player-vignette"></div>
     <div class="fyu-topbar">
       <div class="fyu-logo"><svg viewBox="0 0 64 64"><rect x="1" y="1" width="62" height="62" rx="15" fill="none" stroke="currentColor" stroke-width="3"/><text x="32" y="42" font-size="30" font-weight="800" text-anchor="middle" fill="currentColor" font-family="Arial, sans-serif">R</text></svg></div>
+      ${host.mutual ? '<span class="mutual-badge">Mutual</span>' : ""}
       <span class="live-teaser-badge">LIVE</span>
     </div>
     <div class="live-teaser-center">
@@ -583,6 +599,7 @@ function buildForYouCard(d) {
     <div class="player-vignette"></div>
     <div class="fyu-topbar">
       <div class="fyu-logo"><svg viewBox="0 0 64 64"><rect width="64" height="64" rx="16" fill="url(#coinGrad)" opacity="0"/><rect x="1" y="1" width="62" height="62" rx="15" fill="none" stroke="currentColor" stroke-width="3"/><text x="32" y="42" font-size="30" font-weight="800" text-anchor="middle" fill="currentColor" font-family="Arial, sans-serif">R</text></svg></div>
+      ${d.mutual ? '<span class="mutual-badge">Mutual</span>' : ""}
       <button class="fyu-search-btn"><svg class="ic"><use href="#ic-search"/></svg></button>
     </div>
     <div class="center-play-btn"><svg class="ic"><use href="#ic-play"/></svg></div>
@@ -1136,7 +1153,7 @@ function spawnGiftFly(stage, gift) {
 const LIVE_HOSTS = [
   { id: "l1", name: "Sonam D.", tag: "Chit-chat", viewers: 1240 },
   { id: "l2", name: "Tenzin K.", tag: "Singing", viewers: 342 },
-  { id: "l3", name: "Pema W.", tag: "Q&A", viewers: 891 },
+  { id: "l3", name: "Pema W.", tag: "Q&A", viewers: 891, mutual: true },
   { id: "l4", name: "Karma L.", tag: "Just Chatting", viewers: 56 },
 ];
 const LIVE_CHAT_NAMES = ["Dorji", "Yeshi", "Chimi", "Ugyen", "Sangay", "Namgay"];
