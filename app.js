@@ -56,6 +56,7 @@ const state = {
   autoplayNext: true,
   profileNotifSeen: false,
   hostGiftsEarned: 0,
+  watchHistory: {},
 };
 
 function loadState() {
@@ -117,6 +118,34 @@ function switchView(name) {
   if (tabForView[name]) {
     document.querySelectorAll(".nav-item").forEach(b => b.classList.toggle("active", b.dataset.tab === tabForView[name]));
   }
+}
+
+function renderContinueWatching() {
+  const section = document.getElementById("continueSection");
+  const strip = document.getElementById("continueStrip");
+  const entries = Object.entries(state.watchHistory)
+    .map(([dramaId, progress]) => ({ drama: DRAMAS.find((d) => d.id === dramaId), ...progress }))
+    .filter((e) => e.drama)
+    .sort((a, b) => b.updatedAt - a.updatedAt)
+    .slice(0, 8);
+
+  if (!entries.length) { section.style.display = "none"; return; }
+  section.style.display = "block";
+  strip.innerHTML = "";
+  entries.forEach(({ drama, epNum }) => {
+    const pct = Math.round((epNum / drama.episodes) * 100);
+    const card = document.createElement("div");
+    card.className = "continue-card";
+    card.innerHTML = `
+      <div class="continue-thumb" style="background:${gradientFor(drama.id)}">
+        <span class="continue-ep-badge">EP ${epNum}</span>
+        <div class="continue-progress"><div class="continue-progress-fill" style="width:${pct}%"></div></div>
+      </div>
+      <p class="continue-title">${drama.title}</p>
+    `;
+    card.addEventListener("click", () => openPlayer(drama.id, epNum - 1));
+    strip.appendChild(card);
+  });
 }
 
 function renderFeed() {
@@ -242,6 +271,12 @@ function openPlayer(dramaId, epIndex) {
     if (target) target.scrollIntoView({ block: "start" });
   });
   observePlayerCards();
+  recordWatchProgress(dramaId, epIndex + 1);
+}
+
+function recordWatchProgress(dramaId, epNum) {
+  state.watchHistory[dramaId] = { epNum, updatedAt: Date.now() };
+  saveState();
 }
 
 function buildPlayerCard(d, epNum) {
@@ -387,7 +422,9 @@ function observePlayerCards() {
   const io = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
       if (entry.isIntersecting && entry.intersectionRatio > 0.6) {
-        state.currentEpIndex = Number(entry.target.dataset.ep) - 1;
+        const epNum = Number(entry.target.dataset.ep);
+        state.currentEpIndex = epNum - 1;
+        if (state.currentDrama) recordWatchProgress(state.currentDrama.id, epNum);
       }
     });
   }, { threshold: [0.6], root: document.getElementById("playerFeed") });
@@ -488,7 +525,7 @@ document.querySelectorAll(".nav-item").forEach(btn => {
     document.querySelectorAll(".nav-item").forEach(b => b.classList.remove("active"));
     btn.classList.add("active");
     const tab = btn.dataset.tab;
-    if (tab === "home") { switchView("home"); renderFeed(); }
+    if (tab === "home") { switchView("home"); renderFeed(); renderContinueWatching(); }
     if (tab === "foryou") { switchView("foryou"); renderForYouFeed(); }
     if (tab === "mylist") { switchView("mylist"); renderMyList(); }
     if (tab === "rewards") { switchView("rewards"); renderRewards(); }
@@ -527,7 +564,7 @@ document.getElementById("subscribeVipBtn").addEventListener("click", () => {
 });
 
 document.querySelectorAll('[data-back="home"]').forEach(btn => {
-  btn.addEventListener("click", () => switchView("home"));
+  btn.addEventListener("click", () => { switchView("home"); renderContinueWatching(); });
 });
 
 /* ---------------- For You (cross-series swipe discovery) ---------------- */
@@ -1341,6 +1378,7 @@ function init() {
   updateCoinDisplays();
   renderFeed();
   renderLiveStrip();
+  renderContinueWatching();
   switchView("home");
   renderCoinPackages();
   updateRewardsDots();

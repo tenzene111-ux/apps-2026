@@ -12,7 +12,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="Reelflix" />
-  <link rel="stylesheet" href="style.css?v=19" />
+  <link rel="stylesheet" href="style.css?v=20" />
 </head>
 <body>
   <svg width="0" height="0" style="position:absolute" aria-hidden="true">
@@ -221,6 +221,10 @@
         <button class="genre-tab" data-genre="fantasy">Fantasy</button>
       </nav>
       <div class="home-scroll">
+        <div class="continue-section" id="continueSection" style="display:none">
+          <h4 class="section-title">Continue Watching</h4>
+          <div class="continue-strip" id="continueStrip"></div>
+        </div>
         <div class="live-strip" id="liveStrip"></div>
         <div class="poster-grid" id="feed"></div>
       </div>
@@ -585,6 +589,6 @@
     </div>
   </div>
 
-  <script src="app.js?v=19"></script>
+  <script src="app.js?v=20"></script>
 </body>
 </html>
