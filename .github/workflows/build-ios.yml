@@ -1,0 +1,49 @@
+name: Build iOS (simulator, unsigned)
+
+on:
+  push:
+    branches: ["claude/merge-repo-create-html-11i1tl"]
+    paths:
+      - "www/**"
+      - "ios/**"
+      - "capacitor.config.json"
+      - "package.json"
+      - ".github/workflows/build-ios.yml"
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Sync web assets into iOS project
+        run: npx cap sync ios
+
+      - name: Install CocoaPods dependencies
+        working-directory: ios/App
+        run: pod install
+
+      - name: Build for iOS Simulator (no signing required)
+        working-directory: ios/App
+        run: |
+          xcodebuild -workspace App.xcworkspace \
+            -scheme App \
+            -sdk iphonesimulator \
+            -configuration Debug \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO \
+            build
+
+      # Real device / App Store builds need your Apple Developer certificate
+      # and provisioning profile, supplied as repo secrets. This workflow
+      # only proves the project builds -- it does not produce a signed IPA.

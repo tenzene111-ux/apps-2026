@@ -1,0 +1,9 @@
+{
+  "appId": "com.reelflix.app",
+  "appName": "Reelflix",
+  "webDir": "www",
+  "backgroundColor": "#0b0b10",
+  "server": {
+    "androidScheme": "https"
+  }
+}
