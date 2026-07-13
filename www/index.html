@@ -12,7 +12,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="Reelflix" />
-  <link rel="stylesheet" href="style.css?v=21" />
+  <link rel="stylesheet" href="style.css?v=22" />
 </head>
 <body>
   <svg width="0" height="0" style="position:absolute" aria-hidden="true">
@@ -410,7 +410,6 @@
         </div>
         <div class="live-earn-tally">
           <svg class="ic ic-coin"><use href="#ic-coin"/></svg> <span id="hostEarnedCoins">0</span> earned
-          <span class="demo-tag">demo only</span>
         </div>
         <div class="live-chat" id="hostChatFeed"></div>
         <div class="live-bottom-bar">
@@ -423,6 +422,7 @@
     <section id="view-live-guest" class="view">
       <div class="live-stage" id="liveGuestStage">
         <div class="live-bg" id="liveGuestBg"></div>
+        <video id="guestHostVideo" class="live-cam" autoplay playsinline style="display:none"></video>
         <video id="guestCamPip" class="live-cam-pip" autoplay muted playsinline style="display:none"></video>
         <div class="live-vignette"></div>
         <div class="live-topbar">
@@ -607,7 +607,8 @@
     </div>
   </div>
 
-  <script src="vendor/supabase.js?v=21"></script>
-  <script src="app.js?v=21"></script>
+  <script src="vendor/supabase.js?v=22"></script>
+  <script src="vendor/livekit-client.js?v=22"></script>
+  <script src="app.js?v=22"></script>
 </body>
 </html>

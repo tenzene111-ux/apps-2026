@@ -67,7 +67,6 @@ const state = {
   notifOn: true,
   autoplayNext: true,
   profileNotifSeen: false,
-  hostGiftsEarned: 0,
   watchHistory: {},
 };
 
@@ -113,6 +112,18 @@ function updateAuthUI() {
     ? (currentProfile?.username || currentUser.email || "Member")
     : "Guest";
   document.getElementById("uidText").textContent = signedIn ? currentUser.id.slice(0, 10) : "1062724055";
+}
+
+async function refreshWalletFromServer() {
+  if (!currentUser || !supabaseClient) return;
+  const { data } = await supabaseClient.from("profiles").select("coins, gems, vip").eq("id", currentUser.id).single();
+  if (data) {
+    state.coins = data.coins;
+    state.gems = data.gems;
+    state.vip = data.vip;
+    localStorage.setItem("reelapp_state", JSON.stringify(state));
+    updateCoinDisplays();
+  }
 }
 
 async function loadProfile(userId) {
@@ -662,11 +673,11 @@ function renderForYouFeed() {
   const feed = document.getElementById("forYouFeed");
   feed.innerHTML = "";
 
-  const maxLiveViewers = Math.max(...LIVE_HOSTS.map((h) => h.viewers));
   const maxDramaViews = Math.max(...DRAMAS.map((d) => parseFloat(d.views)));
 
   const items = [
-    ...LIVE_HOSTS.map((host) => ({ type: "live", data: host, mutual: !!host.mutual, score: host.viewers / maxLiveViewers })),
+    // Real live sessions always rank as maximally "hot" — someone is live right now.
+    ...liveSessionsCache.map((host) => ({ type: "live", data: host, mutual: false, score: 1 })),
     ...DRAMAS.map((d) => ({ type: "drama", data: d, mutual: !!d.mutual, score: parseFloat(d.views) / maxDramaViews })),
   ];
 
@@ -689,16 +700,15 @@ function buildLiveTeaserCard(host) {
     <div class="player-vignette"></div>
     <div class="fyu-topbar">
       <div class="fyu-logo"><svg viewBox="0 0 64 64"><rect x="1" y="1" width="62" height="62" rx="15" fill="none" stroke="currentColor" stroke-width="3"/><text x="32" y="42" font-size="30" font-weight="800" text-anchor="middle" fill="currentColor" font-family="Arial, sans-serif">R</text></svg></div>
-      ${host.mutual ? '<span class="mutual-badge">Mutual</span>' : ""}
       <span class="live-teaser-badge">LIVE</span>
     </div>
     <div class="live-teaser-center">
-      <div class="live-teaser-avatar" style="background:${gradientFor(host.id)}">${host.name[0]}</div>
+      <div class="live-teaser-avatar" style="background:${gradientFor(host.id)}">${host.name[0].toUpperCase()}</div>
       <div class="live-teaser-ring"></div>
     </div>
     <div class="player-bottom player-bottom-nav-spacer">
       <h3>${host.name} <span class="chevron">›</span></h3>
-      <span class="fyu-tag">${host.tag} · <svg class="ic"><use href="#ic-person"/></svg> ${formatCount(host.viewers)} watching</span>
+      <span class="fyu-tag">${host.tag} · streaming now</span>
       <button class="btn-watch-now live-teaser-cta">Watch Live</button>
     </div>
   `;
@@ -1288,17 +1298,23 @@ function renderGiftGrid() {
   });
 }
 
-function sendGift(gift) {
+async function sendGift(gift) {
+  if (!currentLiveHostId) { closeModal("giftModal"); return; }
   if (state.coins < gift.cost) { toast("Not enough coins"); closeModal("giftModal"); openModal("coinModal"); return; }
-  state.coins -= gift.cost;
-  state.hostGiftsEarned += gift.cost;
-  saveState();
-  updateCoinDisplays();
   closeModal("giftModal");
+  const { error } = await supabaseClient.rpc("send_gift", { p_host_id: currentLiveHostId, p_amount: gift.cost });
+  if (error) { toast(error.message.includes("insufficient") ? "Not enough coins" : "Gift failed"); return; }
+  await refreshWalletFromServer();
   const stage = document.getElementById(giftTargetStage);
   spawnGiftFly(stage, gift);
   const chatFeedId = giftTargetStage === "liveHostStage" ? "hostChatFeed" : "guestChatFeed";
   addLiveChatMessage(chatFeedId, "You", `sent a ${gift.name}!`, true);
+  if (currentLiveRoom) {
+    const payload = new TextEncoder().encode(JSON.stringify({
+      type: "gift", name: currentProfile?.username || "Someone", giftId: gift.id, giftName: gift.name, cost: gift.cost,
+    }));
+    currentLiveRoom.localParticipant.publishData(payload, { reliable: true });
+  }
 }
 
 function spawnGiftFly(stage, gift) {
@@ -1309,27 +1325,13 @@ function spawnGiftFly(stage, gift) {
   fly.addEventListener("animationend", () => fly.remove());
 }
 
-/* ---------------- Live ---------------- */
-const LIVE_HOSTS = [
-  { id: "l1", name: "Sonam D.", tag: "Chit-chat", viewers: 1240 },
-  { id: "l2", name: "Tenzin K.", tag: "Singing", viewers: 342 },
-  { id: "l3", name: "Pema W.", tag: "Q&A", viewers: 891, mutual: true },
-  { id: "l4", name: "Karma L.", tag: "Just Chatting", viewers: 56 },
-];
-const LIVE_CHAT_NAMES = ["Dorji", "Yeshi", "Chimi", "Ugyen", "Sangay", "Namgay"];
-const LIVE_CHAT_LINES = ["Hi from Thimphu! 👋", "This is fun", "😂😂😂", "how long have you been live?", "nice!", "🔥🔥", "hello everyone"];
-
-let liveHostStream = null;
-let liveGuestStream = null;
-let liveIntervals = [];
-
-function clearLiveIntervals() {
-  liveIntervals.forEach((id) => clearInterval(id));
-  liveIntervals = [];
-}
-function stopStream(stream) {
-  if (stream) stream.getTracks().forEach((t) => t.stop());
-}
+/* ---------------- Live (real, via LiveKit Cloud + Supabase) ---------------- */
+let liveSessionsCache = [];
+let currentLiveRoom = null;
+let currentLiveRoomName = null;
+let currentLiveHostId = null;
+let hostSessionEarned = 0;
+let presenceChannel = null;
 
 function addLiveChatMessage(feedId, name, text, isGift) {
   const feed = document.getElementById(feedId);
@@ -1342,25 +1344,43 @@ function addLiveChatMessage(feedId, name, text, isGift) {
   while (feed.children.length > 30) feed.removeChild(feed.firstChild);
 }
 
-async function startCamera(videoEl) {
-  try {
-    const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
-    videoEl.srcObject = stream;
-    return stream;
-  } catch (e) {
-    return null;
-  }
+async function fetchLiveSessions() {
+  if (!supabaseClient) return;
+  const { data, error } = await supabaseClient
+    .from("live_sessions")
+    .select("id, room_name, host_id, title, started_at, host:profiles(username)")
+    .is("ended_at", null)
+    .order("started_at", { ascending: false });
+  if (error) return;
+  liveSessionsCache = (data || []).map((s) => ({
+    id: s.id,
+    room: s.room_name,
+    hostId: s.host_id,
+    name: s.host?.username || "Live host",
+    tag: s.title || "Live",
+  }));
+  renderLiveStrip();
+  if (state.view === "foryou") renderForYouFeed();
+}
+
+function subscribeLiveSessionsRealtime() {
+  if (!supabaseClient) return;
+  supabaseClient
+    .channel("live_sessions_public")
+    .on("postgres_changes", { event: "*", schema: "public", table: "live_sessions" }, fetchLiveSessions)
+    .subscribe();
 }
 
 function renderLiveStrip() {
   const strip = document.getElementById("liveStrip");
   strip.innerHTML = "";
-  LIVE_HOSTS.forEach((host) => {
+  strip.style.display = liveSessionsCache.length ? "" : "none";
+  liveSessionsCache.forEach((host) => {
     const wrap = document.createElement("div");
     wrap.className = "live-avatar-wrap";
     wrap.innerHTML = `
       <div class="live-ring">
-        <div class="live-avatar-inner" style="background:${gradientFor(host.id)}">${host.name[0]}</div>
+        <div class="live-avatar-inner" style="background:${gradientFor(host.id)}">${host.name[0].toUpperCase()}</div>
         <span class="live-tag-badge">LIVE</span>
       </div>
       <span class="live-name">${host.name}</span>
@@ -1370,63 +1390,139 @@ function renderLiveStrip() {
   });
 }
 
+async function getLiveKitToken(room) {
+  const { data, error } = await supabaseClient.functions.invoke("livekit-token", { body: { room } });
+  if (error) throw error;
+  if (data?.error) throw new Error(data.error);
+  return data;
+}
+
+function joinPresence(room, countElId) {
+  leavePresence();
+  if (!supabaseClient) return;
+  presenceChannel = supabaseClient.channel(`presence:${room}`, {
+    config: { presence: { key: currentUser?.id || crypto.randomUUID() } },
+  });
+  presenceChannel.on("presence", { event: "sync" }, () => {
+    const count = Object.keys(presenceChannel.presenceState()).length;
+    const el = document.getElementById(countElId);
+    if (el) el.textContent = Math.max(1, count);
+  });
+  presenceChannel.subscribe((status) => {
+    if (status === "SUBSCRIBED") presenceChannel.track({ joined_at: Date.now() });
+  });
+}
+function leavePresence() {
+  if (presenceChannel && supabaseClient) supabaseClient.removeChannel(presenceChannel);
+  presenceChannel = null;
+}
+
+function setupLiveRoomListeners(room, isHost) {
+  room.on(LivekitClient.RoomEvent.TrackSubscribed, (track) => {
+    if (track.kind !== "video" || isHost) return;
+    const video = document.getElementById("guestHostVideo");
+    track.attach(video);
+    video.style.display = "block";
+    document.getElementById("liveGuestBg").style.display = "none";
+  });
+  room.on(LivekitClient.RoomEvent.DataReceived, (payload) => {
+    let msg;
+    try { msg = JSON.parse(new TextDecoder().decode(payload)); } catch (e) { return; }
+    const chatFeedId = isHost ? "hostChatFeed" : "guestChatFeed";
+    const stageId = isHost ? "liveHostStage" : "liveGuestStage";
+    if (msg.type === "chat") {
+      addLiveChatMessage(chatFeedId, msg.name, msg.text, false);
+    } else if (msg.type === "gift") {
+      addLiveChatMessage(chatFeedId, msg.name, `sent a ${msg.giftName}!`, true);
+      const giftDef = GIFT_ITEMS.find((g) => g.id === msg.giftId);
+      if (giftDef) spawnGiftFly(document.getElementById(stageId), giftDef);
+      if (isHost) {
+        hostSessionEarned += msg.cost;
+        document.getElementById("hostEarnedCoins").textContent = hostSessionEarned;
+        refreshWalletFromServer();
+      }
+    }
+  });
+}
+
 async function openLiveHost() {
+  if (!currentUser) { toast("Sign in to go live"); openAuthModal("signin"); return; }
   switchView("live-host");
   document.getElementById("hostChatFeed").innerHTML = "";
+  hostSessionEarned = 0;
   document.getElementById("hostEarnedCoins").textContent = "0";
   document.getElementById("hostViewerCount").textContent = "1";
   giftTargetStage = "liveHostStage";
 
+  const roomName = `live-${currentUser.id}`;
+  currentLiveRoomName = roomName;
+  currentLiveHostId = currentUser.id;
+
+  const { error: upsertError } = await supabaseClient
+    .from("live_sessions")
+    .upsert(
+      { host_id: currentUser.id, room_name: roomName, title: "Live now", started_at: new Date().toISOString(), ended_at: null },
+      { onConflict: "room_name" }
+    );
+  if (upsertError) { toast("Couldn't start live: " + upsertError.message); switchView("mine"); return; }
+
   const video = document.getElementById("hostCamPreview");
   const fallback = document.getElementById("hostFallbackBg");
-  liveHostStream = await startCamera(video);
-  video.style.display = liveHostStream ? "block" : "none";
-  fallback.style.display = liveHostStream ? "none" : "block";
   fallback.style.background = gradientFor("host-live");
 
-  clearLiveIntervals();
-  let viewers = 1;
-  liveIntervals.push(setInterval(() => {
-    viewers = Math.max(1, viewers + (Math.random() > 0.4 ? 1 : -1) * Math.round(Math.random() * 3));
-    document.getElementById("hostViewerCount").textContent = viewers;
-  }, 2500));
-
-  liveIntervals.push(setInterval(() => {
-    const name = LIVE_CHAT_NAMES[Math.floor(Math.random() * LIVE_CHAT_NAMES.length)];
-    if (Math.random() < 0.3) {
-      const gift = GIFT_ITEMS[Math.floor(Math.random() * 3)];
-      state.hostGiftsEarned += gift.cost;
-      saveState();
-      document.getElementById("hostEarnedCoins").textContent = state.hostGiftsEarned;
-      spawnGiftFly(document.getElementById("liveHostStage"), gift);
-      addLiveChatMessage("hostChatFeed", name, `sent a ${gift.name}!`, true);
+  try {
+    const { token, url } = await getLiveKitToken(roomName);
+    const room = new LivekitClient.Room();
+    setupLiveRoomListeners(room, true);
+    await room.connect(url, token);
+    currentLiveRoom = room;
+    const pub = await room.localParticipant.setCameraEnabled(true);
+    await room.localParticipant.setMicrophoneEnabled(true);
+    if (pub?.track) {
+      pub.track.attach(video);
+      video.style.display = "block";
+      fallback.style.display = "none";
     } else {
-      const line = LIVE_CHAT_LINES[Math.floor(Math.random() * LIVE_CHAT_LINES.length)];
-      addLiveChatMessage("hostChatFeed", name, line, false);
+      video.style.display = "none";
+      fallback.style.display = "block";
     }
-  }, 2200));
+  } catch (e) {
+    toast("Camera/mic access needed to go live");
+    video.style.display = "none";
+    fallback.style.display = "block";
+  }
+
+  joinPresence(roomName, "hostViewerCount");
 }
 
-function closeLiveHost() {
-  clearLiveIntervals();
-  stopStream(liveHostStream);
-  liveHostStream = null;
+async function closeLiveHost() {
+  leavePresence();
+  if (currentLiveRoom) { currentLiveRoom.disconnect(); currentLiveRoom = null; }
+  if (currentLiveRoomName && currentUser) {
+    await supabaseClient.from("live_sessions").update({ ended_at: new Date().toISOString() }).eq("room_name", currentLiveRoomName).eq("host_id", currentUser.id);
+  }
+  const earned = hostSessionEarned;
+  currentLiveRoomName = null;
+  currentLiveHostId = null;
   switchView("mine");
   renderMine();
-  toast(`Live ended — ${state.hostGiftsEarned} coins earned (demo)`);
+  toast(earned > 0 ? `Live ended — ${earned} coins earned` : "Live ended");
 }
 document.getElementById("hostExitBtn").addEventListener("click", closeLiveHost);
 document.getElementById("endLiveBtn").addEventListener("click", closeLiveHost);
 
-function openLiveGuest(host) {
+async function openLiveGuest(host) {
+  if (!currentUser) { toast("Sign in to watch live"); openAuthModal("signin"); return; }
   switchView("live-guest");
   giftTargetStage = "liveGuestStage";
   document.getElementById("guestChatFeed").innerHTML = "";
   document.getElementById("liveHostName").textContent = host.name;
   document.getElementById("liveHostTag").textContent = host.tag;
-  document.getElementById("liveHostAvatar").style.background = gradientFor(host.id);
-  document.getElementById("liveGuestBg").style.background = gradientFor(host.id, 2);
-  document.getElementById("guestViewerCount").textContent = host.viewers;
+  document.getElementById("liveHostAvatar").style.background = gradientFor(host.hostId);
+  document.getElementById("liveGuestBg").style.background = gradientFor(host.hostId, 2);
+  document.getElementById("liveGuestBg").style.display = "block";
+  document.getElementById("guestHostVideo").style.display = "none";
+  document.getElementById("guestViewerCount").textContent = "1";
 
   const joinBtn = document.getElementById("joinGuestBtn");
   joinBtn.textContent = "Join";
@@ -1434,48 +1530,55 @@ function openLiveGuest(host) {
   const pip = document.getElementById("guestCamPip");
   pip.style.display = "none";
 
-  clearLiveIntervals();
-  let viewers = host.viewers;
-  liveIntervals.push(setInterval(() => {
-    viewers = Math.max(1, viewers + Math.round((Math.random() - 0.4) * 5));
-    document.getElementById("guestViewerCount").textContent = viewers;
-  }, 2500));
+  currentLiveRoomName = host.room;
+  currentLiveHostId = host.hostId;
 
-  liveIntervals.push(setInterval(() => {
-    const name = LIVE_CHAT_NAMES[Math.floor(Math.random() * LIVE_CHAT_NAMES.length)];
-    const line = LIVE_CHAT_LINES[Math.floor(Math.random() * LIVE_CHAT_LINES.length)];
-    addLiveChatMessage("guestChatFeed", name, line, false);
-  }, 2800));
+  try {
+    const { token, url } = await getLiveKitToken(host.room);
+    const room = new LivekitClient.Room();
+    setupLiveRoomListeners(room, false);
+    await room.connect(url, token);
+    currentLiveRoom = room;
+  } catch (e) {
+    toast("This live just ended");
+    closeLiveGuest();
+    return;
+  }
 
+  joinPresence(host.room, "guestViewerCount");
   addLiveChatMessage("guestChatFeed", host.name, "Welcome to my live! 🎉", false);
 }
 
 function closeLiveGuest() {
-  clearLiveIntervals();
-  stopStream(liveGuestStream);
-  liveGuestStream = null;
+  leavePresence();
+  if (currentLiveRoom) { currentLiveRoom.disconnect(); currentLiveRoom = null; }
+  currentLiveRoomName = null;
+  currentLiveHostId = null;
   switchView("home");
 }
 document.getElementById("guestExitBtn").addEventListener("click", closeLiveGuest);
 
 document.getElementById("joinGuestBtn").addEventListener("click", async (e) => {
   const btn = e.currentTarget;
+  const pip = document.getElementById("guestCamPip");
+  if (!currentLiveRoom) return;
   if (btn.classList.contains("joined")) {
-    stopStream(liveGuestStream);
-    liveGuestStream = null;
-    document.getElementById("guestCamPip").style.display = "none";
+    await currentLiveRoom.localParticipant.setCameraEnabled(false);
+    await currentLiveRoom.localParticipant.setMicrophoneEnabled(false);
+    pip.style.display = "none";
     btn.classList.remove("joined");
     btn.textContent = "Join";
     return;
   }
-  const pip = document.getElementById("guestCamPip");
-  liveGuestStream = await startCamera(pip);
-  if (liveGuestStream) {
+  try {
+    const pub = await currentLiveRoom.localParticipant.setCameraEnabled(true);
+    await currentLiveRoom.localParticipant.setMicrophoneEnabled(true);
+    if (pub?.track) pub.track.attach(pip);
     pip.style.display = "block";
     btn.classList.add("joined");
     btn.textContent = "Leave";
     addLiveChatMessage("guestChatFeed", "You", "joined as a guest!", false);
-  } else {
+  } catch (e) {
     toast("Camera access denied");
   }
 });
@@ -1492,6 +1595,11 @@ document.getElementById("liveChatInput").addEventListener("keydown", (e) => {
   const text = input.value.trim();
   if (!text) return;
   addLiveChatMessage("guestChatFeed", "You", text, false);
+  if (currentLiveRoom) {
+    const name = currentProfile?.username || "Someone";
+    const payload = new TextEncoder().encode(JSON.stringify({ type: "chat", name, text }));
+    currentLiveRoom.localParticipant.publishData(payload, { reliable: true });
+  }
   input.value = "";
 });
 
@@ -1521,6 +1629,8 @@ function init() {
       if (session?.user) handleSignedIn(session.user);
       else handleSignedOut();
     });
+    fetchLiveSessions();
+    subscribeLiveSessionsRealtime();
   }
 }
 init();
