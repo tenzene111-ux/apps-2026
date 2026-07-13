@@ -12,7 +12,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="Reelflix" />
-  <link rel="stylesheet" href="style.css?v=20" />
+  <link rel="stylesheet" href="style.css?v=21" />
 </head>
 <body>
   <svg width="0" height="0" style="position:absolute" aria-hidden="true">
@@ -364,10 +364,11 @@
           <div class="profile-id-row">
             <div class="profile-avatar"><svg class="ic"><use href="#ic-person"/></svg></div>
             <div class="profile-id">
-              <div class="profile-name">Guest</div>
+              <div class="profile-name" id="profileNameText">Guest</div>
               <div class="profile-uid">UID: <span id="uidText">1062724055</span> <button class="uid-copy" id="copyUidBtn">⧉</button></div>
             </div>
             <button class="signin-btn" id="signInBtn">Sign in</button>
+            <button class="signin-btn" id="signOutBtn" style="display:none">Sign out</button>
           </div>
         </div>
 
@@ -544,6 +545,23 @@
     </div>
   </div>
 
+  <div class="modal-backdrop" id="authModal">
+    <div class="modal">
+      <h3 id="authModalTitle">Sign in</h3>
+      <p id="authModalSubtitle">Sign in to save your coins, gems and profile.</p>
+      <input id="authEmailInput" class="modal-input" type="email" placeholder="Email" autocomplete="email" />
+      <input id="authPasswordInput" class="modal-input" type="password" placeholder="Password" autocomplete="current-password" />
+      <input id="authUsernameInput" class="modal-input" type="text" placeholder="Username" style="display:none" autocomplete="username" />
+      <div id="authModalError" class="auth-error" style="display:none"></div>
+      <button class="btn-primary" id="authSubmitBtn">Sign in</button>
+      <div class="auth-switch">
+        <span id="authSwitchText">Don't have an account?</span>
+        <button id="authSwitchBtn" type="button">Sign up</button>
+      </div>
+      <button class="modal-close" data-close="authModal">✕</button>
+    </div>
+  </div>
+
   <div class="modal-backdrop" id="feedbackModal">
     <div class="modal">
       <h3>Feedback</h3>
@@ -589,6 +607,7 @@
     </div>
   </div>
 
-  <script src="app.js?v=20"></script>
+  <script src="vendor/supabase.js?v=21"></script>
+  <script src="app.js?v=21"></script>
 </body>
 </html>

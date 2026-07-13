@@ -31,6 +31,18 @@ const COIN_PACKAGES = [
 
 const UNLOCK_COST = 30;
 
+/* ---------------- Supabase (real auth + profile sync) ---------------- */
+const SUPABASE_URL = "https://lmuejnpqpattxljcuqya.supabase.co";
+const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_uUDJ15UR6FUKphJuxGfJdw_ggIF-8gI";
+const supabaseClient = window.supabase
+  ? window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY)
+  : null;
+
+let currentUser = null;
+let currentProfile = null;
+let authMode = "signin";
+let profileSyncTimer = null;
+
 const state = {
   coins: 0,
   unlocked: {},
@@ -78,6 +90,84 @@ function loadState() {
 }
 function saveState() {
   localStorage.setItem("reelapp_state", JSON.stringify(state));
+  queueProfileSync();
+}
+
+/* ---------------- Auth / profile sync ---------------- */
+function queueProfileSync() {
+  if (!currentUser || !supabaseClient) return;
+  clearTimeout(profileSyncTimer);
+  profileSyncTimer = setTimeout(async () => {
+    await supabaseClient
+      .from("profiles")
+      .update({ coins: state.coins, gems: state.gems, vip: state.vip })
+      .eq("id", currentUser.id);
+  }, 800);
+}
+
+function updateAuthUI() {
+  const signedIn = !!currentUser;
+  document.getElementById("signInBtn").style.display = signedIn ? "none" : "";
+  document.getElementById("signOutBtn").style.display = signedIn ? "" : "none";
+  document.getElementById("profileNameText").textContent = signedIn
+    ? (currentProfile?.username || currentUser.email || "Member")
+    : "Guest";
+  document.getElementById("uidText").textContent = signedIn ? currentUser.id.slice(0, 10) : "1062724055";
+}
+
+async function loadProfile(userId) {
+  if (!supabaseClient) return null;
+  const { data, error } = await supabaseClient.from("profiles").select("*").eq("id", userId).single();
+  if (error) return null;
+  return data;
+}
+
+async function handleSignedIn(user) {
+  currentUser = user;
+  let profile = await loadProfile(user.id);
+  if (!profile) {
+    for (let i = 0; i < 5 && !profile; i++) {
+      await new Promise((r) => setTimeout(r, 400));
+      profile = await loadProfile(user.id);
+    }
+  }
+  currentProfile = profile;
+  if (profile) {
+    state.coins = profile.coins;
+    state.gems = profile.gems;
+    state.vip = profile.vip;
+    localStorage.setItem("reelapp_state", JSON.stringify(state));
+  }
+  updateAuthUI();
+  updateCoinDisplays();
+}
+
+function handleSignedOut() {
+  currentUser = null;
+  currentProfile = null;
+  updateAuthUI();
+}
+
+function openAuthModal(mode) {
+  authMode = mode;
+  document.getElementById("authModalTitle").textContent = mode === "signup" ? "Create account" : "Sign in";
+  document.getElementById("authModalSubtitle").textContent =
+    mode === "signup" ? "Sign up to save your coins, gems and profile." : "Sign in to save your coins, gems and profile.";
+  document.getElementById("authSubmitBtn").textContent = mode === "signup" ? "Sign up" : "Sign in";
+  document.getElementById("authUsernameInput").style.display = mode === "signup" ? "" : "none";
+  document.getElementById("authSwitchText").textContent = mode === "signup" ? "Already have an account?" : "Don't have an account?";
+  document.getElementById("authSwitchBtn").textContent = mode === "signup" ? "Sign in" : "Sign up";
+  document.getElementById("authModalError").style.display = "none";
+  document.getElementById("authEmailInput").value = "";
+  document.getElementById("authPasswordInput").value = "";
+  document.getElementById("authUsernameInput").value = "";
+  openModal("authModal");
+}
+
+function showAuthError(msg) {
+  const el = document.getElementById("authModalError");
+  el.textContent = msg;
+  el.style.display = "";
 }
 
 function gradientFor(seedStr, offset) {
@@ -1075,7 +1165,40 @@ document.getElementById("profileMenu").addEventListener("click", (e) => {
   }
 });
 
-document.getElementById("signInBtn").addEventListener("click", () => toast("Guest sign-in coming soon — this is a demo build."));
+document.getElementById("signInBtn").addEventListener("click", () => openAuthModal("signin"));
+document.getElementById("signOutBtn").addEventListener("click", async () => {
+  if (supabaseClient) await supabaseClient.auth.signOut();
+  toast("Signed out");
+});
+document.getElementById("authSwitchBtn").addEventListener("click", () => openAuthModal(authMode === "signin" ? "signup" : "signin"));
+document.getElementById("authSubmitBtn").addEventListener("click", async () => {
+  if (!supabaseClient) { showAuthError("Not available in this build."); return; }
+  const email = document.getElementById("authEmailInput").value.trim();
+  const password = document.getElementById("authPasswordInput").value;
+  const username = document.getElementById("authUsernameInput").value.trim();
+  if (!email || !password) { showAuthError("Enter your email and password."); return; }
+  if (authMode === "signup" && !username) { showAuthError("Choose a username."); return; }
+  const btn = document.getElementById("authSubmitBtn");
+  btn.disabled = true;
+  try {
+    if (authMode === "signup") {
+      const { error } = await supabaseClient.auth.signUp({
+        email,
+        password,
+        options: { data: { username } },
+      });
+      if (error) { showAuthError(error.message); return; }
+      toast("Account created!");
+    } else {
+      const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
+      if (error) { showAuthError(error.message); return; }
+      toast("Welcome back!");
+    }
+    closeModal("authModal");
+  } finally {
+    btn.disabled = false;
+  }
+});
 document.getElementById("copyUidBtn").addEventListener("click", () => {
   const uid = document.getElementById("uidText").textContent;
   navigator.clipboard.writeText(uid).then(() => toast("UID copied")).catch(() => toast("UID copied"));
@@ -1392,5 +1515,12 @@ function init() {
   }
 
   document.getElementById("brandRefreshBtn").addEventListener("click", () => location.reload());
+
+  if (supabaseClient) {
+    supabaseClient.auth.onAuthStateChange((event, session) => {
+      if (session?.user) handleSignedIn(session.user);
+      else handleSignedOut();
+    });
+  }
 }
 init();
