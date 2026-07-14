@@ -42,6 +42,7 @@ let currentUser = null;
 let currentProfile = null;
 let authMode = "signin";
 let profileSyncTimer = null;
+let followingIds = new Set();
 
 const state = {
   coins: 0,
@@ -151,11 +152,20 @@ async function handleSignedIn(user) {
   }
   updateAuthUI();
   updateCoinDisplays();
+  await loadFollowing();
+  fetchLiveSessions();
+}
+
+async function loadFollowing() {
+  if (!currentUser || !supabaseClient) { followingIds = new Set(); return; }
+  const { data } = await supabaseClient.from("follows").select("followed_id").eq("follower_id", currentUser.id);
+  followingIds = new Set((data || []).map((r) => r.followed_id));
 }
 
 function handleSignedOut() {
   currentUser = null;
   currentProfile = null;
+  followingIds = new Set();
   updateAuthUI();
 }
 
@@ -677,7 +687,7 @@ function renderForYouFeed() {
 
   const items = [
     // Real live sessions always rank as maximally "hot" — someone is live right now.
-    ...liveSessionsCache.map((host) => ({ type: "live", data: host, mutual: false, score: 1 })),
+    ...liveSessionsCache.map((host) => ({ type: "live", data: host, mutual: !!host.following, score: 1 })),
     ...DRAMAS.map((d) => ({ type: "drama", data: d, mutual: !!d.mutual, score: parseFloat(d.views) / maxDramaViews })),
   ];
 
@@ -700,6 +710,7 @@ function buildLiveTeaserCard(host) {
     <div class="player-vignette"></div>
     <div class="fyu-topbar">
       <div class="fyu-logo"><svg viewBox="0 0 64 64"><rect x="1" y="1" width="62" height="62" rx="15" fill="none" stroke="currentColor" stroke-width="3"/><text x="32" y="42" font-size="30" font-weight="800" text-anchor="middle" fill="currentColor" font-family="Arial, sans-serif">R</text></svg></div>
+      ${host.following ? '<span class="mutual-badge">Following</span>' : ""}
       <span class="live-teaser-badge">LIVE</span>
     </div>
     <div class="live-teaser-center">
@@ -1360,6 +1371,7 @@ async function fetchLiveSessions() {
       hostId: s.host_id,
       name: s.host?.username || "Live host",
       tag: s.title || "Live",
+      following: followingIds.has(s.host_id),
     }));
   renderLiveStrip();
   if (state.view === "foryou") renderForYouFeed();
@@ -1534,6 +1546,7 @@ async function openLiveGuest(host) {
 
   currentLiveRoomName = host.room;
   currentLiveHostId = host.hostId;
+  updateLiveFollowBtn();
 
   try {
     const { token, url } = await getLiveKitToken(host.room);
@@ -1559,6 +1572,31 @@ function closeLiveGuest() {
   switchView("home");
 }
 document.getElementById("guestExitBtn").addEventListener("click", closeLiveGuest);
+
+function updateLiveFollowBtn() {
+  const btn = document.getElementById("liveFollowBtn");
+  const isFollowing = !!(currentLiveHostId && followingIds.has(currentLiveHostId));
+  btn.textContent = isFollowing ? "Following" : "+ Follow";
+  btn.classList.toggle("following", isFollowing);
+}
+
+document.getElementById("liveFollowBtn").addEventListener("click", async () => {
+  if (!currentUser) { toast("Sign in to follow"); openAuthModal("signin"); return; }
+  if (!currentLiveHostId) return;
+  const btn = document.getElementById("liveFollowBtn");
+  const isFollowing = followingIds.has(currentLiveHostId);
+  btn.disabled = true;
+  if (isFollowing) {
+    const { error } = await supabaseClient.from("follows").delete().eq("follower_id", currentUser.id).eq("followed_id", currentLiveHostId);
+    if (!error) followingIds.delete(currentLiveHostId);
+  } else {
+    const { error } = await supabaseClient.from("follows").insert({ follower_id: currentUser.id, followed_id: currentLiveHostId });
+    if (!error) followingIds.add(currentLiveHostId);
+  }
+  btn.disabled = false;
+  updateLiveFollowBtn();
+  fetchLiveSessions();
+});
 
 document.getElementById("joinGuestBtn").addEventListener("click", async (e) => {
   const btn = e.currentTarget;

@@ -1542,6 +1542,17 @@ input { font: inherit; color: inherit; }
   flex-shrink: 0;
 }
 .join-guest-btn.joined { background: var(--accent); border-color: var(--accent); }
+.live-follow-btn {
+  background: rgba(255,255,255,0.15);
+  border: 1px solid rgba(255,255,255,0.4);
+  color: #fff;
+  font-weight: 700;
+  font-size: 12px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  flex-shrink: 0;
+}
+.live-follow-btn.following { background: transparent; border-color: rgba(255,255,255,0.3); color: rgba(255,255,255,0.7); }
 
 .live-chat {
   position: relative;
