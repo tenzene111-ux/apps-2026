@@ -1352,13 +1352,15 @@ async function fetchLiveSessions() {
     .is("ended_at", null)
     .order("started_at", { ascending: false });
   if (error) return;
-  liveSessionsCache = (data || []).map((s) => ({
-    id: s.id,
-    room: s.room_name,
-    hostId: s.host_id,
-    name: s.host?.username || "Live host",
-    tag: s.title || "Live",
-  }));
+  liveSessionsCache = (data || [])
+    .filter((s) => s.host_id !== currentUser?.id)
+    .map((s) => ({
+      id: s.id,
+      room: s.room_name,
+      hostId: s.host_id,
+      name: s.host?.username || "Live host",
+      tag: s.title || "Live",
+    }));
   renderLiveStrip();
   if (state.view === "foryou") renderForYouFeed();
 }
