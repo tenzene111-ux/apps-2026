@@ -331,6 +331,92 @@ function renderMyList() {
   });
 }
 
+/* ---------------- Creators (real follow/discovery) ---------------- */
+document.querySelectorAll(".mltab").forEach((tab) => {
+  tab.addEventListener("click", () => {
+    document.querySelectorAll(".mltab").forEach((t) => t.classList.remove("active"));
+    tab.classList.add("active");
+    document.querySelectorAll(".mylist-panel").forEach((p) => p.classList.remove("active"));
+    document.getElementById("panel-mylist-" + tab.dataset.mltab).classList.add("active");
+    if (tab.dataset.mltab === "creators") renderFollowingList();
+  });
+});
+
+async function toggleFollow(userId, btn) {
+  if (!currentUser) { toast("Sign in to follow"); openAuthModal("signin"); return; }
+  const isFollowing = followingIds.has(userId);
+  btn.disabled = true;
+  if (isFollowing) {
+    const { error } = await supabaseClient.from("follows").delete().eq("follower_id", currentUser.id).eq("followed_id", userId);
+    if (!error) followingIds.delete(userId);
+  } else {
+    const { error } = await supabaseClient.from("follows").insert({ follower_id: currentUser.id, followed_id: userId });
+    if (!error) followingIds.add(userId);
+  }
+  btn.disabled = false;
+  fetchLiveSessions();
+  if (document.getElementById("panel-mylist-creators").classList.contains("active")) renderFollowingList();
+}
+
+function buildCreatorCard(profile) {
+  const isFollowing = followingIds.has(profile.id);
+  const isLive = liveSessionsCache.some((h) => h.hostId === profile.id);
+  const card = document.createElement("div");
+  card.className = "creator-card";
+  card.innerHTML = `
+    <div class="creator-avatar" style="background:${gradientFor(profile.id)}">${profile.username[0].toUpperCase()}</div>
+    <div class="creator-info">
+      <div class="creator-name">${profile.username}</div>
+      <div class="creator-status${isLive ? " is-live" : ""}">${isLive ? "LIVE now" : "Not live"}</div>
+    </div>
+    <button class="creator-follow-btn${isFollowing ? " following" : ""}">${isFollowing ? "Following" : "+ Follow"}</button>
+  `;
+  const btn = card.querySelector(".creator-follow-btn");
+  btn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    toggleFollow(profile.id, btn).then(() => {
+      const nowFollowing = followingIds.has(profile.id);
+      btn.textContent = nowFollowing ? "Following" : "+ Follow";
+      btn.classList.toggle("following", nowFollowing);
+    });
+  });
+  card.addEventListener("click", () => {
+    if (isLive) {
+      const host = liveSessionsCache.find((h) => h.hostId === profile.id);
+      if (host) openLiveGuest(host);
+    }
+  });
+  return card;
+}
+
+async function renderFollowingList() {
+  const wrap = document.getElementById("followingList");
+  wrap.innerHTML = "";
+  if (!currentUser) { wrap.innerHTML = '<div class="creator-empty">Sign in to follow creators.</div>'; return; }
+  if (!followingIds.size) { wrap.innerHTML = '<div class="creator-empty">You aren\'t following anyone yet. Search above to find creators.</div>'; return; }
+  const { data } = await supabaseClient.from("profiles").select("id, username").in("id", Array.from(followingIds));
+  (data || []).forEach((p) => wrap.appendChild(buildCreatorCard(p)));
+}
+
+let creatorSearchTimer = null;
+document.getElementById("creatorSearchInput").addEventListener("input", (e) => {
+  const term = e.target.value.trim();
+  clearTimeout(creatorSearchTimer);
+  const results = document.getElementById("creatorSearchResults");
+  if (!term) { results.innerHTML = ""; return; }
+  creatorSearchTimer = setTimeout(async () => {
+    const { data } = await supabaseClient
+      .from("profiles")
+      .select("id, username")
+      .ilike("username", `%${term}%`)
+      .neq("id", currentUser?.id || "")
+      .limit(20);
+    results.innerHTML = "";
+    if (!data || !data.length) { results.innerHTML = '<div class="creator-empty">No creators found.</div>'; return; }
+    data.forEach((p) => results.appendChild(buildCreatorCard(p)));
+  }, 350);
+});
+
 function openDetail(dramaId) {
   const d = DRAMAS.find(x => x.id === dramaId);
   state.currentDrama = d;
@@ -1581,21 +1667,9 @@ function updateLiveFollowBtn() {
 }
 
 document.getElementById("liveFollowBtn").addEventListener("click", async () => {
-  if (!currentUser) { toast("Sign in to follow"); openAuthModal("signin"); return; }
   if (!currentLiveHostId) return;
-  const btn = document.getElementById("liveFollowBtn");
-  const isFollowing = followingIds.has(currentLiveHostId);
-  btn.disabled = true;
-  if (isFollowing) {
-    const { error } = await supabaseClient.from("follows").delete().eq("follower_id", currentUser.id).eq("followed_id", currentLiveHostId);
-    if (!error) followingIds.delete(currentLiveHostId);
-  } else {
-    const { error } = await supabaseClient.from("follows").insert({ follower_id: currentUser.id, followed_id: currentLiveHostId });
-    if (!error) followingIds.add(currentLiveHostId);
-  }
-  btn.disabled = false;
+  await toggleFollow(currentLiveHostId, document.getElementById("liveFollowBtn"));
   updateLiveFollowBtn();
-  fetchLiveSessions();
 });
 
 document.getElementById("joinGuestBtn").addEventListener("click", async (e) => {

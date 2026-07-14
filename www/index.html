@@ -12,7 +12,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="Reelflix" />
-  <link rel="stylesheet" href="style.css?v=23" />
+  <link rel="stylesheet" href="style.css?v=24" />
 </head>
 <body>
   <svg width="0" height="0" style="position:absolute" aria-hidden="true">
@@ -265,7 +265,21 @@
     <!-- MY LIST -->
     <section id="view-mylist" class="view">
       <header class="topbar"><h1 class="logo">My List</h1></header>
-      <div class="feed" id="mylistFeed"></div>
+      <div class="mylist-subtabs">
+        <button class="mltab active" data-mltab="dramas">Dramas</button>
+        <button class="mltab" data-mltab="creators">Creators</button>
+      </div>
+      <div class="mylist-scroll">
+        <div class="mylist-panel active" id="panel-mylist-dramas">
+          <div class="feed" id="mylistFeed"></div>
+        </div>
+        <div class="mylist-panel" id="panel-mylist-creators">
+          <input id="creatorSearchInput" class="modal-input creator-search-input" placeholder="Search creators by username..." />
+          <div id="creatorSearchResults" class="creator-list"></div>
+          <h4 class="section-title">Following</h4>
+          <div id="followingList" class="creator-list"></div>
+        </div>
+      </div>
     </section>
 
     <!-- REWARDS -->
@@ -608,8 +622,8 @@
     </div>
   </div>
 
-  <script src="vendor/supabase.js?v=23"></script>
-  <script src="vendor/livekit-client.js?v=23"></script>
-  <script src="app.js?v=23"></script>
+  <script src="vendor/supabase.js?v=24"></script>
+  <script src="vendor/livekit-client.js?v=24"></script>
+  <script src="app.js?v=24"></script>
 </body>
 </html>

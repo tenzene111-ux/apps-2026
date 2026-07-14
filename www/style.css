@@ -993,6 +993,58 @@ input { font: inherit; color: inherit; }
 .vgtab.active { background: var(--panel); color: var(--gold); }
 .vipgems-subtabs-sticky { margin: 22px 0 16px; }
 
+/* ---------- My List (Dramas / Creators) ---------- */
+.mylist-subtabs {
+  display: flex;
+  background: var(--panel-2);
+  border-radius: 10px;
+  padding: 3px;
+  margin: 0 16px 12px;
+}
+.mltab { flex: 1; padding: 9px; border-radius: 8px; font-size: 13px; font-weight: 700; color: var(--text-dim); }
+.mltab.active { background: var(--panel); color: var(--gold); }
+.mylist-scroll { flex: 1; overflow-y: auto; padding-bottom: 90px; }
+.mylist-panel { display: none; }
+.mylist-panel.active { display: block; }
+.creator-search-input { margin: 0 16px 14px; width: calc(100% - 32px); }
+.creator-list { display: flex; flex-direction: column; gap: 10px; padding: 0 16px; margin-bottom: 18px; }
+.creator-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 10px 12px;
+}
+.creator-avatar {
+  width: 40px; height: 40px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-weight: 800;
+  font-size: 15px;
+}
+.creator-info { flex: 1; min-width: 0; }
+.creator-name { font-size: 13.5px; font-weight: 700; }
+.creator-status { font-size: 11.5px; color: var(--text-dim); }
+.creator-status.is-live { color: var(--accent); font-weight: 700; }
+.creator-follow-btn {
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  color: var(--text);
+  font-weight: 700;
+  font-size: 12px;
+  padding: 7px 14px;
+  border-radius: 999px;
+  flex-shrink: 0;
+}
+.creator-follow-btn.following { background: transparent; color: var(--text-dim); }
+.creator-empty { padding: 20px 16px; text-align: center; color: var(--text-dim); font-size: 13px; }
+
 .crackbox-card {
   background: radial-gradient(circle at 50% 0%, #3a2308, #17100a);
   border: 1px solid var(--gold);
