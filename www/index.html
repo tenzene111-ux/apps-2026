@@ -12,7 +12,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="Reelflix" />
-  <link rel="stylesheet" href="style.css?v=26" />
+  <link rel="stylesheet" href="style.css?v=27" />
 </head>
 <body>
   <svg width="0" height="0" style="position:absolute" aria-hidden="true">
@@ -584,8 +584,12 @@
 
   <div class="modal-backdrop" id="uploadModal">
     <div class="modal">
-      <h3>Upload a Drama</h3>
-      <div id="uploadStepCreate">
+      <h3 id="uploadModalTitle">My Dramas</h3>
+      <div id="uploadStepList">
+        <div id="uploadDramaList" class="creator-list"></div>
+        <button class="btn-primary" id="uploadNewDramaBtn">+ New Drama</button>
+      </div>
+      <div id="uploadStepCreate" style="display:none">
         <p>Create your series, then add episode videos.</p>
         <input id="uploadTitleInput" class="modal-input" placeholder="Drama title" />
         <textarea id="uploadDescInput" class="modal-textarea" placeholder="Short description"></textarea>
@@ -601,13 +605,14 @@
           <option value="historical">Historical</option>
         </select>
         <button class="btn-primary" id="uploadCreateBtn">Create Drama</button>
+        <button class="btn-ghost" id="uploadCreateBackBtn">← Back to My Dramas</button>
       </div>
       <div id="uploadStepEpisodes" style="display:none">
-        <p>Add episodes — upload one video file at a time.</p>
+        <p id="uploadEpisodesForText">Add episodes — upload one video file at a time.</p>
         <input type="file" id="uploadVideoInput" accept="video/*" class="modal-input" />
         <div id="uploadProgressText" class="upload-progress-text"></div>
         <button class="btn-primary" id="uploadEpisodeBtn">Upload Episode <span id="uploadNextEpNum">1</span></button>
-        <button class="btn-ghost" id="uploadDoneBtn">Done</button>
+        <button class="btn-ghost" id="uploadDoneBtn">← Back to My Dramas</button>
       </div>
       <button class="modal-close" data-close="uploadModal">✕</button>
     </div>
@@ -658,8 +663,8 @@
     </div>
   </div>
 
-  <script src="vendor/supabase.js?v=26"></script>
-  <script src="vendor/livekit-client.js?v=26"></script>
-  <script src="app.js?v=26"></script>
+  <script src="vendor/supabase.js?v=27"></script>
+  <script src="vendor/livekit-client.js?v=27"></script>
+  <script src="app.js?v=27"></script>
 </body>
 </html>

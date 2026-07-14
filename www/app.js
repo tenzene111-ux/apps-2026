@@ -419,18 +419,73 @@ document.getElementById("creatorSearchInput").addEventListener("input", (e) => {
 let uploadDramaId = null;
 let uploadNextEpisodeNumber = 1;
 
+function showUploadStep(step) {
+  document.getElementById("uploadStepList").style.display = step === "list" ? "" : "none";
+  document.getElementById("uploadStepCreate").style.display = step === "create" ? "" : "none";
+  document.getElementById("uploadStepEpisodes").style.display = step === "episodes" ? "" : "none";
+  const titles = { list: "My Dramas", create: "New Drama", episodes: "Add Episodes" };
+  document.getElementById("uploadModalTitle").textContent = titles[step];
+}
+
 function openUploadModal() {
   if (!currentUser) { toast("Sign in to upload"); openAuthModal("signin"); return; }
-  uploadDramaId = null;
-  uploadNextEpisodeNumber = 1;
+  showUploadStep("list");
+  renderUploadDramaList();
+  openModal("uploadModal");
+}
+
+async function renderUploadDramaList() {
+  const wrap = document.getElementById("uploadDramaList");
+  wrap.innerHTML = '<div class="creator-empty">Loading...</div>';
+  const { data: dramaRows } = await supabaseClient
+    .from("dramas")
+    .select("id, title, genre")
+    .eq("creator_id", currentUser.id)
+    .order("created_at", { ascending: false });
+  const { data: episodeRows } = await supabaseClient.from("episodes").select("drama_id, episode_number");
+  const countByDrama = {};
+  (episodeRows || []).forEach((e) => { countByDrama[e.drama_id] = (countByDrama[e.drama_id] || 0) + 1; });
+
+  wrap.innerHTML = "";
+  if (!dramaRows || !dramaRows.length) {
+    wrap.innerHTML = '<div class="creator-empty">You haven\'t created any dramas yet.</div>';
+    return;
+  }
+  dramaRows.forEach((row) => {
+    const epCount = countByDrama[row.id] || 0;
+    const card = document.createElement("div");
+    card.className = "creator-card";
+    card.innerHTML = `
+      <div class="creator-avatar" style="background:${gradientFor(row.id)}">${row.title[0].toUpperCase()}</div>
+      <div class="creator-info">
+        <div class="creator-name">${row.title}</div>
+        <div class="creator-status">${epCount} episode${epCount === 1 ? "" : "s"}</div>
+      </div>
+      <button class="creator-follow-btn">+ Add Episode</button>
+    `;
+    card.querySelector(".creator-follow-btn").addEventListener("click", () => {
+      uploadDramaId = row.id;
+      uploadNextEpisodeNumber = epCount + 1;
+      document.getElementById("uploadEpisodesForText").textContent = `Add episodes to "${row.title}" — upload one video file at a time.`;
+      document.getElementById("uploadNextEpNum").textContent = uploadNextEpisodeNumber;
+      document.getElementById("uploadProgressText").textContent = "";
+      showUploadStep("episodes");
+    });
+    wrap.appendChild(card);
+  });
+}
+
+document.getElementById("uploadNewDramaBtn").addEventListener("click", () => {
   document.getElementById("uploadTitleInput").value = "";
   document.getElementById("uploadDescInput").value = "";
   document.getElementById("uploadGenreSelect").value = "romance";
-  document.getElementById("uploadProgressText").textContent = "";
-  document.getElementById("uploadStepCreate").style.display = "";
-  document.getElementById("uploadStepEpisodes").style.display = "none";
-  openModal("uploadModal");
-}
+  showUploadStep("create");
+});
+
+document.getElementById("uploadCreateBackBtn").addEventListener("click", () => {
+  showUploadStep("list");
+  renderUploadDramaList();
+});
 
 document.getElementById("uploadCreateBtn").addEventListener("click", async () => {
   const title = document.getElementById("uploadTitleInput").value.trim();
@@ -447,8 +502,11 @@ document.getElementById("uploadCreateBtn").addEventListener("click", async () =>
   btn.disabled = false;
   if (error) { toast("Couldn't create drama: " + error.message); return; }
   uploadDramaId = data.id;
-  document.getElementById("uploadStepCreate").style.display = "none";
-  document.getElementById("uploadStepEpisodes").style.display = "";
+  uploadNextEpisodeNumber = 1;
+  document.getElementById("uploadEpisodesForText").textContent = `Add episodes to "${data.title}" — upload one video file at a time.`;
+  document.getElementById("uploadNextEpNum").textContent = 1;
+  document.getElementById("uploadProgressText").textContent = "";
+  showUploadStep("episodes");
 });
 
 document.getElementById("uploadEpisodeBtn").addEventListener("click", async () => {
@@ -481,8 +539,9 @@ document.getElementById("uploadEpisodeBtn").addEventListener("click", async () =
 });
 
 document.getElementById("uploadDoneBtn").addEventListener("click", async () => {
-  closeModal("uploadModal");
   await fetchRealDramas();
+  showUploadStep("list");
+  renderUploadDramaList();
 });
 
 async function fetchRealDramas() {
