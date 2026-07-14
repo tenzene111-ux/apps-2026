@@ -262,7 +262,6 @@ function renderContinueWatching() {
 function renderFeed() {
   const feed = document.getElementById("feed");
   feed.innerHTML = "";
-  document.getElementById("subGenreTabs").style.display = state.topTab === "category" ? "flex" : "none";
 
   let list;
   if (state.topTab === "anime" || state.topTab === "novel") {
@@ -272,11 +271,10 @@ function renderFeed() {
     list = DRAMAS.filter(d => d.badge === "New");
   } else if (state.topTab === "ranking") {
     list = [...DRAMAS].sort((a, b) => parseFloat(b.views) - parseFloat(a.views));
-  } else if (state.topTab === "category") {
-    list = DRAMAS.filter(d => state.subGenre === "all" || d.genre === state.subGenre);
   } else {
     list = DRAMAS;
   }
+  list = list.filter(d => state.subGenre === "all" || d.genre === state.subGenre);
 
   if (state.searchTerm) {
     const q = state.searchTerm.toLowerCase();

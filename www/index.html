@@ -12,7 +12,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="Reelflix" />
-  <link rel="stylesheet" href="style.css?v=25" />
+  <link rel="stylesheet" href="style.css?v=26" />
 </head>
 <body>
   <svg width="0" height="0" style="position:absolute" aria-hidden="true">
@@ -212,13 +212,18 @@
         <button class="gtab" data-top="ranking">RANKING</button>
         <button class="gtab" data-top="anime">ANIME</button>
         <button class="gtab" data-top="novel">NOVEL</button>
-        <button class="gtab" data-top="category">CATEGORY</button>
       </nav>
-      <nav class="genre-tabs sub-genre-tabs" id="subGenreTabs" style="display:none">
+      <nav class="genre-tabs sub-genre-tabs" id="subGenreTabs">
         <button class="genre-tab active" data-genre="all">All</button>
         <button class="genre-tab" data-genre="romance">Romance</button>
         <button class="genre-tab" data-genre="revenge">Revenge</button>
         <button class="genre-tab" data-genre="fantasy">Fantasy</button>
+        <button class="genre-tab" data-genre="comedy">Comedy</button>
+        <button class="genre-tab" data-genre="werewolf">Werewolf</button>
+        <button class="genre-tab" data-genre="billionaire">Billionaire</button>
+        <button class="genre-tab" data-genre="family">Family</button>
+        <button class="genre-tab" data-genre="mystery">Mystery</button>
+        <button class="genre-tab" data-genre="historical">Historical</button>
       </nav>
       <div class="home-scroll">
         <div class="continue-section" id="continueSection" style="display:none">
@@ -588,6 +593,12 @@
           <option value="romance">Romance</option>
           <option value="revenge">Revenge</option>
           <option value="fantasy">Fantasy</option>
+          <option value="comedy">Comedy</option>
+          <option value="werewolf">Werewolf</option>
+          <option value="billionaire">Billionaire</option>
+          <option value="family">Family</option>
+          <option value="mystery">Mystery</option>
+          <option value="historical">Historical</option>
         </select>
         <button class="btn-primary" id="uploadCreateBtn">Create Drama</button>
       </div>
@@ -647,8 +658,8 @@
     </div>
   </div>
 
-  <script src="vendor/supabase.js?v=25"></script>
-  <script src="vendor/livekit-client.js?v=25"></script>
-  <script src="app.js?v=25"></script>
+  <script src="vendor/supabase.js?v=26"></script>
+  <script src="vendor/livekit-client.js?v=26"></script>
+  <script src="app.js?v=26"></script>
 </body>
 </html>
