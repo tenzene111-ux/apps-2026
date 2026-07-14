@@ -417,6 +417,118 @@ document.getElementById("creatorSearchInput").addEventListener("input", (e) => {
   }, 350);
 });
 
+/* ---------------- Content upload (real user-generated dramas) ---------------- */
+let uploadDramaId = null;
+let uploadNextEpisodeNumber = 1;
+
+function openUploadModal() {
+  if (!currentUser) { toast("Sign in to upload"); openAuthModal("signin"); return; }
+  uploadDramaId = null;
+  uploadNextEpisodeNumber = 1;
+  document.getElementById("uploadTitleInput").value = "";
+  document.getElementById("uploadDescInput").value = "";
+  document.getElementById("uploadGenreSelect").value = "romance";
+  document.getElementById("uploadProgressText").textContent = "";
+  document.getElementById("uploadStepCreate").style.display = "";
+  document.getElementById("uploadStepEpisodes").style.display = "none";
+  openModal("uploadModal");
+}
+
+document.getElementById("uploadCreateBtn").addEventListener("click", async () => {
+  const title = document.getElementById("uploadTitleInput").value.trim();
+  const description = document.getElementById("uploadDescInput").value.trim();
+  const genre = document.getElementById("uploadGenreSelect").value;
+  if (!title) { toast("Give your drama a title"); return; }
+  const btn = document.getElementById("uploadCreateBtn");
+  btn.disabled = true;
+  const { data, error } = await supabaseClient
+    .from("dramas")
+    .insert({ creator_id: currentUser.id, title, description, genre, free_episodes: 3 })
+    .select()
+    .single();
+  btn.disabled = false;
+  if (error) { toast("Couldn't create drama: " + error.message); return; }
+  uploadDramaId = data.id;
+  document.getElementById("uploadStepCreate").style.display = "none";
+  document.getElementById("uploadStepEpisodes").style.display = "";
+});
+
+document.getElementById("uploadEpisodeBtn").addEventListener("click", async () => {
+  const fileInput = document.getElementById("uploadVideoInput");
+  const file = fileInput.files[0];
+  if (!file) { toast("Choose a video file first"); return; }
+  const btn = document.getElementById("uploadEpisodeBtn");
+  const progress = document.getElementById("uploadProgressText");
+  btn.disabled = true;
+  progress.textContent = "Uploading...";
+  const ext = file.name.split(".").pop() || "mp4";
+  const path = `${currentUser.id}/${uploadDramaId}/${uploadNextEpisodeNumber}.${ext}`;
+  const { error: uploadError } = await supabaseClient.storage.from("episode-videos").upload(path, file);
+  if (uploadError) {
+    progress.textContent = "";
+    btn.disabled = false;
+    toast("Upload failed: " + uploadError.message);
+    return;
+  }
+  const { error: insertError } = await supabaseClient
+    .from("episodes")
+    .insert({ drama_id: uploadDramaId, episode_number: uploadNextEpisodeNumber, video_path: path });
+  btn.disabled = false;
+  if (insertError) { progress.textContent = ""; toast("Couldn't save episode: " + insertError.message); return; }
+  toast(`Episode ${uploadNextEpisodeNumber} uploaded!`);
+  uploadNextEpisodeNumber++;
+  document.getElementById("uploadNextEpNum").textContent = uploadNextEpisodeNumber;
+  fileInput.value = "";
+  progress.textContent = "";
+});
+
+document.getElementById("uploadDoneBtn").addEventListener("click", async () => {
+  closeModal("uploadModal");
+  await fetchRealDramas();
+});
+
+async function fetchRealDramas() {
+  if (!supabaseClient) return;
+  const { data: dramaRows } = await supabaseClient
+    .from("dramas")
+    .select("id, creator_id, title, description, genre, free_episodes, created_at, creator:profiles(username)")
+    .order("created_at", { ascending: false });
+  if (!dramaRows) return;
+  const { data: episodeRows } = await supabaseClient.from("episodes").select("drama_id, episode_number, video_path");
+  const episodesByDrama = {};
+  (episodeRows || []).forEach((e) => {
+    (episodesByDrama[e.drama_id] ||= []).push(e);
+  });
+  for (let i = DRAMAS.length - 1; i >= 0; i--) {
+    if (DRAMAS[i].real) DRAMAS.splice(i, 1);
+  }
+  dramaRows.forEach((row) => {
+    const eps = (episodesByDrama[row.id] || []).sort((a, b) => a.episode_number - b.episode_number);
+    if (!eps.length) return;
+    const videoUrls = {};
+    eps.forEach((e) => {
+      videoUrls[e.episode_number] = `${SUPABASE_URL}/storage/v1/object/public/episode-videos/${e.video_path}`;
+    });
+    DRAMAS.push({
+      id: row.id,
+      title: row.title,
+      genre: row.genre,
+      label: "Original",
+      badge: "New",
+      views: "0",
+      desc: row.description || "",
+      episodes: eps.length,
+      free: row.free_episodes,
+      real: true,
+      creatorId: row.creator_id,
+      creatorName: row.creator?.username || "Creator",
+      videoUrls,
+    });
+  });
+  renderFeed();
+  if (state.view === "foryou") renderForYouFeed();
+}
+
 function openDetail(dramaId) {
   const d = DRAMAS.find(x => x.id === dramaId);
   state.currentDrama = d;
@@ -490,13 +602,17 @@ function buildPlayerCard(d, epNum) {
     dots += `<span class="${i < epNum ? 'done' : ''} ${i === epNum ? 'current' : ''}"></span>`;
   }
 
+  const realVideoUrl = d.real ? d.videoUrls[epNum] : null;
+
   card.innerHTML = `
-    <div class="player-bg" style="background:${gradientFor(d.id, epNum)}"></div>
+    ${realVideoUrl
+      ? `<video class="player-video" src="${realVideoUrl}" loop playsinline muted></video>`
+      : `<div class="player-bg" style="background:${gradientFor(d.id, epNum)}"></div>`}
     <div class="player-vignette"></div>
     <div class="player-topbar">
       <button class="icon-btn" data-back="detail">←</button>
       <div class="player-dots">${dots}</div>
-      <button class="icon-btn mute-btn" data-muted="false">${muteIconHTML(false)}</button>
+      <button class="icon-btn mute-btn" data-muted="${realVideoUrl ? "true" : "false"}">${muteIconHTML(!!realVideoUrl)}</button>
     </div>
     <div class="player-rail">
       <button class="rail-btn like-btn ${liked ? 'liked' : ''}" data-like="${likeKey}">${heartIconHTML(liked)}<span>${formatCount(baseLikes + (liked ? 1 : 0))}</span></button>
@@ -508,6 +624,7 @@ function buildPlayerCard(d, epNum) {
       <h3>${d.title}</h3>
       <p class="ep-label">EP ${epNum} · ${episodeSubtitle(epNum)}</p>
       <p class="ep-desc">${d.desc}</p>
+      ${d.real ? `<p class="ep-creator">by ${d.creatorName}</p>` : ""}
     </div>
     ${!unlocked ? lockOverlayHTML(d, epNum) : ""}
   `;
@@ -528,6 +645,8 @@ function buildPlayerCard(d, epNum) {
     const muted = btn.dataset.muted !== "true";
     btn.dataset.muted = String(muted);
     btn.querySelector("use").setAttribute("href", muted ? "#ic-mute" : "#ic-unmute");
+    const video = card.querySelector(".player-video");
+    if (video) video.muted = muted;
   });
   card.querySelector(".like-btn").addEventListener("click", () => setLiked(false));
   card.querySelector(".comment-btn").addEventListener("click", () => openComments(d, epNum));
@@ -618,10 +737,14 @@ function observePlayerCards() {
   const cards = document.querySelectorAll(".player-card");
   const io = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
+      const video = entry.target.querySelector(".player-video");
       if (entry.isIntersecting && entry.intersectionRatio > 0.6) {
         const epNum = Number(entry.target.dataset.ep);
         state.currentEpIndex = epNum - 1;
         if (state.currentDrama) recordWatchProgress(state.currentDrama.id, epNum);
+        if (video) video.play().catch(() => {});
+      } else if (video) {
+        video.pause();
       }
     });
   }, { threshold: [0.6], root: document.getElementById("playerFeed") });
@@ -1189,6 +1312,7 @@ document.querySelectorAll(".vgtab").forEach((btn) => {
 
 const PROFILE_ICONS = {
   golive: '<rect x="3" y="6" width="13" height="12" rx="2"/><path d="M16 10l5-3v10l-5-3z"/>',
+  upload: '<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M12 16V8M8.5 11.5 12 8l3.5 3.5"/>',
   following: '<circle cx="10" cy="8" r="3.2"/><path d="M4 19c0-3.3 2.7-5.5 6-5.5"/><path d="M16.5 12.8c1.9-1.3 4.3.4 3.4 2.5-.5 1.2-2.1 2.4-3.4 3.2-1.3-.8-2.9-2-3.4-3.2-.9-2.1 1.5-3.8 3.4-2.5z"/>',
   earnrewards: '<rect x="3" y="8" width="18" height="4" rx="1"/><rect x="4" y="12" width="16" height="8" rx="1"/><path d="M12 8v12M9 8c-2-2.5-4.5-1-3 1s4 .5 3-1zM15 8c2-2.5 4.5-1 3 1s-4 .5-3-1z"/>',
   mylist: '<rect x="4" y="4" width="16" height="16" rx="2"/><path d="M8 9h5M8 13h8"/>',
@@ -1203,6 +1327,7 @@ const PROFILE_ICONS = {
 
 const PROFILE_MENU = [
   { key: "golive", label: "Go Live" },
+  { key: "upload", label: "Upload Drama" },
   { key: "following", label: "Following" },
   { key: "earnrewards", label: "Earn Rewards" },
   { key: "mylist", label: "My List" },
@@ -1245,6 +1370,8 @@ document.getElementById("profileMenu").addEventListener("click", (e) => {
   const action = row.dataset.action;
   if (action === "golive") {
     openLiveHost();
+  } else if (action === "upload") {
+    openUploadModal();
   } else if (action === "following" || action === "mylist") {
     document.querySelectorAll(".nav-item").forEach((b) => b.classList.toggle("active", b.dataset.tab === "mylist"));
     switchView("mylist");
@@ -1745,6 +1872,7 @@ function init() {
     });
     fetchLiveSessions();
     subscribeLiveSessionsRealtime();
+    fetchRealDramas();
   }
 }
 init();

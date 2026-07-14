@@ -12,7 +12,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="Reelflix" />
-  <link rel="stylesheet" href="style.css?v=24" />
+  <link rel="stylesheet" href="style.css?v=25" />
 </head>
 <body>
   <svg width="0" height="0" style="position:absolute" aria-hidden="true">
@@ -577,6 +577,31 @@
     </div>
   </div>
 
+  <div class="modal-backdrop" id="uploadModal">
+    <div class="modal">
+      <h3>Upload a Drama</h3>
+      <div id="uploadStepCreate">
+        <p>Create your series, then add episode videos.</p>
+        <input id="uploadTitleInput" class="modal-input" placeholder="Drama title" />
+        <textarea id="uploadDescInput" class="modal-textarea" placeholder="Short description"></textarea>
+        <select id="uploadGenreSelect" class="modal-input">
+          <option value="romance">Romance</option>
+          <option value="revenge">Revenge</option>
+          <option value="fantasy">Fantasy</option>
+        </select>
+        <button class="btn-primary" id="uploadCreateBtn">Create Drama</button>
+      </div>
+      <div id="uploadStepEpisodes" style="display:none">
+        <p>Add episodes — upload one video file at a time.</p>
+        <input type="file" id="uploadVideoInput" accept="video/*" class="modal-input" />
+        <div id="uploadProgressText" class="upload-progress-text"></div>
+        <button class="btn-primary" id="uploadEpisodeBtn">Upload Episode <span id="uploadNextEpNum">1</span></button>
+        <button class="btn-ghost" id="uploadDoneBtn">Done</button>
+      </div>
+      <button class="modal-close" data-close="uploadModal">✕</button>
+    </div>
+  </div>
+
   <div class="modal-backdrop" id="feedbackModal">
     <div class="modal">
       <h3>Feedback</h3>
@@ -622,8 +647,8 @@
     </div>
   </div>
 
-  <script src="vendor/supabase.js?v=24"></script>
-  <script src="vendor/livekit-client.js?v=24"></script>
-  <script src="app.js?v=24"></script>
+  <script src="vendor/supabase.js?v=25"></script>
+  <script src="vendor/livekit-client.js?v=25"></script>
+  <script src="app.js?v=25"></script>
 </body>
 </html>
