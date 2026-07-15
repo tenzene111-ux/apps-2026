@@ -12,7 +12,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="Reelflix" />
-  <link rel="stylesheet" href="style.css?v=28" />
+  <link rel="stylesheet" href="style.css?v=29" />
 </head>
 <body>
   <svg width="0" height="0" style="position:absolute" aria-hidden="true">
@@ -618,6 +618,14 @@
     </div>
   </div>
 
+  <div class="modal-backdrop" id="notificationsModal">
+    <div class="modal">
+      <h3>Notifications</h3>
+      <div id="notificationsList" class="creator-list"></div>
+      <button class="modal-close" data-close="notificationsModal">✕</button>
+    </div>
+  </div>
+
   <div class="modal-backdrop" id="feedbackModal">
     <div class="modal">
       <h3>Feedback</h3>
@@ -663,8 +671,8 @@
     </div>
   </div>
 
-  <script src="vendor/supabase.js?v=28"></script>
-  <script src="vendor/livekit-client.js?v=28"></script>
-  <script src="app.js?v=28"></script>
+  <script src="vendor/supabase.js?v=29"></script>
+  <script src="vendor/livekit-client.js?v=29"></script>
+  <script src="app.js?v=29"></script>
 </body>
 </html>

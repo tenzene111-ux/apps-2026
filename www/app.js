@@ -43,6 +43,8 @@ let currentProfile = null;
 let authMode = "signin";
 let profileSyncTimer = null;
 let followingIds = new Set();
+let notificationsUnreadCount = 0;
+let notificationsChannel = null;
 
 const state = {
   coins: 0,
@@ -67,7 +69,6 @@ const state = {
   language: "English",
   notifOn: true,
   autoplayNext: true,
-  profileNotifSeen: false,
   watchHistory: {},
 };
 
@@ -154,6 +155,8 @@ async function handleSignedIn(user) {
   updateCoinDisplays();
   await loadFollowing();
   fetchLiveSessions();
+  refreshNotificationsUnread();
+  subscribeNotificationsRealtime();
 }
 
 async function loadFollowing() {
@@ -162,10 +165,76 @@ async function loadFollowing() {
   followingIds = new Set((data || []).map((r) => r.followed_id));
 }
 
+async function refreshNotificationsUnread() {
+  if (!currentUser || !supabaseClient) { notificationsUnreadCount = 0; return; }
+  const { count } = await supabaseClient
+    .from("notifications")
+    .select("id", { count: "exact", head: true })
+    .eq("user_id", currentUser.id)
+    .eq("read", false);
+  notificationsUnreadCount = count || 0;
+  renderProfileMenu();
+}
+
+function subscribeNotificationsRealtime() {
+  if (!supabaseClient || !currentUser) return;
+  if (notificationsChannel) supabaseClient.removeChannel(notificationsChannel);
+  notificationsChannel = supabaseClient
+    .channel(`notifications:${currentUser.id}`)
+    .on(
+      "postgres_changes",
+      { event: "INSERT", schema: "public", table: "notifications", filter: `user_id=eq.${currentUser.id}` },
+      () => refreshNotificationsUnread()
+    )
+    .subscribe();
+}
+
+function notificationText(n) {
+  const name = n.actor?.username || "Someone";
+  if (n.type === "follow") return `<b>${name}</b> followed you`;
+  if (n.type === "gift") return `<b>${name}</b> sent you a gift — +${n.data?.amount || 0} coins`;
+  return `<b>${name}</b> did something`;
+}
+
+async function openNotifications() {
+  if (!currentUser) { toast("Sign in to see notifications"); openAuthModal("signin"); return; }
+  const list = document.getElementById("notificationsList");
+  list.innerHTML = '<div class="creator-empty">Loading...</div>';
+  openModal("notificationsModal");
+
+  const { data } = await supabaseClient
+    .from("notifications")
+    .select("id, type, data, created_at, actor:profiles(username)")
+    .eq("user_id", currentUser.id)
+    .order("created_at", { ascending: false })
+    .limit(50);
+
+  list.innerHTML = "";
+  if (!data || !data.length) {
+    list.innerHTML = '<div class="creator-empty">No notifications yet.</div>';
+  } else {
+    data.forEach((n) => {
+      const row = document.createElement("div");
+      row.className = "creator-card";
+      row.innerHTML = `
+        <div class="creator-avatar" style="background:${gradientFor(n.actor?.username || "u")}">${(n.actor?.username || "?")[0].toUpperCase()}</div>
+        <div class="creator-info"><div class="creator-name">${notificationText(n)}</div></div>
+      `;
+      list.appendChild(row);
+    });
+  }
+
+  await supabaseClient.from("notifications").update({ read: true }).eq("user_id", currentUser.id).eq("read", false);
+  notificationsUnreadCount = 0;
+  renderProfileMenu();
+}
+
 function handleSignedOut() {
   currentUser = null;
   currentProfile = null;
   followingIds = new Set();
+  notificationsUnreadCount = 0;
+  if (notificationsChannel && supabaseClient) { supabaseClient.removeChannel(notificationsChannel); notificationsChannel = null; }
   updateAuthUI();
 }
 
@@ -1117,7 +1186,13 @@ function buildForYouCard(d) {
     moreModalTarget = d;
     openModal("moreModal");
   });
-  card.querySelector(".fyu-search-btn").addEventListener("click", () => toast("Search coming soon"));
+  card.querySelector(".fyu-search-btn").addEventListener("click", () => {
+    document.querySelectorAll(".nav-item").forEach((b) => b.classList.toggle("active", b.dataset.tab === "mylist"));
+    switchView("mylist");
+    renderMyList();
+    document.querySelector('.mltab[data-mltab="creators"]').click();
+    setTimeout(() => document.getElementById("creatorSearchInput").focus(), 150);
+  });
   card.querySelector(".foryou-cta").addEventListener("click", () => openDetail(d.id));
   card.querySelector(".fyu-title-row").addEventListener("click", () => openDetail(d.id));
   card.querySelector(".more-link").addEventListener("click", () => openDetail(d.id));
@@ -1458,7 +1533,7 @@ function renderProfileMenu() {
     row.dataset.action = item.key;
     row.innerHTML = `
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${PROFILE_ICONS[item.key]}</svg>
-      ${item.dot && !state.profileNotifSeen ? '<span class="row-dot"></span>' : ""}
+      ${item.dot && notificationsUnreadCount > 0 ? '<span class="row-dot"></span>' : ""}
       <span class="row-label">${item.label}</span>
       ${item.version ? `<span class="row-version">${item.version}</span>` : ""}
       <span class="row-chevron">›</span>
@@ -1484,10 +1559,7 @@ document.getElementById("profileMenu").addEventListener("click", (e) => {
     switchView("rewards");
     renderRewards();
   } else if (action === "notifications") {
-    state.profileNotifSeen = true;
-    saveState();
-    toast("No new notifications");
-    renderProfileMenu();
+    openNotifications();
   } else if (action === "myitems") {
     document.querySelectorAll(".nav-item").forEach((b) => b.classList.toggle("active", b.dataset.tab === "rewards"));
     switchView("rewards");
