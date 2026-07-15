@@ -266,6 +266,11 @@ function gradientFor(seedStr, offset) {
   return GRADIENTS[(h + (offset || 0)) % GRADIENTS.length];
 }
 
+function coverStyle(d, offset) {
+  if (d.coverUrl) return `background-image:url('${d.coverUrl}');background-size:cover;background-position:center`;
+  return `background:${gradientFor(d.id, offset)}`;
+}
+
 function isUnlocked(dramaId, epNum, freeCount) {
   if (epNum <= freeCount) return true;
   const key = dramaId + ":" + epNum;
@@ -362,7 +367,7 @@ function renderFeed() {
       ? `<span class="poster-rank rank-${i + 1}">#${i + 1}</span>`
       : (d.badge ? `<span class="poster-badge ${d.badge.toLowerCase()}">${d.badge}</span>` : "");
     card.innerHTML = `
-      <div class="poster-cover" style="background:${gradientFor(d.id)}">
+      <div class="poster-cover" style="${coverStyle(d)}">
         ${rankBadge}
         <span class="poster-views"><svg class="ic"><use href="#ic-play"/></svg> ${d.views}</span>
       </div>
@@ -385,7 +390,7 @@ function renderMyList() {
     const card = document.createElement("div");
     card.className = "drama-card";
     card.innerHTML = `
-      <div class="drama-cover" style="background:${gradientFor(d.id)}">
+      <div class="drama-cover" style="${coverStyle(d)}">
         <span class="play-glyph"><svg class="ic"><use href="#ic-play"/></svg></span>
       </div>
       <div class="drama-info">
@@ -548,6 +553,7 @@ document.getElementById("uploadNewDramaBtn").addEventListener("click", () => {
   document.getElementById("uploadTitleInput").value = "";
   document.getElementById("uploadDescInput").value = "";
   document.getElementById("uploadGenreSelect").value = "romance";
+  document.getElementById("uploadCoverInput").value = "";
   showUploadStep("create");
 });
 
@@ -572,6 +578,17 @@ document.getElementById("uploadCreateBtn").addEventListener("click", async () =>
   if (error) { toast("Couldn't create drama: " + error.message); return; }
   uploadDramaId = data.id;
   uploadNextEpisodeNumber = 1;
+
+  const coverFile = document.getElementById("uploadCoverInput").files[0];
+  if (coverFile) {
+    const ext = coverFile.name.split(".").pop() || "jpg";
+    const coverPath = `${currentUser.id}/${uploadDramaId}.${ext}`;
+    const { error: coverError } = await supabaseClient.storage.from("drama-covers").upload(coverPath, coverFile);
+    if (!coverError) {
+      await supabaseClient.from("dramas").update({ cover_path: coverPath }).eq("id", uploadDramaId);
+    }
+  }
+
   document.getElementById("uploadEpisodesForText").textContent = `Add episodes to "${data.title}" — upload one video file at a time.`;
   document.getElementById("uploadNextEpNum").textContent = 1;
   document.getElementById("uploadProgressText").textContent = "";
@@ -617,7 +634,7 @@ async function fetchRealDramas() {
   if (!supabaseClient) return;
   const { data: dramaRows } = await supabaseClient
     .from("dramas")
-    .select("id, creator_id, title, description, genre, free_episodes, created_at, creator:profiles(username)")
+    .select("id, creator_id, title, description, genre, free_episodes, cover_path, created_at, creator:profiles(username)")
     .order("created_at", { ascending: false });
   if (!dramaRows) return;
   const { data: episodeRows } = await supabaseClient.from("episodes").select("drama_id, episode_number, video_path");
@@ -649,6 +666,7 @@ async function fetchRealDramas() {
       creatorId: row.creator_id,
       creatorName: row.creator?.username || "Creator",
       videoUrls,
+      coverUrl: row.cover_path ? `${SUPABASE_URL}/storage/v1/object/public/drama-covers/${row.cover_path}` : null,
     });
   });
   renderFeed();
@@ -658,7 +676,7 @@ async function fetchRealDramas() {
 function openDetail(dramaId) {
   const d = DRAMAS.find(x => x.id === dramaId);
   state.currentDrama = d;
-  document.getElementById("detailHero").style.background = gradientFor(d.id);
+  document.getElementById("detailHero").style.cssText = coverStyle(d);
   document.getElementById("detailTitle").textContent = d.title;
   document.getElementById("detailMeta").textContent = `${d.episodes} Episodes · ${d.views} views`;
   document.getElementById("detailDesc").textContent = d.desc;
@@ -886,9 +904,20 @@ document.querySelectorAll("#moreModal .more-row").forEach((row) => {
     if (!moreModalTarget) return;
     if (action === "comment") openComments(moreModalTarget, 1);
     if (action === "share") openModal("shareModal");
-    if (action === "report") toast("Report submitted — thanks for the feedback");
+    if (action === "report") submitReport(moreModalTarget);
   });
 });
+
+async function submitReport(drama) {
+  if (!currentUser) { toast("Sign in to report"); openAuthModal("signin"); return; }
+  const { error } = await supabaseClient.from("reports").insert({
+    reporter_id: currentUser.id,
+    drama_id: drama.id,
+    episode_number: state.currentEpIndex + 1,
+    reason: "user_report",
+  });
+  toast(error ? "Report failed to send" : "Report submitted — thanks for the feedback");
+}
 
 /* ---------------- Comments ---------------- */
 let currentCommentKey = null;
@@ -1124,7 +1153,7 @@ function buildForYouCard(d) {
   const claimed = !!state.claimedTasks[claimKey];
 
   card.innerHTML = `
-    <div class="player-bg" style="background:${gradientFor(d.id, 1)}"></div>
+    <div class="player-bg" style="${coverStyle(d, 1)}"></div>
     <div class="player-vignette"></div>
     <div class="fyu-topbar">
       <div class="fyu-logo"><svg viewBox="0 0 64 64"><rect width="64" height="64" rx="16" fill="url(#coinGrad)" opacity="0"/><rect x="1" y="1" width="62" height="62" rx="15" fill="none" stroke="currentColor" stroke-width="3"/><text x="32" y="42" font-size="30" font-weight="800" text-anchor="middle" fill="currentColor" font-family="Arial, sans-serif">R</text></svg></div>
@@ -1144,7 +1173,7 @@ function buildForYouCard(d) {
     </div>
     <div class="player-bottom player-bottom-nav-spacer fyu-bottom">
       <div class="fyu-title-row">
-        <div class="fyu-thumb" style="background:${gradientFor(d.id)}"></div>
+        <div class="fyu-thumb" style="${coverStyle(d)}"></div>
         <div class="fyu-title-info">
           <h3>${d.title} <span class="chevron">›</span></h3>
           <span class="fyu-tag">${d.label}</span>
@@ -1626,11 +1655,13 @@ document.getElementById("applyInviteBtn").addEventListener("click", () => {
   closeModal("inviteModal");
 });
 
-document.getElementById("submitFeedbackBtn").addEventListener("click", () => {
+document.getElementById("submitFeedbackBtn").addEventListener("click", async () => {
   const text = document.getElementById("feedbackInput").value.trim();
   if (!text) { toast("Write something first"); return; }
+  if (!currentUser) { toast("Sign in to send feedback"); openAuthModal("signin"); return; }
+  const { error } = await supabaseClient.from("feedback").insert({ user_id: currentUser.id, text });
   document.getElementById("feedbackInput").value = "";
-  toast("Thanks for your feedback!");
+  toast(error ? "Feedback failed to send" : "Thanks for your feedback!");
   closeModal("feedbackModal");
 });
 

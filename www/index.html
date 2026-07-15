@@ -12,7 +12,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="Reelflix" />
-  <link rel="stylesheet" href="style.css?v=29" />
+  <link rel="stylesheet" href="style.css?v=30" />
 </head>
 <body>
   <svg width="0" height="0" style="position:absolute" aria-hidden="true">
@@ -593,6 +593,8 @@
         <p>Create your series, then add episode videos.</p>
         <input id="uploadTitleInput" class="modal-input" placeholder="Drama title" />
         <textarea id="uploadDescInput" class="modal-textarea" placeholder="Short description"></textarea>
+        <label class="upload-cover-label">Cover image (optional)</label>
+        <input type="file" id="uploadCoverInput" accept="image/*" class="modal-input" />
         <select id="uploadGenreSelect" class="modal-input">
           <option value="romance">Romance</option>
           <option value="revenge">Revenge</option>
@@ -671,8 +673,8 @@
     </div>
   </div>
 
-  <script src="vendor/supabase.js?v=29"></script>
-  <script src="vendor/livekit-client.js?v=29"></script>
-  <script src="app.js?v=29"></script>
+  <script src="vendor/supabase.js?v=30"></script>
+  <script src="vendor/livekit-client.js?v=30"></script>
+  <script src="app.js?v=30"></script>
 </body>
 </html>
