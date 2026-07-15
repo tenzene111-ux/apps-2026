@@ -1083,6 +1083,33 @@ input { font: inherit; color: inherit; }
 .dm-bottom-bar .modal-input { flex: 1; margin: 0; }
 .dm-send-btn { flex-shrink: 0; padding: 10px 18px; }
 
+/* ---------- Analytics ---------- */
+.analytics-stats-row { display: flex; gap: 10px; padding: 16px; }
+.analytics-stat {
+  flex: 1;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 14px 8px;
+  text-align: center;
+}
+.analytics-stat b { display: block; font-size: 20px; font-weight: 800; }
+.analytics-stat span { font-size: 11.5px; color: var(--text-dim); }
+.analytics-chart {
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+  height: 90px;
+  padding: 0 16px 20px;
+}
+.analytics-bar {
+  flex: 1;
+  min-height: 4px;
+  background: var(--accent);
+  border-radius: 3px 3px 0 0;
+  opacity: 0.85;
+}
+
 /* ---------- Creator profile ---------- */
 .creator-profile-scroll { flex: 1; overflow-y: auto; padding-bottom: 90px; }
 .creator-profile-header {

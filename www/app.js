@@ -676,6 +676,72 @@ document.getElementById("creatorProfileBackBtn").addEventListener("click", () =>
   renderMyList();
 });
 
+/* ---------------- Creator analytics (real, from views/likes/follows) ---------------- */
+async function openAnalytics() {
+  if (!currentUser) { toast("Sign in to see analytics"); openAuthModal("signin"); return; }
+  switchView("analytics");
+
+  const myDramaIds = DRAMAS.filter((d) => d.real && d.creatorId === currentUser.id).map((d) => d.id);
+
+  const totalViews = myDramaIds.reduce((sum, id) => {
+    const d = DRAMAS.find((x) => x.id === id);
+    return sum + (parseInt(d.views, 10) || 0);
+  }, 0);
+  document.getElementById("analyticsTotalViews").textContent = totalViews;
+
+  let likeRows = [];
+  if (myDramaIds.length) {
+    const { data } = await supabaseClient.from("episode_likes").select("created_at").in("drama_id", myDramaIds);
+    likeRows = data || [];
+  }
+  document.getElementById("analyticsTotalLikes").textContent = likeRows.length;
+
+  const { count: followerCount } = await supabaseClient
+    .from("follows")
+    .select("follower_id", { count: "exact", head: true })
+    .eq("followed_id", currentUser.id);
+  document.getElementById("analyticsTotalFollowers").textContent = followerCount || 0;
+
+  let viewRows = [];
+  if (myDramaIds.length) {
+    const { data } = await supabaseClient.from("drama_views").select("created_at").in("drama_id", myDramaIds);
+    viewRows = data || [];
+  }
+  renderAnalyticsChart("analyticsViewsChart", viewRows.map((r) => r.created_at));
+
+  const { data: followRows } = await supabaseClient.from("follows").select("created_at").eq("followed_id", currentUser.id);
+  renderAnalyticsChart("analyticsFollowersChart", (followRows || []).map((r) => r.created_at));
+}
+
+function renderAnalyticsChart(elId, timestamps) {
+  const days = 14;
+  const counts = new Array(days).fill(0);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  timestamps.forEach((ts) => {
+    const d = new Date(ts);
+    d.setHours(0, 0, 0, 0);
+    const diffDays = Math.round((today - d) / 86400000);
+    if (diffDays >= 0 && diffDays < days) counts[days - 1 - diffDays]++;
+  });
+  const max = Math.max(1, ...counts);
+  const el = document.getElementById(elId);
+  el.innerHTML = "";
+  counts.forEach((c) => {
+    const bar = document.createElement("div");
+    bar.className = "analytics-bar";
+    bar.style.height = `${Math.max(4, (c / max) * 100)}%`;
+    bar.title = c;
+    el.appendChild(bar);
+  });
+}
+
+document.getElementById("analyticsBackBtn").addEventListener("click", () => {
+  document.querySelectorAll(".nav-item").forEach((b) => b.classList.toggle("active", b.dataset.tab === "profile"));
+  switchView("mine");
+  renderMine();
+});
+
 /* ---------------- Leaderboard (real, from follows + gifts) ---------------- */
 function openLeaderboard() {
   switchView("leaderboard");
@@ -2127,11 +2193,13 @@ const PROFILE_ICONS = {
   about: '<circle cx="12" cy="12" r="9"/><path d="M12 8h.01M11 11h1v6h1"/>',
   leaderboard: '<path d="M8 21h8M12 17v4"/><path d="M6 4h12v6a6 6 0 0 1-12 0V4z"/><path d="M6 6H4a2 2 0 0 0 0 4h2M18 6h2a2 2 0 0 1 0 4h-2"/>',
   messages: '<path d="M4 5h16a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H9l-4 4v-4H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z"/>',
+  analytics: '<path d="M4 20V10M11 20V4M18 20v-7"/>',
 };
 
 const PROFILE_MENU = [
   { key: "golive", label: "Go Live" },
   { key: "upload", label: "Upload Drama" },
+  { key: "analytics", label: "Analytics" },
   { key: "leaderboard", label: "Leaderboard" },
   { key: "messages", label: "Messages", dot: true },
   { key: "following", label: "Following" },
@@ -2179,6 +2247,8 @@ document.getElementById("profileMenu").addEventListener("click", (e) => {
     openLiveHost();
   } else if (action === "upload") {
     openUploadModal();
+  } else if (action === "analytics") {
+    openAnalytics();
   } else if (action === "leaderboard") {
     openLeaderboard();
   } else if (action === "messages") {

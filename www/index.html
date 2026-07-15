@@ -12,7 +12,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="Reelflix" />
-  <link rel="stylesheet" href="style.css?v=37" />
+  <link rel="stylesheet" href="style.css?v=38" />
 </head>
 <body>
   <svg width="0" height="0" style="position:absolute" aria-hidden="true">
@@ -354,6 +354,25 @@
       <div class="dm-bottom-bar">
         <input id="dmChatInput" class="modal-input" placeholder="Message..." />
         <button class="btn-primary dm-send-btn" id="dmChatSendBtn">Send</button>
+      </div>
+    </section>
+
+    <!-- ANALYTICS -->
+    <section id="view-analytics" class="view">
+      <header class="topbar">
+        <button class="icon-btn" id="analyticsBackBtn">←</button>
+        <h1 class="logo">Analytics</h1>
+      </header>
+      <div class="mylist-scroll">
+        <div class="analytics-stats-row">
+          <div class="analytics-stat"><b id="analyticsTotalViews">0</b><span>Total Views</span></div>
+          <div class="analytics-stat"><b id="analyticsTotalLikes">0</b><span>Total Likes</span></div>
+          <div class="analytics-stat"><b id="analyticsTotalFollowers">0</b><span>Followers</span></div>
+        </div>
+        <h4 class="section-title">Views — last 14 days</h4>
+        <div class="analytics-chart" id="analyticsViewsChart"></div>
+        <h4 class="section-title">Followers gained — last 14 days</h4>
+        <div class="analytics-chart" id="analyticsFollowersChart"></div>
       </div>
     </section>
 
@@ -777,8 +796,8 @@
     </div>
   </div>
 
-  <script src="vendor/supabase.js?v=37"></script>
-  <script src="vendor/livekit-client.js?v=37"></script>
-  <script src="app.js?v=37"></script>
+  <script src="vendor/supabase.js?v=38"></script>
+  <script src="vendor/livekit-client.js?v=38"></script>
+  <script src="app.js?v=38"></script>
 </body>
 </html>
