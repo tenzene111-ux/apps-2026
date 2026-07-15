@@ -243,6 +243,8 @@ function notificationText(n) {
   const name = n.actor?.username || "Someone";
   if (n.type === "follow") return `<b>${name}</b> followed you`;
   if (n.type === "gift") return `<b>${name}</b> sent you a gift — +${n.data?.amount || 0} coins`;
+  if (n.type === "comment") return `<b>${name}</b> commented on your drama`;
+  if (n.type === "like") return `<b>${name}</b> liked your episode`;
   return `<b>${name}</b> did something`;
 }
 
@@ -836,7 +838,8 @@ function showUploadStep(step) {
   document.getElementById("uploadStepList").style.display = step === "list" ? "" : "none";
   document.getElementById("uploadStepCreate").style.display = step === "create" ? "" : "none";
   document.getElementById("uploadStepEpisodes").style.display = step === "episodes" ? "" : "none";
-  const titles = { list: "My Dramas", create: "New Drama", episodes: "Add Episodes" };
+  document.getElementById("uploadStepEdit").style.display = step === "edit" ? "" : "none";
+  const titles = { list: "My Dramas", create: "New Drama", episodes: "Add Episodes", edit: "Edit Drama" };
   document.getElementById("uploadModalTitle").textContent = titles[step];
 }
 
@@ -874,9 +877,11 @@ async function renderUploadDramaList() {
         <div class="creator-name">${row.title}</div>
         <div class="creator-status">${epCount} episode${epCount === 1 ? "" : "s"}</div>
       </div>
-      <button class="creator-follow-btn">+ Add Episode</button>
+      <button class="creator-follow-btn edit-drama-btn">Edit</button>
+      <button class="creator-follow-btn add-episode-btn">+ Add Episode</button>
     `;
-    card.querySelector(".creator-follow-btn").addEventListener("click", () => {
+    card.querySelector(".edit-drama-btn").addEventListener("click", () => openEditDrama(row.id));
+    card.querySelector(".add-episode-btn").addEventListener("click", () => {
       uploadDramaId = row.id;
       uploadNextEpisodeNumber = epCount + 1;
       document.getElementById("uploadEpisodesForText").textContent = `Add episodes to "${row.title}" — upload one video file at a time.`;
@@ -887,6 +892,100 @@ async function renderUploadDramaList() {
     wrap.appendChild(card);
   });
 }
+
+let editDramaId = null;
+
+async function openEditDrama(dramaId) {
+  editDramaId = dramaId;
+  document.getElementById("editCoverInput").value = "";
+  showUploadStep("edit");
+
+  const { data: row } = await supabaseClient.from("dramas").select("title, description, genre").eq("id", dramaId).single();
+  if (row) {
+    document.getElementById("editTitleInput").value = row.title;
+    document.getElementById("editDescInput").value = row.description || "";
+    document.getElementById("editGenreSelect").value = row.genre;
+  }
+  renderEditEpisodeList(dramaId);
+}
+
+async function renderEditEpisodeList(dramaId) {
+  const list = document.getElementById("editEpisodeList");
+  list.innerHTML = '<div class="creator-empty">Loading...</div>';
+  const { data: episodes } = await supabaseClient
+    .from("episodes")
+    .select("episode_number, video_path")
+    .eq("drama_id", dramaId)
+    .order("episode_number", { ascending: true });
+  list.innerHTML = "";
+  if (!episodes || !episodes.length) {
+    list.innerHTML = '<div class="creator-empty">No episodes uploaded yet.</div>';
+    return;
+  }
+  const lastEpNum = episodes[episodes.length - 1].episode_number;
+  episodes.forEach((ep) => {
+    const row = document.createElement("div");
+    row.className = "creator-card";
+    row.innerHTML = `
+      <div class="creator-info"><div class="creator-name">Episode ${ep.episode_number}</div></div>
+      ${ep.episode_number === lastEpNum ? '<button class="creator-follow-btn delete-episode-btn">Delete</button>' : ""}
+    `;
+    const deleteBtn = row.querySelector(".delete-episode-btn");
+    if (deleteBtn) {
+      deleteBtn.addEventListener("click", async () => {
+        deleteBtn.disabled = true;
+        await supabaseClient.storage.from("episode-videos").remove([ep.video_path]);
+        await supabaseClient.from("episodes").delete().eq("drama_id", dramaId).eq("episode_number", ep.episode_number);
+        renderEditEpisodeList(dramaId);
+        fetchRealDramas();
+      });
+    }
+    list.appendChild(row);
+  });
+}
+
+document.getElementById("editSaveBtn").addEventListener("click", async () => {
+  const title = document.getElementById("editTitleInput").value.trim();
+  const description = document.getElementById("editDescInput").value.trim();
+  const genre = document.getElementById("editGenreSelect").value;
+  if (!title) { toast("Give your drama a title"); return; }
+  const btn = document.getElementById("editSaveBtn");
+  btn.disabled = true;
+
+  const coverFile = document.getElementById("editCoverInput").files[0];
+  if (coverFile) {
+    const ext = coverFile.name.split(".").pop() || "jpg";
+    const coverPath = `${currentUser.id}/${editDramaId}.${ext}`;
+    const { error: coverError } = await supabaseClient.storage.from("drama-covers").upload(coverPath, coverFile, { upsert: true });
+    if (!coverError) await supabaseClient.from("dramas").update({ cover_path: coverPath }).eq("id", editDramaId);
+  }
+
+  const { error } = await supabaseClient.from("dramas").update({ title, description, genre }).eq("id", editDramaId);
+  btn.disabled = false;
+  if (error) { toast("Couldn't save changes: " + error.message); return; }
+  toast("Drama updated!");
+  await fetchRealDramas();
+  showUploadStep("list");
+  renderUploadDramaList();
+});
+
+document.getElementById("editDeleteDramaBtn").addEventListener("click", async () => {
+  if (!confirm("Delete this entire drama and all its episodes? This cannot be undone.")) return;
+  const btn = document.getElementById("editDeleteDramaBtn");
+  btn.disabled = true;
+  const { error } = await supabaseClient.from("dramas").delete().eq("id", editDramaId);
+  btn.disabled = false;
+  if (error) { toast("Couldn't delete: " + error.message); return; }
+  toast("Drama deleted");
+  await fetchRealDramas();
+  showUploadStep("list");
+  renderUploadDramaList();
+});
+
+document.getElementById("editBackBtn").addEventListener("click", () => {
+  showUploadStep("list");
+  renderUploadDramaList();
+});
 
 document.getElementById("uploadNewDramaBtn").addEventListener("click", () => {
   document.getElementById("uploadTitleInput").value = "";

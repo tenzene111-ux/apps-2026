@@ -42,6 +42,12 @@ Deno.serve(async (req) => {
       } else if (record.type === "gift") {
         title = "You got a gift!";
         body = `+${record.data?.amount ?? ""} coins`;
+      } else if (record.type === "comment") {
+        title = "New comment";
+        body = "Someone commented on your drama";
+      } else if (record.type === "like") {
+        title = "New like";
+        body = "Someone liked your episode";
       }
     } else if (table === "dm_messages") {
       userId = record.receiver_id;

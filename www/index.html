@@ -12,7 +12,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="Reelflix" />
-  <link rel="stylesheet" href="style.css?v=34" />
+  <link rel="stylesheet" href="style.css?v=35" />
 </head>
 <body>
   <svg width="0" height="0" style="position:absolute" aria-hidden="true">
@@ -684,6 +684,29 @@
         <button class="btn-primary" id="uploadEpisodeBtn">Upload Episode <span id="uploadNextEpNum">1</span></button>
         <button class="btn-ghost" id="uploadDoneBtn">← Back to My Dramas</button>
       </div>
+      <div id="uploadStepEdit" style="display:none">
+        <p>Edit your series details.</p>
+        <input id="editTitleInput" class="modal-input" placeholder="Drama title" />
+        <textarea id="editDescInput" class="modal-textarea" placeholder="Short description"></textarea>
+        <label class="upload-cover-label">Replace cover image (optional)</label>
+        <input type="file" id="editCoverInput" accept="image/*" class="modal-input" />
+        <select id="editGenreSelect" class="modal-input">
+          <option value="romance">Romance</option>
+          <option value="revenge">Revenge</option>
+          <option value="fantasy">Fantasy</option>
+          <option value="comedy">Comedy</option>
+          <option value="werewolf">Werewolf</option>
+          <option value="billionaire">Billionaire</option>
+          <option value="family">Family</option>
+          <option value="mystery">Mystery</option>
+          <option value="historical">Historical</option>
+        </select>
+        <button class="btn-primary" id="editSaveBtn">Save Changes</button>
+        <h4 class="section-title">Episodes</h4>
+        <div id="editEpisodeList" class="creator-list"></div>
+        <button class="btn-ghost" id="editDeleteDramaBtn">Delete This Drama</button>
+        <button class="btn-ghost" id="editBackBtn">← Back to My Dramas</button>
+      </div>
       <button class="modal-close" data-close="uploadModal">✕</button>
     </div>
   </div>
@@ -741,8 +764,8 @@
     </div>
   </div>
 
-  <script src="vendor/supabase.js?v=34"></script>
-  <script src="vendor/livekit-client.js?v=34"></script>
-  <script src="app.js?v=34"></script>
+  <script src="vendor/supabase.js?v=35"></script>
+  <script src="vendor/livekit-client.js?v=35"></script>
+  <script src="app.js?v=35"></script>
 </body>
 </html>
