@@ -11,16 +11,9 @@ const GRADIENTS = [
   "linear-gradient(160deg,#360033,#0b8793)",
 ];
 
-const DRAMAS = [
-  { id: "d1", title: "The Billionaire's Fake Fiancée", genre: "romance", label: "Age Gap", badge: "Trending", views: "42.1M", desc: "She signed a fake engagement contract to save her family. He never told her the ring was real.", episodes: 42, free: 3 },
-  { id: "d2", title: "CEO's Secret Baby", genre: "romance", label: "Young Adult", badge: "Hot", views: "38.7M", desc: "Five years after she vanished, she returns with his son — and he wants them both back.", episodes: 36, free: 3 },
-  { id: "d3", title: "Revenge of the Discarded Wife", genre: "revenge", label: "Revenge", badge: "New", views: "21.4M", desc: "Cast aside for a socialite, she rebuilds herself into the one woman this city cannot ignore.", episodes: 50, free: 4 },
-  { id: "d4", title: "Alpha's Rejected Mate", genre: "fantasy", label: "Werewolf", badge: "Trending", views: "55.9M", desc: "Rejected by her wolf mate in front of the pack, she discovers a power older than the moon itself.", episodes: 60, free: 3 },
-  { id: "d5", title: "Married to the Mafia King", genre: "revenge", label: "Family Drama", badge: "", views: "19.2M", desc: "A marriage of convenience turns dangerous when she becomes the only one he trusts.", episodes: 34, free: 3, mutual: true },
-  { id: "d6", title: "My Ex-Husband is a Billionaire", genre: "romance", label: "Age Gap", badge: "New", views: "15.8M", desc: "She didn't know the man she divorced broke was secretly worth billions — until he showed up at her wedding.", episodes: 28, free: 3 },
-  { id: "d7", title: "The Contract Bride", genre: "romance", label: "Young Adult", badge: "Dubbed", views: "12.3M", desc: "One signature bound them together. Neither expected to fall for the terms of the deal.", episodes: 30, free: 3 },
-  { id: "d8", title: "Twin Swap Wedding", genre: "fantasy", label: "Male Lead", badge: "Hot", views: "27.6M", desc: "She took her twin's place at the altar to save the family — now she can't escape the marriage, or her feelings.", episodes: 40, free: 3 },
-];
+// Real user-uploaded dramas are fetched from Supabase and pushed in here
+// at runtime (see fetchRealDramas). No hardcoded demo content anymore.
+const DRAMAS = [];
 
 const COIN_PACKAGES = [
   { coins: 100, price: "Nu. 25" },
