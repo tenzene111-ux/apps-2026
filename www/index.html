@@ -12,7 +12,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="Reelflix" />
-  <link rel="stylesheet" href="style.css?v=39" />
+  <link rel="stylesheet" href="style.css?v=40" />
 </head>
 <body>
   <svg width="0" height="0" style="position:absolute" aria-hidden="true">
@@ -348,10 +348,16 @@
     <section id="view-dm-chat" class="view">
       <header class="topbar">
         <button class="icon-btn" id="dmChatBackBtn">←</button>
-        <h1 class="logo" id="dmChatTitle"></h1>
+        <div class="dm-chat-header-text">
+          <h1 class="logo" id="dmChatTitle"></h1>
+          <div class="dm-chat-status" id="dmChatStatus"></div>
+        </div>
       </header>
       <div class="dm-chat-scroll" id="dmChatMessages"></div>
+      <div class="dm-typing-indicator" id="dmTypingIndicator" style="display:none">typing...</div>
       <div class="dm-bottom-bar">
+        <input type="file" id="dmImageInput" accept="image/*" style="display:none" />
+        <button class="icon-btn dm-image-btn" id="dmImageBtn"><svg class="ic"><use href="#ic-camera"/></svg></button>
         <input id="dmChatInput" class="modal-input" placeholder="Message..." />
         <button class="btn-primary dm-send-btn" id="dmChatSendBtn">Send</button>
       </div>
@@ -803,8 +809,8 @@
     </div>
   </div>
 
-  <script src="vendor/supabase.js?v=39"></script>
-  <script src="vendor/livekit-client.js?v=39"></script>
-  <script src="app.js?v=39"></script>
+  <script src="vendor/supabase.js?v=40"></script>
+  <script src="vendor/livekit-client.js?v=40"></script>
+  <script src="app.js?v=40"></script>
 </body>
 </html>

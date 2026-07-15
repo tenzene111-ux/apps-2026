@@ -93,6 +93,12 @@ let dmUnreadCount = 0;
 let dmInboxChannel = null;
 let dmChatChannel = null;
 let currentDmPartnerId = null;
+let globalPresenceChannel = null;
+let onlineUserIds = new Set();
+let lastSeenInterval = null;
+let dmTypingTimeout = null;
+let dmLastTypingSentAt = 0;
+let currentDmPartnerLastSeen = null;
 
 const state = {
   coins: 0,
@@ -211,6 +217,10 @@ async function handleSignedIn(user) {
   syncWatchHistoryFromServer();
   refreshDmUnread();
   subscribeDmInboxRealtime();
+  joinGlobalPresence();
+  touchLastSeen();
+  if (lastSeenInterval) clearInterval(lastSeenInterval);
+  lastSeenInterval = setInterval(touchLastSeen, 60000);
 }
 
 async function loadFollowing() {
@@ -350,6 +360,8 @@ function handleSignedOut() {
   dmUnreadCount = 0;
   if (dmInboxChannel && supabaseClient) { supabaseClient.removeChannel(dmInboxChannel); dmInboxChannel = null; }
   if (dmChatChannel && supabaseClient) { supabaseClient.removeChannel(dmChatChannel); dmChatChannel = null; }
+  leaveGlobalPresence();
+  if (lastSeenInterval) { clearInterval(lastSeenInterval); lastSeenInterval = null; }
   updateAuthUI();
 }
 
@@ -841,6 +853,61 @@ function subscribeDmInboxRealtime() {
     .subscribe();
 }
 
+function joinGlobalPresence() {
+  if (!supabaseClient || !currentUser) return;
+  if (globalPresenceChannel) supabaseClient.removeChannel(globalPresenceChannel);
+  globalPresenceChannel = supabaseClient.channel("presence:global", {
+    config: { presence: { key: currentUser.id } },
+  });
+  globalPresenceChannel.on("presence", { event: "sync" }, () => {
+    onlineUserIds = new Set(Object.keys(globalPresenceChannel.presenceState()));
+    updateDmPresenceUI();
+  });
+  globalPresenceChannel.subscribe((status) => {
+    if (status === "SUBSCRIBED") globalPresenceChannel.track({ online_at: Date.now() });
+  });
+}
+
+function leaveGlobalPresence() {
+  if (globalPresenceChannel && supabaseClient) supabaseClient.removeChannel(globalPresenceChannel);
+  globalPresenceChannel = null;
+  onlineUserIds = new Set();
+}
+
+async function touchLastSeen() {
+  if (!currentUser || !supabaseClient) return;
+  await supabaseClient.from("profiles").update({ last_seen: new Date().toISOString() }).eq("id", currentUser.id);
+}
+
+function timeAgo(iso) {
+  if (!iso) return "";
+  const mins = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  return `${Math.floor(hrs / 24)}d ago`;
+}
+
+function updateDmPresenceUI() {
+  document.querySelectorAll("[data-online-dot]").forEach((dot) => {
+    dot.classList.toggle("online", onlineUserIds.has(dot.dataset.onlineDot));
+  });
+  if (currentDmPartnerId) renderDmChatStatus(currentDmPartnerId);
+}
+
+function renderDmChatStatus(partnerId) {
+  const el = document.getElementById("dmChatStatus");
+  if (!el) return;
+  if (onlineUserIds.has(partnerId)) {
+    el.textContent = "Online";
+    el.classList.add("online");
+  } else {
+    el.classList.remove("online");
+    el.textContent = currentDmPartnerLastSeen ? `Last seen ${timeAgo(currentDmPartnerLastSeen)}` : "";
+  }
+}
+
 async function openDmInbox() {
   switchView("dm-inbox");
   const list = document.getElementById("dmConversationList");
@@ -848,14 +915,15 @@ async function openDmInbox() {
 
   const { data } = await supabaseClient
     .from("dm_messages")
-    .select("sender_id, receiver_id, text, created_at, read")
+    .select("sender_id, receiver_id, text, image_url, created_at, read")
     .or(`sender_id.eq.${currentUser.id},receiver_id.eq.${currentUser.id}`)
     .order("created_at", { ascending: false });
 
   const convByPartner = {};
   (data || []).forEach((m) => {
     const partnerId = m.sender_id === currentUser.id ? m.receiver_id : m.sender_id;
-    if (!convByPartner[partnerId]) convByPartner[partnerId] = { lastText: m.text, lastAt: m.created_at, unread: 0 };
+    const preview = m.text || (m.image_url ? "📷 Photo" : "");
+    if (!convByPartner[partnerId]) convByPartner[partnerId] = { lastText: preview, lastAt: m.created_at, unread: 0 };
     if (m.receiver_id === currentUser.id && !m.read) convByPartner[partnerId].unread++;
   });
   const partnerIds = Object.keys(convByPartner);
@@ -877,7 +945,7 @@ async function openDmInbox() {
       const row = document.createElement("div");
       row.className = "creator-card";
       row.innerHTML = `
-        <div class="creator-avatar" style="background:${gradientFor(id)}">${p.username[0].toUpperCase()}</div>
+        <div class="creator-avatar" style="background:${gradientFor(id)}">${p.username[0].toUpperCase()}<span class="online-dot" data-online-dot="${id}"></span></div>
         <div class="creator-info">
           <div class="creator-name">${p.username}</div>
           <div class="creator-status">${conv.lastText.slice(0, 40)}</div>
@@ -887,34 +955,69 @@ async function openDmInbox() {
       row.addEventListener("click", () => openDmChat(id, p.username));
       list.appendChild(row);
     });
+  updateDmPresenceUI();
 }
 
-function appendDmMessage(mine, text) {
+function appendDmMessage(mine, msg) {
   const messagesEl = document.getElementById("dmChatMessages");
   const empty = messagesEl.querySelector(".creator-empty");
   if (empty) empty.remove();
   const row = document.createElement("div");
   row.className = "dm-msg " + (mine ? "mine" : "theirs");
-  row.textContent = text;
+  row.dataset.id = msg.id;
+  if (msg.image_url) {
+    const img = document.createElement("img");
+    img.className = "dm-msg-img";
+    img.src = msg.image_url;
+    row.appendChild(img);
+  }
+  if (msg.text) {
+    const span = document.createElement("span");
+    span.textContent = msg.text;
+    row.appendChild(span);
+  }
+  if (mine && Date.now() - new Date(msg.created_at).getTime() < 10 * 60 * 1000) {
+    const delBtn = document.createElement("button");
+    delBtn.className = "dm-msg-delete";
+    delBtn.textContent = "✕";
+    delBtn.title = "Unsend";
+    delBtn.addEventListener("click", () => deleteDmMessage(row.dataset.id, row));
+    row.appendChild(delBtn);
+  }
   messagesEl.appendChild(row);
+}
+
+async function deleteDmMessage(id, row) {
+  if (!id || id.startsWith("temp-")) { toast("Still sending..."); return; }
+  if (!confirm("Unsend this message?")) return;
+  const { error } = await supabaseClient.from("dm_messages").delete().eq("id", id);
+  if (error) { toast("Couldn't unsend"); return; }
+  row.remove();
 }
 
 async function openDmChat(partnerId, partnerName) {
   switchView("dm-chat");
   document.getElementById("dmChatTitle").textContent = partnerName;
   currentDmPartnerId = partnerId;
+  currentDmPartnerLastSeen = null;
+  document.getElementById("dmChatStatus").textContent = "";
+  document.getElementById("dmTypingIndicator").style.display = "none";
   const messagesEl = document.getElementById("dmChatMessages");
   messagesEl.innerHTML = '<div class="creator-empty">Loading...</div>';
 
   const { data } = await supabaseClient
     .from("dm_messages")
-    .select("id, sender_id, text, created_at")
+    .select("id, sender_id, text, image_url, created_at")
     .or(`and(sender_id.eq.${currentUser.id},receiver_id.eq.${partnerId}),and(sender_id.eq.${partnerId},receiver_id.eq.${currentUser.id})`)
     .order("created_at", { ascending: true });
 
   messagesEl.innerHTML = "";
-  (data || []).forEach((m) => appendDmMessage(m.sender_id === currentUser.id, m.text));
+  (data || []).forEach((m) => appendDmMessage(m.sender_id === currentUser.id, m));
   messagesEl.scrollTop = messagesEl.scrollHeight;
+
+  const { data: partnerProfile } = await supabaseClient.from("profiles").select("last_seen").eq("id", partnerId).single();
+  currentDmPartnerLastSeen = partnerProfile?.last_seen || null;
+  renderDmChatStatus(partnerId);
 
   await supabaseClient.from("dm_messages").update({ read: true }).eq("sender_id", partnerId).eq("receiver_id", currentUser.id).eq("read", false);
   refreshDmUnread();
@@ -927,30 +1030,87 @@ async function openDmChat(partnerId, partnerName) {
       { event: "INSERT", schema: "public", table: "dm_messages", filter: `sender_id=eq.${partnerId}` },
       (payload) => {
         if (payload.new.receiver_id !== currentUser.id) return;
-        appendDmMessage(false, payload.new.text);
+        document.getElementById("dmTypingIndicator").style.display = "none";
+        appendDmMessage(false, payload.new);
         messagesEl.scrollTop = messagesEl.scrollHeight;
         supabaseClient.from("dm_messages").update({ read: true }).eq("id", payload.new.id);
       }
     )
+    .on(
+      "postgres_changes",
+      { event: "DELETE", schema: "public", table: "dm_messages", filter: `sender_id=eq.${partnerId}` },
+      (payload) => {
+        const row = messagesEl.querySelector(`[data-id="${payload.old.id}"]`);
+        if (row) row.remove();
+      }
+    )
+    .on("broadcast", { event: "typing" }, () => showDmTypingIndicator())
     .subscribe();
+}
+
+function showDmTypingIndicator() {
+  const el = document.getElementById("dmTypingIndicator");
+  if (!el) return;
+  el.style.display = "block";
+  clearTimeout(dmTypingTimeout);
+  dmTypingTimeout = setTimeout(() => { el.style.display = "none"; }, 3000);
 }
 
 document.getElementById("dmChatSendBtn").addEventListener("click", sendDmMessage);
 document.getElementById("dmChatInput").addEventListener("keydown", (e) => { if (e.key === "Enter") sendDmMessage(); });
+document.getElementById("dmChatInput").addEventListener("input", () => {
+  if (!dmChatChannel || !currentDmPartnerId) return;
+  const now = Date.now();
+  if (now - dmLastTypingSentAt < 2000) return;
+  dmLastTypingSentAt = now;
+  dmChatChannel.send({ type: "broadcast", event: "typing", payload: {} });
+});
+
 async function sendDmMessage() {
   const input = document.getElementById("dmChatInput");
   const text = input.value.trim();
   if (!text || !currentDmPartnerId) return;
   input.value = "";
-  appendDmMessage(true, text);
+  const tempId = "temp-" + crypto.randomUUID();
   const messagesEl = document.getElementById("dmChatMessages");
+  appendDmMessage(true, { id: tempId, text, image_url: null, created_at: new Date().toISOString() });
   messagesEl.scrollTop = messagesEl.scrollHeight;
-  const { error } = await supabaseClient.from("dm_messages").insert({ sender_id: currentUser.id, receiver_id: currentDmPartnerId, text });
-  if (error) toast("Message couldn't be delivered");
+  const { data, error } = await supabaseClient
+    .from("dm_messages")
+    .insert({ sender_id: currentUser.id, receiver_id: currentDmPartnerId, text })
+    .select()
+    .single();
+  if (error) { toast("Message couldn't be delivered"); return; }
+  const row = messagesEl.querySelector(`[data-id="${tempId}"]`);
+  if (row && data) row.dataset.id = data.id;
 }
+
+document.getElementById("dmImageBtn").addEventListener("click", () => {
+  if (!currentDmPartnerId) return;
+  document.getElementById("dmImageInput").click();
+});
+document.getElementById("dmImageInput").addEventListener("change", async (e) => {
+  const file = e.target.files[0];
+  e.target.value = "";
+  if (!file || !currentDmPartnerId || !currentUser) return;
+  const ext = (file.name.split(".").pop() || "jpg").toLowerCase();
+  const path = `${currentUser.id}/${Date.now()}.${ext}`;
+  const { error: uploadError } = await supabaseClient.storage.from("dm-media").upload(path, file);
+  if (uploadError) { toast("Photo upload failed"); return; }
+  const imageUrl = `${SUPABASE_URL}/storage/v1/object/public/dm-media/${path}`;
+  const { data, error } = await supabaseClient
+    .from("dm_messages")
+    .insert({ sender_id: currentUser.id, receiver_id: currentDmPartnerId, image_url: imageUrl })
+    .select()
+    .single();
+  if (error) { toast("Message couldn't be delivered"); return; }
+  appendDmMessage(true, data);
+  document.getElementById("dmChatMessages").scrollTop = document.getElementById("dmChatMessages").scrollHeight;
+});
 
 document.getElementById("dmChatBackBtn").addEventListener("click", () => {
   if (dmChatChannel) { supabaseClient.removeChannel(dmChatChannel); dmChatChannel = null; }
+  currentDmPartnerId = null;
   openDmInbox();
 });
 document.getElementById("dmInboxBackBtn").addEventListener("click", () => {

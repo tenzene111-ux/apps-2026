@@ -58,7 +58,7 @@ Deno.serve(async (req) => {
     } else if (table === "dm_messages") {
       userId = record.receiver_id;
       title = "New message";
-      body = (record.text ?? "").slice(0, 100);
+      body = record.text ? record.text.slice(0, 100) : "📷 Sent a photo";
     } else {
       return new Response("ignored", { status: 200 });
     }
