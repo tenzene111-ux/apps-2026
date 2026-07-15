@@ -822,45 +822,85 @@ document.querySelectorAll("#moreModal .more-row").forEach((row) => {
 });
 
 /* ---------------- Comments ---------------- */
-const SAMPLE_NAMES = ["Mia", "Jordan", "Aaliyah", "Sam", "Priya", "Leo", "Nora", "Ken"];
-function openComments(drama, epNum) {
+let currentCommentKey = null;
+let commentsChannel = null;
+
+async function openComments(drama, epNum) {
   const list = document.getElementById("commentList");
-  list.innerHTML = "";
-  const key = "comments:" + drama.id + ":" + epNum;
-  const stored = state[key] || defaultComments(epNum);
-  state[key] = stored;
-  stored.forEach(c => list.appendChild(commentRow(c)));
+  list.innerHTML = '<div class="creator-empty">Loading comments...</div>';
   openModal("commentModal");
-  document.getElementById("commentModal").dataset.key = key;
+  currentCommentKey = { dramaId: drama.id, epNum };
+
+  const { data } = await supabaseClient
+    .from("comments")
+    .select("text, user_id, author:profiles(username)")
+    .eq("drama_id", drama.id)
+    .eq("episode_number", epNum)
+    .order("created_at", { ascending: true });
+
+  list.innerHTML = "";
+  if (!data || !data.length) {
+    list.innerHTML = '<div class="creator-empty">No comments yet — be the first!</div>';
+  } else {
+    data.forEach((c) => list.appendChild(commentRow(c.author?.username || "User", c.text)));
+    list.scrollTop = list.scrollHeight;
+  }
+
+  if (commentsChannel) supabaseClient.removeChannel(commentsChannel);
+  commentsChannel = supabaseClient
+    .channel(`comments:${drama.id}:${epNum}`)
+    .on(
+      "postgres_changes",
+      { event: "INSERT", schema: "public", table: "comments", filter: `drama_id=eq.${drama.id}` },
+      (payload) => {
+        if (payload.new.episode_number !== epNum) return;
+        if (payload.new.user_id === currentUser?.id) return;
+        supabaseClient
+          .from("profiles")
+          .select("username")
+          .eq("id", payload.new.user_id)
+          .single()
+          .then(({ data: p }) => {
+            const empty = list.querySelector(".creator-empty");
+            if (empty) empty.remove();
+            list.appendChild(commentRow(p?.username || "User", payload.new.text));
+            list.scrollTop = list.scrollHeight;
+          });
+      }
+    )
+    .subscribe();
 }
-function defaultComments(epNum) {
-  return [
-    { name: SAMPLE_NAMES[epNum % SAMPLE_NAMES.length], text: "I did NOT see that twist coming 😱" },
-    { name: SAMPLE_NAMES[(epNum + 3) % SAMPLE_NAMES.length], text: "someone unlock the next ep for me pleaseee" },
-    { name: SAMPLE_NAMES[(epNum + 5) % SAMPLE_NAMES.length], text: "the male lead's acting in this scene 🔥🔥" },
-  ];
-}
-function commentRow(c) {
+
+function commentRow(name, text) {
   const row = document.createElement("div");
   row.className = "comment-item";
-  row.innerHTML = `<div class="comment-avatar" style="background:${gradientFor(c.name)}">${c.name[0]}</div>
-    <div class="comment-body"><b>${c.name}</b><p>${c.text}</p></div>`;
+  row.innerHTML = `<div class="comment-avatar" style="background:${gradientFor(name)}">${name[0].toUpperCase()}</div>
+    <div class="comment-body"><b>${name}</b><p>${text}</p></div>`;
   return row;
 }
+
 document.getElementById("commentSendBtn").addEventListener("click", sendComment);
 document.getElementById("commentInput").addEventListener("keydown", (e) => { if (e.key === "Enter") sendComment(); });
-function sendComment() {
+
+async function sendComment() {
   const input = document.getElementById("commentInput");
   const text = input.value.trim();
-  if (!text) return;
-  const key = document.getElementById("commentModal").dataset.key;
-  const c = { name: "You", text };
-  state[key] = state[key] || [];
-  state[key].push(c);
-  saveState();
-  document.getElementById("commentList").appendChild(commentRow(c));
-  document.getElementById("commentList").scrollTop = 999999;
+  if (!text || !currentCommentKey) return;
+  if (!currentUser) { toast("Sign in to comment"); openAuthModal("signin"); return; }
+  const { dramaId, epNum } = currentCommentKey;
   input.value = "";
+  const list = document.getElementById("commentList");
+  const empty = list.querySelector(".creator-empty");
+  if (empty) empty.remove();
+  list.appendChild(commentRow(currentProfile?.username || "You", text));
+  list.scrollTop = list.scrollHeight;
+  const { error } = await supabaseClient.from("comments").insert({
+    drama_id: dramaId,
+    episode_number: epNum,
+    user_id: currentUser.id,
+    text,
+  });
+  if (error) toast("Comment failed to send");
 }
 
 /* ---------------- Coin packages ---------------- */
@@ -884,12 +924,18 @@ function renderCoinPackages() {
 
 /* ---------------- Modals ---------------- */
 function openModal(id) { document.getElementById(id).classList.add("open"); }
-function closeModal(id) { document.getElementById(id).classList.remove("open"); }
+function closeModal(id) {
+  document.getElementById(id).classList.remove("open");
+  if (id === "commentModal" && commentsChannel) {
+    supabaseClient.removeChannel(commentsChannel);
+    commentsChannel = null;
+  }
+}
 document.querySelectorAll("[data-close]").forEach(btn => {
   btn.addEventListener("click", () => closeModal(btn.dataset.close));
 });
 document.querySelectorAll(".modal-backdrop").forEach(backdrop => {
-  backdrop.addEventListener("click", (e) => { if (e.target === backdrop) backdrop.classList.remove("open"); });
+  backdrop.addEventListener("click", (e) => { if (e.target === backdrop) closeModal(backdrop.id); });
 });
 document.addEventListener("click", (e) => {
   const openBtn = e.target.closest("[data-open]");
