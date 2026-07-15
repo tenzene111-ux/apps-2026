@@ -48,6 +48,12 @@ Deno.serve(async (req) => {
       } else if (record.type === "like") {
         title = "New like";
         body = "Someone liked your episode";
+      } else if (record.type === "went_live") {
+        title = "Live now";
+        body = "Someone you follow just went live";
+      } else if (record.type === "new_drama") {
+        title = "New drama";
+        body = `New upload: ${record.data?.title ?? ""}`;
       }
     } else if (table === "dm_messages") {
       userId = record.receiver_id;

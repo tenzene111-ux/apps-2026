@@ -302,6 +302,8 @@ function notificationText(n) {
   if (n.type === "gift") return `<b>${name}</b> sent you a gift — +${n.data?.amount || 0} coins`;
   if (n.type === "comment") return `<b>${name}</b> commented on your drama`;
   if (n.type === "like") return `<b>${name}</b> liked your episode`;
+  if (n.type === "went_live") return `<b>${name}</b> is live now`;
+  if (n.type === "new_drama") return `<b>${name}</b> uploaded a new drama: ${n.data?.title || ""}`;
   return `<b>${name}</b> did something`;
 }
 
