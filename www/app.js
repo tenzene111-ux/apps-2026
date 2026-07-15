@@ -38,6 +38,56 @@ const supabaseClient = window.supabase
   ? window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY)
   : null;
 
+const VAPID_PUBLIC_KEY = "BNfuzgsUjte3lamMiF-6QkU8qhrXVFYcnx53bhriQzVI92X0N_z1RN0Xnu5i71zClku8YxhybHKSQNLGX0_BNbU";
+
+function urlBase64ToUint8Array(base64String) {
+  const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
+  const rawData = atob(base64);
+  return Uint8Array.from([...rawData].map((c) => c.charCodeAt(0)));
+}
+
+async function subscribeToPush() {
+  if (!currentUser || !supabaseClient) return false;
+  if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
+    toast("Push notifications aren't supported on this browser");
+    return false;
+  }
+  const permission = await Notification.requestPermission();
+  if (permission !== "granted") {
+    toast("Notification permission denied");
+    return false;
+  }
+  const registration = await navigator.serviceWorker.ready;
+  const subscription = await registration.pushManager.subscribe({
+    userVisibleOnly: true,
+    applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
+  });
+  const json = subscription.toJSON();
+  const { error } = await supabaseClient.from("push_subscriptions").upsert(
+    {
+      user_id: currentUser.id,
+      endpoint: json.endpoint,
+      p256dh: json.keys.p256dh,
+      auth: json.keys.auth,
+    },
+    { onConflict: "endpoint" }
+  );
+  if (error) { toast("Couldn't enable push notifications"); return false; }
+  toast("Push notifications enabled");
+  return true;
+}
+
+async function unsubscribeFromPush() {
+  if (!("serviceWorker" in navigator)) return;
+  const registration = await navigator.serviceWorker.ready;
+  const subscription = await registration.pushManager.getSubscription();
+  if (subscription) {
+    if (supabaseClient) await supabaseClient.from("push_subscriptions").delete().eq("endpoint", subscription.endpoint);
+    await subscription.unsubscribe();
+  }
+}
+
 let currentUser = null;
 let currentProfile = null;
 let authMode = "signin";
@@ -2062,8 +2112,16 @@ function renderSettingsToggles() {
   document.getElementById("toggleNotif").classList.toggle("on", state.notifOn);
   document.getElementById("toggleAutoplay").classList.toggle("on", state.autoplayNext);
 }
-document.getElementById("toggleNotif").addEventListener("click", () => {
-  state.notifOn = !state.notifOn;
+document.getElementById("toggleNotif").addEventListener("click", async () => {
+  const turningOn = !state.notifOn;
+  if (turningOn) {
+    if (!currentUser) { toast("Sign in to enable push notifications"); openAuthModal("signin"); return; }
+    const ok = await subscribeToPush();
+    if (!ok) return;
+  } else {
+    await unsubscribeFromPush();
+  }
+  state.notifOn = turningOn;
   saveState();
   renderSettingsToggles();
 });
