@@ -203,6 +203,8 @@ async function handleSignedIn(user) {
   updateCoinDisplays();
   await loadFollowing();
   await loadBlocked();
+  await loadRewardClaims();
+  await loadRedemptions();
   fetchLiveSessions();
   refreshNotificationsUnread();
   subscribeNotificationsRealtime();
@@ -221,6 +223,39 @@ async function loadBlocked() {
   if (!currentUser || !supabaseClient) { blockedIds = new Set(); return; }
   const { data } = await supabaseClient.from("blocks").select("blocked_id").eq("blocker_id", currentUser.id);
   blockedIds = new Set((data || []).map((r) => r.blocked_id));
+}
+
+function recordClaim(key) {
+  if (currentUser && supabaseClient) {
+    supabaseClient.from("reward_claims").insert({ user_id: currentUser.id, claim_key: key }).then(() => {});
+  }
+}
+
+async function loadRewardClaims() {
+  if (!currentUser || !supabaseClient) return;
+  const { data } = await supabaseClient.from("reward_claims").select("claim_key").eq("user_id", currentUser.id);
+  (data || []).forEach((r) => {
+    const key = r.claim_key;
+    if (key.startsWith("quest:")) state.questClaimed[Number(key.slice(6))] = true;
+    else if (key.startsWith("fresh:")) state.freshClaimed[Number(key.slice(6))] = true;
+    else if (key.startsWith("task:")) state.claimedTasks[key.slice(5)] = true;
+  });
+  saveState();
+  if (state.view === "rewards") renderRewards();
+}
+
+function recordRedemption(itemId, newCount) {
+  if (currentUser && supabaseClient) {
+    supabaseClient.from("redemptions").upsert({ user_id: currentUser.id, item_id: itemId, count: newCount }, { onConflict: "user_id,item_id" }).then(() => {});
+  }
+}
+
+async function loadRedemptions() {
+  if (!currentUser || !supabaseClient) return;
+  const { data } = await supabaseClient.from("redemptions").select("item_id, count").eq("user_id", currentUser.id);
+  (data || []).forEach((r) => { state.redeemed[r.item_id] = r.count; });
+  saveState();
+  if (state.view === "rewards") renderRewards();
 }
 
 async function toggleBlock(userId, btn) {
@@ -1759,6 +1794,7 @@ function buildForYouCard(d) {
   if (claimBtn) {
     claimBtn.addEventListener("click", () => {
       state.claimedTasks[claimKey] = true;
+      recordClaim("task:" + claimKey);
       state.coins += 5;
       saveState();
       updateCoinDisplays();
@@ -1909,6 +1945,7 @@ document.getElementById("claimAllQuestBtn").addEventListener("click", () => {
   QUEST_TIERS.forEach((tier, i) => {
     if (el >= tier.seconds && !state.questClaimed[i]) {
       state.questClaimed[i] = true;
+      recordClaim("quest:" + i);
       total += tier.coins;
     }
   });
@@ -1937,6 +1974,7 @@ function renderFreshDramaStrip() {
     if (unlocked && !claimed) {
       tile.addEventListener("click", () => {
         state.freshClaimed[i] = true;
+        recordClaim("fresh:" + i);
         state.coins += tier.coins;
         saveState();
         updateCoinDisplays();
@@ -1983,6 +2021,7 @@ document.addEventListener("click", (e) => {
   if (state.claimedTasks[key]) return;
   const coins = Number(btn.dataset.coins) || 0;
   state.claimedTasks[key] = true;
+  recordClaim("task:" + key);
   state.coins += coins;
   saveState();
   updateCoinDisplays();
@@ -2023,6 +2062,7 @@ function renderRedeemGrid() {
         if (state.gems < item.cost) { toast("Not enough gems"); return; }
         state.gems -= item.cost;
         state.redeemed[item.id] = owned + 1;
+        recordRedemption(item.id, owned + 1);
         saveState();
         updateCoinDisplays();
         toast(`Redeemed ${item.name}!`);
@@ -2246,6 +2286,7 @@ document.getElementById("applyInviteBtn").addEventListener("click", () => {
   if (!code) { toast("Enter a code first"); return; }
   if (state.claimedTasks.invite) { toast("Invite bonus already claimed"); closeModal("inviteModal"); return; }
   state.claimedTasks.invite = true;
+  recordClaim("task:invite");
   state.coins += 50;
   saveState();
   updateCoinDisplays();
