@@ -86,6 +86,7 @@ let currentProfile = null;
 let authMode = "signin";
 let profileSyncTimer = null;
 let followingIds = new Set();
+let blockedIds = new Set();
 let notificationsUnreadCount = 0;
 let notificationsChannel = null;
 let dmUnreadCount = 0;
@@ -201,6 +202,7 @@ async function handleSignedIn(user) {
   updateAuthUI();
   updateCoinDisplays();
   await loadFollowing();
+  await loadBlocked();
   fetchLiveSessions();
   refreshNotificationsUnread();
   subscribeNotificationsRealtime();
@@ -213,6 +215,26 @@ async function loadFollowing() {
   if (!currentUser || !supabaseClient) { followingIds = new Set(); return; }
   const { data } = await supabaseClient.from("follows").select("followed_id").eq("follower_id", currentUser.id);
   followingIds = new Set((data || []).map((r) => r.followed_id));
+}
+
+async function loadBlocked() {
+  if (!currentUser || !supabaseClient) { blockedIds = new Set(); return; }
+  const { data } = await supabaseClient.from("blocks").select("blocked_id").eq("blocker_id", currentUser.id);
+  blockedIds = new Set((data || []).map((r) => r.blocked_id));
+}
+
+async function toggleBlock(userId, btn) {
+  if (!currentUser) { toast("Sign in to block users"); openAuthModal("signin"); return; }
+  const isBlocked = blockedIds.has(userId);
+  if (btn) btn.disabled = true;
+  if (isBlocked) {
+    const { error } = await supabaseClient.from("blocks").delete().eq("blocker_id", currentUser.id).eq("blocked_id", userId);
+    if (!error) blockedIds.delete(userId);
+  } else {
+    const { error } = await supabaseClient.from("blocks").insert({ blocker_id: currentUser.id, blocked_id: userId });
+    if (!error) blockedIds.add(userId);
+  }
+  if (btn) btn.disabled = false;
 }
 
 async function refreshNotificationsUnread() {
@@ -285,6 +307,7 @@ function handleSignedOut() {
   currentUser = null;
   currentProfile = null;
   followingIds = new Set();
+  blockedIds = new Set();
   notificationsUnreadCount = 0;
   if (notificationsChannel && supabaseClient) { supabaseClient.removeChannel(notificationsChannel); notificationsChannel = null; }
   dmUnreadCount = 0;
@@ -302,6 +325,7 @@ function openAuthModal(mode) {
   document.getElementById("authUsernameInput").style.display = mode === "signup" ? "" : "none";
   document.getElementById("authSwitchText").textContent = mode === "signup" ? "Already have an account?" : "Don't have an account?";
   document.getElementById("authSwitchBtn").textContent = mode === "signup" ? "Sign in" : "Sign up";
+  document.getElementById("authForgotBtn").style.display = mode === "signup" ? "none" : "";
   document.getElementById("authModalError").style.display = "none";
   document.getElementById("authEmailInput").value = "";
   document.getElementById("authPasswordInput").value = "";
@@ -581,6 +605,28 @@ async function openCreatorProfile(userId) {
     openDmChat(userId, username);
   };
 
+  const blockBtn = document.getElementById("creatorProfileBlockBtn");
+  const reportBtn = document.getElementById("creatorProfileReportBtn");
+  const isSelf = currentUser && currentUser.id === userId;
+  blockBtn.style.display = isSelf ? "none" : "";
+  reportBtn.style.display = isSelf ? "none" : "";
+  const applyBlockState = () => {
+    const isBlocked = blockedIds.has(userId);
+    blockBtn.textContent = isBlocked ? "Unblock" : "Block";
+    blockBtn.classList.toggle("blocked", isBlocked);
+  };
+  applyBlockState();
+  blockBtn.onclick = async () => {
+    await toggleBlock(userId, blockBtn);
+    applyBlockState();
+  };
+  reportBtn.onclick = async () => {
+    if (!currentUser) { toast("Sign in to report"); openAuthModal("signin"); return; }
+    if (!confirm(`Report ${username} for inappropriate behavior?`)) return;
+    const { error } = await supabaseClient.from("reports").insert({ reporter_id: currentUser.id, reported_user_id: userId });
+    toast(error ? "Report failed to send" : "Report submitted — thanks for letting us know");
+  };
+
   const liveHost = liveSessionsCache.find((h) => h.hostId === userId);
   const watchLiveBtn = document.getElementById("creatorProfileWatchLiveBtn");
   if (liveHost) {
@@ -796,7 +842,8 @@ async function sendDmMessage() {
   appendDmMessage(true, text);
   const messagesEl = document.getElementById("dmChatMessages");
   messagesEl.scrollTop = messagesEl.scrollHeight;
-  await supabaseClient.from("dm_messages").insert({ sender_id: currentUser.id, receiver_id: currentDmPartnerId, text });
+  const { error } = await supabaseClient.from("dm_messages").insert({ sender_id: currentUser.id, receiver_id: currentDmPartnerId, text });
+  if (error) toast("Message couldn't be delivered");
 }
 
 document.getElementById("dmChatBackBtn").addEventListener("click", () => {
@@ -1442,11 +1489,12 @@ async function openComments(drama, epNum) {
     .eq("episode_number", epNum)
     .order("created_at", { ascending: true });
 
+  const visible = (data || []).filter((c) => !blockedIds.has(c.user_id));
   list.innerHTML = "";
-  if (!data || !data.length) {
+  if (!visible.length) {
     list.innerHTML = '<div class="creator-empty">No comments yet — be the first!</div>';
   } else {
-    data.forEach((c) => list.appendChild(commentRow(c.author?.username || "User", c.text)));
+    visible.forEach((c) => list.appendChild(commentRow(c.author?.username || "User", c.text)));
     list.scrollTop = list.scrollHeight;
   }
 
@@ -1459,6 +1507,7 @@ async function openComments(drama, epNum) {
       (payload) => {
         if (payload.new.episode_number !== epNum) return;
         if (payload.new.user_id === currentUser?.id) return;
+        if (blockedIds.has(payload.new.user_id)) return;
         supabaseClient
           .from("profiles")
           .select("username")
@@ -2153,6 +2202,40 @@ document.getElementById("authSubmitBtn").addEventListener("click", async () => {
     btn.disabled = false;
   }
 });
+
+document.getElementById("authForgotBtn").addEventListener("click", async () => {
+  if (!supabaseClient) { showAuthError("Not available in this build."); return; }
+  const email = document.getElementById("authEmailInput").value.trim();
+  if (!email) { showAuthError("Enter your email above first."); return; }
+  const btn = document.getElementById("authForgotBtn");
+  btn.disabled = true;
+  const { error } = await supabaseClient.auth.resetPasswordForEmail(email, {
+    redirectTo: window.location.href.split("#")[0].split("?")[0],
+  });
+  btn.disabled = false;
+  if (error) { showAuthError(error.message); return; }
+  toast("Check your email for a reset link");
+  closeModal("authModal");
+});
+
+document.getElementById("resetPasswordSubmitBtn").addEventListener("click", async () => {
+  if (!supabaseClient) return;
+  const password = document.getElementById("newPasswordInput").value;
+  const errEl = document.getElementById("resetPasswordError");
+  if (!password || password.length < 6) {
+    errEl.textContent = "Password must be at least 6 characters.";
+    errEl.style.display = "";
+    return;
+  }
+  const btn = document.getElementById("resetPasswordSubmitBtn");
+  btn.disabled = true;
+  const { error } = await supabaseClient.auth.updateUser({ password });
+  btn.disabled = false;
+  if (error) { errEl.textContent = error.message; errEl.style.display = ""; return; }
+  closeModal("resetPasswordModal");
+  toast("Password updated!");
+});
+
 document.getElementById("copyUidBtn").addEventListener("click", () => {
   const uid = document.getElementById("uidText").textContent;
   navigator.clipboard.writeText(uid).then(() => toast("UID copied")).catch(() => toast("UID copied"));
@@ -2265,7 +2348,7 @@ async function sendGift(gift) {
   addLiveChatMessage(chatFeedId, "You", `sent a ${gift.name}!`, true);
   if (currentLiveRoom) {
     const payload = new TextEncoder().encode(JSON.stringify({
-      type: "gift", name: currentProfile?.username || "Someone", giftId: gift.id, giftName: gift.name, cost: gift.cost,
+      type: "gift", senderId: currentUser?.id, name: currentProfile?.username || "Someone", giftId: gift.id, giftName: gift.name, cost: gift.cost,
     }));
     currentLiveRoom.localParticipant.publishData(payload, { reliable: true });
   }
@@ -2385,6 +2468,7 @@ function setupLiveRoomListeners(room, isHost) {
   room.on(LivekitClient.RoomEvent.DataReceived, (payload) => {
     let msg;
     try { msg = JSON.parse(new TextDecoder().decode(payload)); } catch (e) { return; }
+    if (msg.senderId && blockedIds.has(msg.senderId)) return;
     const chatFeedId = isHost ? "hostChatFeed" : "guestChatFeed";
     const stageId = isHost ? "liveHostStage" : "liveGuestStage";
     if (msg.type === "chat") {
@@ -2568,7 +2652,7 @@ document.getElementById("liveChatInput").addEventListener("keydown", (e) => {
   addLiveChatMessage("guestChatFeed", "You", text, false);
   if (currentLiveRoom) {
     const name = currentProfile?.username || "Someone";
-    const payload = new TextEncoder().encode(JSON.stringify({ type: "chat", name, text }));
+    const payload = new TextEncoder().encode(JSON.stringify({ type: "chat", senderId: currentUser?.id, name, text }));
     currentLiveRoom.localParticipant.publishData(payload, { reliable: true });
   }
   input.value = "";
@@ -2597,6 +2681,12 @@ function init() {
 
   if (supabaseClient) {
     supabaseClient.auth.onAuthStateChange((event, session) => {
+      if (event === "PASSWORD_RECOVERY") {
+        document.getElementById("newPasswordInput").value = "";
+        document.getElementById("resetPasswordError").style.display = "none";
+        openModal("resetPasswordModal");
+        return;
+      }
       if (session?.user) handleSignedIn(session.user);
       else handleSignedOut();
     });

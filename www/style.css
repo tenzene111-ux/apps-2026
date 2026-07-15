@@ -1052,6 +1052,8 @@ input { font: inherit; color: inherit; }
 
 /* ---------- Direct messages ---------- */
 .creator-profile-actions { display: flex; gap: 10px; }
+.creator-follow-btn.blocked { background: var(--accent); border-color: var(--accent); color: #fff; }
+.creator-report-link { font-size: 12px; color: var(--text-dim); margin-top: 4px; }
 .dm-unread-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--accent); flex-shrink: 0; }
 .dm-chat-scroll {
   flex: 1;
@@ -1420,6 +1422,7 @@ input { font: inherit; color: inherit; }
 .auth-error { font-size: 12.5px; color: #ff5470; }
 .auth-switch { display: flex; align-items: center; justify-content: center; gap: 6px; font-size: 12.5px; color: var(--text-dim); margin-top: 2px; }
 .auth-switch button { color: var(--accent); font-weight: 700; }
+.auth-forgot-link { font-size: 12.5px; color: var(--accent); text-align: center; margin-top: -4px; }
 .lang-list { display: flex; flex-direction: column; gap: 4px; margin-top: 6px; }
 .lang-option {
   display: flex;

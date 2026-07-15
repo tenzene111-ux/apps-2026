@@ -12,7 +12,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="Reelflix" />
-  <link rel="stylesheet" href="style.css?v=35" />
+  <link rel="stylesheet" href="style.css?v=36" />
 </head>
 <body>
   <svg width="0" height="0" style="position:absolute" aria-hidden="true">
@@ -304,7 +304,9 @@
           <div class="creator-profile-actions">
             <button class="creator-follow-btn" id="creatorProfileFollowBtn">+ Follow</button>
             <button class="creator-follow-btn" id="creatorProfileMessageBtn">Message</button>
+            <button class="creator-follow-btn" id="creatorProfileBlockBtn">Block</button>
           </div>
+          <button class="creator-report-link" id="creatorProfileReportBtn">Report this user</button>
           <button class="btn-watch-now" id="creatorProfileWatchLiveBtn" style="display:none">Watch Live Now</button>
         </div>
         <div class="poster-grid" id="creatorProfileDramaGrid"></div>
@@ -642,11 +644,22 @@
       <input id="authUsernameInput" class="modal-input" type="text" placeholder="Username" style="display:none" autocomplete="username" />
       <div id="authModalError" class="auth-error" style="display:none"></div>
       <button class="btn-primary" id="authSubmitBtn">Sign in</button>
+      <button class="auth-forgot-link" id="authForgotBtn" type="button">Forgot password?</button>
       <div class="auth-switch">
         <span id="authSwitchText">Don't have an account?</span>
         <button id="authSwitchBtn" type="button">Sign up</button>
       </div>
       <button class="modal-close" data-close="authModal">✕</button>
+    </div>
+  </div>
+
+  <div class="modal-backdrop" id="resetPasswordModal">
+    <div class="modal">
+      <h3>Set a new password</h3>
+      <p>Choose a new password for your account.</p>
+      <input id="newPasswordInput" class="modal-input" type="password" placeholder="New password" autocomplete="new-password" />
+      <div id="resetPasswordError" class="auth-error" style="display:none"></div>
+      <button class="btn-primary" id="resetPasswordSubmitBtn">Update Password</button>
     </div>
   </div>
 
@@ -764,8 +777,8 @@
     </div>
   </div>
 
-  <script src="vendor/supabase.js?v=35"></script>
-  <script src="vendor/livekit-client.js?v=35"></script>
-  <script src="app.js?v=35"></script>
+  <script src="vendor/supabase.js?v=36"></script>
+  <script src="vendor/livekit-client.js?v=36"></script>
+  <script src="app.js?v=36"></script>
 </body>
 </html>
