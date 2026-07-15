@@ -45,6 +45,10 @@ let profileSyncTimer = null;
 let followingIds = new Set();
 let notificationsUnreadCount = 0;
 let notificationsChannel = null;
+let dmUnreadCount = 0;
+let dmInboxChannel = null;
+let dmChatChannel = null;
+let currentDmPartnerId = null;
 
 const state = {
   coins: 0,
@@ -157,6 +161,9 @@ async function handleSignedIn(user) {
   fetchLiveSessions();
   refreshNotificationsUnread();
   subscribeNotificationsRealtime();
+  syncWatchHistoryFromServer();
+  refreshDmUnread();
+  subscribeDmInboxRealtime();
 }
 
 async function loadFollowing() {
@@ -235,6 +242,9 @@ function handleSignedOut() {
   followingIds = new Set();
   notificationsUnreadCount = 0;
   if (notificationsChannel && supabaseClient) { supabaseClient.removeChannel(notificationsChannel); notificationsChannel = null; }
+  dmUnreadCount = 0;
+  if (dmInboxChannel && supabaseClient) { supabaseClient.removeChannel(dmInboxChannel); dmInboxChannel = null; }
+  if (dmChatChannel && supabaseClient) { supabaseClient.removeChannel(dmChatChannel); dmChatChannel = null; }
   updateAuthUI();
 }
 
@@ -298,7 +308,7 @@ function switchView(name) {
   document.querySelectorAll(".view").forEach(v => v.classList.remove("active"));
   document.getElementById("view-" + name).classList.add("active");
   state.view = name;
-  document.getElementById("bottomNav").style.display = (name === "player" || name === "live-host" || name === "live-guest") ? "none" : "flex";
+  document.getElementById("bottomNav").style.display = (name === "player" || name === "live-host" || name === "live-guest" || name === "dm-chat") ? "none" : "flex";
   const tabForView = { home: "home", foryou: "foryou", mylist: "mylist", rewards: "rewards", mine: "profile" };
   if (tabForView[name]) {
     document.querySelectorAll(".nav-item").forEach(b => b.classList.toggle("active", b.dataset.tab === tabForView[name]));
@@ -322,7 +332,7 @@ function renderContinueWatching() {
     const card = document.createElement("div");
     card.className = "continue-card";
     card.innerHTML = `
-      <div class="continue-thumb" style="background:${gradientFor(drama.id)}">
+      <div class="continue-thumb" style="${coverStyle(drama)}">
         <span class="continue-ep-badge">EP ${epNum}</span>
         <div class="continue-progress"><div class="continue-progress-fill" style="width:${pct}%"></div></div>
       </div>
@@ -519,6 +529,13 @@ async function openCreatorProfile(userId) {
     document.getElementById("creatorProfileFollowers").textContent = count || 0;
   };
 
+  const messageBtn = document.getElementById("creatorProfileMessageBtn");
+  messageBtn.style.display = currentUser && currentUser.id === userId ? "none" : "";
+  messageBtn.onclick = () => {
+    if (!currentUser) { toast("Sign in to send messages"); openAuthModal("signin"); return; }
+    openDmChat(userId, username);
+  };
+
   const liveHost = liveSessionsCache.find((h) => h.hostId === userId);
   const watchLiveBtn = document.getElementById("creatorProfileWatchLiveBtn");
   if (liveHost) {
@@ -531,6 +548,220 @@ document.getElementById("creatorProfileBackBtn").addEventListener("click", () =>
   document.querySelectorAll(".nav-item").forEach((b) => b.classList.toggle("active", b.dataset.tab === "mylist"));
   switchView("mylist");
   renderMyList();
+});
+
+/* ---------------- Leaderboard (real, from follows + gifts) ---------------- */
+function openLeaderboard() {
+  switchView("leaderboard");
+  renderTopCreators();
+  renderTopGifters();
+}
+
+document.getElementById("leaderboardBackBtn").addEventListener("click", () => {
+  document.querySelectorAll(".nav-item").forEach((b) => b.classList.toggle("active", b.dataset.tab === "profile"));
+  switchView("mine");
+  renderMine();
+});
+
+document.querySelectorAll("#view-leaderboard .lbtab").forEach((tab) => {
+  tab.addEventListener("click", () => {
+    document.querySelectorAll("#view-leaderboard .lbtab").forEach((t) => t.classList.remove("active"));
+    tab.classList.add("active");
+    document.querySelectorAll("#view-leaderboard .mylist-panel").forEach((p) => p.classList.remove("active"));
+    document.getElementById("panel-lb-" + tab.dataset.lbtab).classList.add("active");
+  });
+});
+
+function buildLeaderboardRow(rank, userId, username, statText) {
+  const row = document.createElement("div");
+  row.className = "creator-card";
+  row.innerHTML = `
+    <div class="lb-rank">#${rank}</div>
+    <div class="creator-avatar" style="background:${gradientFor(userId)}">${username[0].toUpperCase()}</div>
+    <div class="creator-info"><div class="creator-name">${username}</div><div class="creator-status">${statText}</div></div>
+  `;
+  row.addEventListener("click", () => openCreatorProfile(userId));
+  return row;
+}
+
+async function renderTopCreators() {
+  const list = document.getElementById("lbCreatorsList");
+  list.innerHTML = '<div class="creator-empty">Loading...</div>';
+  const { data: follows } = await supabaseClient.from("follows").select("followed_id");
+  const counts = {};
+  (follows || []).forEach((f) => { counts[f.followed_id] = (counts[f.followed_id] || 0) + 1; });
+  const topIds = Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 20).map(([id]) => id);
+  if (!topIds.length) { list.innerHTML = '<div class="creator-empty">No creators yet.</div>'; return; }
+  const { data: profiles } = await supabaseClient.from("profiles").select("id, username").in("id", topIds);
+  const byId = {};
+  (profiles || []).forEach((p) => { byId[p.id] = p; });
+  list.innerHTML = "";
+  topIds.forEach((id, i) => {
+    const p = byId[id];
+    if (!p) return;
+    list.appendChild(buildLeaderboardRow(i + 1, id, p.username, `${counts[id]} follower${counts[id] === 1 ? "" : "s"}`));
+  });
+}
+
+async function renderTopGifters() {
+  const list = document.getElementById("lbGiftersList");
+  list.innerHTML = '<div class="creator-empty">Loading...</div>';
+  const { data: gifts } = await supabaseClient.from("gifts").select("sender_id, amount");
+  const totals = {};
+  (gifts || []).forEach((g) => { totals[g.sender_id] = (totals[g.sender_id] || 0) + g.amount; });
+  const topIds = Object.entries(totals).sort((a, b) => b[1] - a[1]).slice(0, 20).map(([id]) => id);
+  if (!topIds.length) { list.innerHTML = '<div class="creator-empty">No gifts sent yet.</div>'; return; }
+  const { data: profiles } = await supabaseClient.from("profiles").select("id, username").in("id", topIds);
+  const byId = {};
+  (profiles || []).forEach((p) => { byId[p.id] = p; });
+  list.innerHTML = "";
+  topIds.forEach((id, i) => {
+    const p = byId[id];
+    if (!p) return;
+    list.appendChild(buildLeaderboardRow(i + 1, id, p.username, `${totals[id]} coins gifted`));
+  });
+}
+
+/* ---------------- Direct messages (real, via Supabase Realtime) ---------------- */
+async function refreshDmUnread() {
+  if (!currentUser || !supabaseClient) { dmUnreadCount = 0; return; }
+  const { count } = await supabaseClient
+    .from("dm_messages")
+    .select("id", { count: "exact", head: true })
+    .eq("receiver_id", currentUser.id)
+    .eq("read", false);
+  dmUnreadCount = count || 0;
+  renderProfileMenu();
+}
+
+function subscribeDmInboxRealtime() {
+  if (!supabaseClient || !currentUser) return;
+  if (dmInboxChannel) supabaseClient.removeChannel(dmInboxChannel);
+  dmInboxChannel = supabaseClient
+    .channel(`dm-inbox:${currentUser.id}`)
+    .on(
+      "postgres_changes",
+      { event: "INSERT", schema: "public", table: "dm_messages", filter: `receiver_id=eq.${currentUser.id}` },
+      () => refreshDmUnread()
+    )
+    .subscribe();
+}
+
+async function openDmInbox() {
+  switchView("dm-inbox");
+  const list = document.getElementById("dmConversationList");
+  list.innerHTML = '<div class="creator-empty">Loading...</div>';
+
+  const { data } = await supabaseClient
+    .from("dm_messages")
+    .select("sender_id, receiver_id, text, created_at, read")
+    .or(`sender_id.eq.${currentUser.id},receiver_id.eq.${currentUser.id}`)
+    .order("created_at", { ascending: false });
+
+  const convByPartner = {};
+  (data || []).forEach((m) => {
+    const partnerId = m.sender_id === currentUser.id ? m.receiver_id : m.sender_id;
+    if (!convByPartner[partnerId]) convByPartner[partnerId] = { lastText: m.text, lastAt: m.created_at, unread: 0 };
+    if (m.receiver_id === currentUser.id && !m.read) convByPartner[partnerId].unread++;
+  });
+  const partnerIds = Object.keys(convByPartner);
+  if (!partnerIds.length) {
+    list.innerHTML = '<div class="creator-empty">No messages yet. Message a creator from their profile.</div>';
+    return;
+  }
+  const { data: profiles } = await supabaseClient.from("profiles").select("id, username").in("id", partnerIds);
+  const byId = {};
+  (profiles || []).forEach((p) => { byId[p.id] = p; });
+
+  list.innerHTML = "";
+  partnerIds
+    .sort((a, b) => new Date(convByPartner[b].lastAt) - new Date(convByPartner[a].lastAt))
+    .forEach((id) => {
+      const p = byId[id];
+      if (!p) return;
+      const conv = convByPartner[id];
+      const row = document.createElement("div");
+      row.className = "creator-card";
+      row.innerHTML = `
+        <div class="creator-avatar" style="background:${gradientFor(id)}">${p.username[0].toUpperCase()}</div>
+        <div class="creator-info">
+          <div class="creator-name">${p.username}</div>
+          <div class="creator-status">${conv.lastText.slice(0, 40)}</div>
+        </div>
+        ${conv.unread > 0 ? '<span class="dm-unread-dot"></span>' : ""}
+      `;
+      row.addEventListener("click", () => openDmChat(id, p.username));
+      list.appendChild(row);
+    });
+}
+
+function appendDmMessage(mine, text) {
+  const messagesEl = document.getElementById("dmChatMessages");
+  const empty = messagesEl.querySelector(".creator-empty");
+  if (empty) empty.remove();
+  const row = document.createElement("div");
+  row.className = "dm-msg " + (mine ? "mine" : "theirs");
+  row.textContent = text;
+  messagesEl.appendChild(row);
+}
+
+async function openDmChat(partnerId, partnerName) {
+  switchView("dm-chat");
+  document.getElementById("dmChatTitle").textContent = partnerName;
+  currentDmPartnerId = partnerId;
+  const messagesEl = document.getElementById("dmChatMessages");
+  messagesEl.innerHTML = '<div class="creator-empty">Loading...</div>';
+
+  const { data } = await supabaseClient
+    .from("dm_messages")
+    .select("id, sender_id, text, created_at")
+    .or(`and(sender_id.eq.${currentUser.id},receiver_id.eq.${partnerId}),and(sender_id.eq.${partnerId},receiver_id.eq.${currentUser.id})`)
+    .order("created_at", { ascending: true });
+
+  messagesEl.innerHTML = "";
+  (data || []).forEach((m) => appendDmMessage(m.sender_id === currentUser.id, m.text));
+  messagesEl.scrollTop = messagesEl.scrollHeight;
+
+  await supabaseClient.from("dm_messages").update({ read: true }).eq("sender_id", partnerId).eq("receiver_id", currentUser.id).eq("read", false);
+  refreshDmUnread();
+
+  if (dmChatChannel) supabaseClient.removeChannel(dmChatChannel);
+  dmChatChannel = supabaseClient
+    .channel(`dm-chat:${[currentUser.id, partnerId].sort().join(":")}`)
+    .on(
+      "postgres_changes",
+      { event: "INSERT", schema: "public", table: "dm_messages", filter: `sender_id=eq.${partnerId}` },
+      (payload) => {
+        if (payload.new.receiver_id !== currentUser.id) return;
+        appendDmMessage(false, payload.new.text);
+        messagesEl.scrollTop = messagesEl.scrollHeight;
+        supabaseClient.from("dm_messages").update({ read: true }).eq("id", payload.new.id);
+      }
+    )
+    .subscribe();
+}
+
+document.getElementById("dmChatSendBtn").addEventListener("click", sendDmMessage);
+document.getElementById("dmChatInput").addEventListener("keydown", (e) => { if (e.key === "Enter") sendDmMessage(); });
+async function sendDmMessage() {
+  const input = document.getElementById("dmChatInput");
+  const text = input.value.trim();
+  if (!text || !currentDmPartnerId) return;
+  input.value = "";
+  appendDmMessage(true, text);
+  const messagesEl = document.getElementById("dmChatMessages");
+  messagesEl.scrollTop = messagesEl.scrollHeight;
+  await supabaseClient.from("dm_messages").insert({ sender_id: currentUser.id, receiver_id: currentDmPartnerId, text });
+}
+
+document.getElementById("dmChatBackBtn").addEventListener("click", () => {
+  if (dmChatChannel) { supabaseClient.removeChannel(dmChatChannel); dmChatChannel = null; }
+  openDmInbox();
+});
+document.getElementById("dmInboxBackBtn").addEventListener("click", () => {
+  document.querySelectorAll(".nav-item").forEach((b) => b.classList.toggle("active", b.dataset.tab === "profile"));
+  switchView("mine");
+  renderMine();
 });
 
 let creatorSearchTimer = null;
@@ -810,6 +1041,26 @@ function recordWatchProgress(dramaId, epNum) {
   state.watchHistory[dramaId] = { epNum, updatedAt: Date.now() };
   saveState();
   recordRealView(dramaId);
+  if (currentUser && supabaseClient) {
+    supabaseClient.from("watch_history").upsert(
+      { user_id: currentUser.id, drama_id: dramaId, episode_number: epNum, updated_at: new Date().toISOString() },
+      { onConflict: "user_id,drama_id" }
+    );
+  }
+}
+
+async function syncWatchHistoryFromServer() {
+  if (!currentUser || !supabaseClient) return;
+  const { data } = await supabaseClient.from("watch_history").select("drama_id, episode_number, updated_at").eq("user_id", currentUser.id);
+  (data || []).forEach((row) => {
+    const serverUpdatedAt = new Date(row.updated_at).getTime();
+    const local = state.watchHistory[row.drama_id];
+    if (!local || serverUpdatedAt > local.updatedAt) {
+      state.watchHistory[row.drama_id] = { epNum: row.episode_number, updatedAt: serverUpdatedAt };
+    }
+  });
+  saveState();
+  if (state.view === "home") renderContinueWatching();
 }
 
 let viewedDramaIds = new Set();
@@ -1643,11 +1894,15 @@ const PROFILE_ICONS = {
   language: '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.5 2.5 15.5 0 18M12 3c-2.5 2.5-2.5 15.5 0 18"/>',
   setting: '<circle cx="12" cy="12" r="3.2"/><path d="M19 12a7 7 0 0 0-.15-1.4l1.9-1.3-1.8-3.1-2.15.75a7 7 0 0 0-2.4-1.4L14 3h-3.6l-.4 2.55a7 7 0 0 0-2.4 1.4L5.45 6.2 3.65 9.3l1.9 1.3A7 7 0 0 0 5.4 12c0 .48.05.94.15 1.4l-1.9 1.3 1.8 3.1 2.15-.75a7 7 0 0 0 2.4 1.4L10.4 21H14l.4-2.55a7 7 0 0 0 2.4-1.4l2.15.75 1.8-3.1-1.9-1.3c.1-.46.15-.92.15-1.4z"/>',
   about: '<circle cx="12" cy="12" r="9"/><path d="M12 8h.01M11 11h1v6h1"/>',
+  leaderboard: '<path d="M8 21h8M12 17v4"/><path d="M6 4h12v6a6 6 0 0 1-12 0V4z"/><path d="M6 6H4a2 2 0 0 0 0 4h2M18 6h2a2 2 0 0 1 0 4h-2"/>',
+  messages: '<path d="M4 5h16a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H9l-4 4v-4H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z"/>',
 };
 
 const PROFILE_MENU = [
   { key: "golive", label: "Go Live" },
   { key: "upload", label: "Upload Drama" },
+  { key: "leaderboard", label: "Leaderboard" },
+  { key: "messages", label: "Messages", dot: true },
   { key: "following", label: "Following" },
   { key: "earnrewards", label: "Earn Rewards" },
   { key: "mylist", label: "My List" },
@@ -1669,13 +1924,14 @@ function renderMine() {
 function renderProfileMenu() {
   const wrap = document.getElementById("profileMenu");
   wrap.innerHTML = "";
+  const dotCountByKey = { notifications: notificationsUnreadCount, messages: dmUnreadCount };
   PROFILE_MENU.forEach((item) => {
     const row = document.createElement("button");
     row.className = "profile-row";
     row.dataset.action = item.key;
     row.innerHTML = `
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${PROFILE_ICONS[item.key]}</svg>
-      ${item.dot && notificationsUnreadCount > 0 ? '<span class="row-dot"></span>' : ""}
+      ${item.dot && (dotCountByKey[item.key] || 0) > 0 ? '<span class="row-dot"></span>' : ""}
       <span class="row-label">${item.label}</span>
       ${item.version ? `<span class="row-version">${item.version}</span>` : ""}
       <span class="row-chevron">›</span>
@@ -1692,6 +1948,11 @@ document.getElementById("profileMenu").addEventListener("click", (e) => {
     openLiveHost();
   } else if (action === "upload") {
     openUploadModal();
+  } else if (action === "leaderboard") {
+    openLeaderboard();
+  } else if (action === "messages") {
+    if (!currentUser) { toast("Sign in to see messages"); openAuthModal("signin"); return; }
+    openDmInbox();
   } else if (action === "following" || action === "mylist") {
     document.querySelectorAll(".nav-item").forEach((b) => b.classList.toggle("active", b.dataset.tab === "mylist"));
     switchView("mylist");

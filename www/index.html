@@ -12,7 +12,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="Reelflix" />
-  <link rel="stylesheet" href="style.css?v=31" />
+  <link rel="stylesheet" href="style.css?v=32" />
 </head>
 <body>
   <svg width="0" height="0" style="position:absolute" aria-hidden="true">
@@ -301,10 +301,57 @@
             <div><b id="creatorProfileFollowers">0</b><span>Followers</span></div>
             <div><b id="creatorProfileDramaCount">0</b><span>Dramas</span></div>
           </div>
-          <button class="creator-follow-btn" id="creatorProfileFollowBtn">+ Follow</button>
+          <div class="creator-profile-actions">
+            <button class="creator-follow-btn" id="creatorProfileFollowBtn">+ Follow</button>
+            <button class="creator-follow-btn" id="creatorProfileMessageBtn">Message</button>
+          </div>
           <button class="btn-watch-now" id="creatorProfileWatchLiveBtn" style="display:none">Watch Live Now</button>
         </div>
         <div class="poster-grid" id="creatorProfileDramaGrid"></div>
+      </div>
+    </section>
+
+    <!-- LEADERBOARD -->
+    <section id="view-leaderboard" class="view">
+      <header class="topbar">
+        <button class="icon-btn" id="leaderboardBackBtn">←</button>
+        <h1 class="logo">Leaderboard</h1>
+      </header>
+      <div class="mylist-subtabs">
+        <button class="lbtab active" data-lbtab="creators">Top Creators</button>
+        <button class="lbtab" data-lbtab="gifters">Top Gifters</button>
+      </div>
+      <div class="mylist-scroll">
+        <div class="mylist-panel active" id="panel-lb-creators">
+          <div id="lbCreatorsList" class="creator-list"></div>
+        </div>
+        <div class="mylist-panel" id="panel-lb-gifters">
+          <div id="lbGiftersList" class="creator-list"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- DM INBOX -->
+    <section id="view-dm-inbox" class="view">
+      <header class="topbar">
+        <button class="icon-btn" id="dmInboxBackBtn">←</button>
+        <h1 class="logo">Messages</h1>
+      </header>
+      <div class="mylist-scroll">
+        <div id="dmConversationList" class="creator-list"></div>
+      </div>
+    </section>
+
+    <!-- DM CHAT -->
+    <section id="view-dm-chat" class="view">
+      <header class="topbar">
+        <button class="icon-btn" id="dmChatBackBtn">←</button>
+        <h1 class="logo" id="dmChatTitle"></h1>
+      </header>
+      <div class="dm-chat-scroll" id="dmChatMessages"></div>
+      <div class="dm-bottom-bar">
+        <input id="dmChatInput" class="modal-input" placeholder="Message..." />
+        <button class="btn-primary dm-send-btn" id="dmChatSendBtn">Send</button>
       </div>
     </section>
 
@@ -694,8 +741,8 @@
     </div>
   </div>
 
-  <script src="vendor/supabase.js?v=31"></script>
-  <script src="vendor/livekit-client.js?v=31"></script>
-  <script src="app.js?v=31"></script>
+  <script src="vendor/supabase.js?v=32"></script>
+  <script src="vendor/livekit-client.js?v=32"></script>
+  <script src="app.js?v=32"></script>
 </body>
 </html>
