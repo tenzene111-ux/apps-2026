@@ -1620,6 +1620,62 @@ input { font: inherit; color: inherit; }
   border: 2px solid rgba(255,255,255,0.8);
   z-index: 4;
 }
+/* TikTok-style split screen: applied to .live-cam / .live-cam-pip elements
+   once a guest join request is accepted, replacing the small PIP layout. */
+.live-cam.split-left {
+  inset: 0 50% 0 0;
+  width: 50%;
+  border-right: 1px solid rgba(255,255,255,0.15);
+}
+.live-cam.split-right,
+.live-cam-pip.split-right {
+  position: absolute;
+  inset: 0 0 0 50%;
+  width: 50%;
+  height: 100%;
+  bottom: auto;
+  right: auto;
+  border-radius: 0;
+  border: none;
+  border-left: 1px solid rgba(255,255,255,0.15);
+}
+.join-request-banner {
+  position: relative;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 14px 8px;
+  background: rgba(0,0,0,0.6);
+  border: 1px solid rgba(255,255,255,0.25);
+  border-radius: 12px;
+  padding: 8px 10px;
+  color: #fff;
+  font-size: 12.5px;
+}
+.join-request-banner span { flex: 1; font-weight: 600; }
+.join-request-banner button {
+  border: none;
+  border-radius: 999px;
+  font-weight: 800;
+  font-size: 12px;
+  padding: 6px 12px;
+}
+.join-req-accept { background: var(--accent); color: #fff; }
+.join-req-decline { background: rgba(255,255,255,0.15); color: #fff; }
+.remove-guest-btn {
+  position: relative;
+  z-index: 5;
+  align-self: flex-end;
+  margin: 0 14px 8px;
+  background: rgba(220,38,38,0.85);
+  color: #fff;
+  border: none;
+  font-weight: 800;
+  font-size: 12px;
+  padding: 6px 12px;
+  border-radius: 999px;
+}
 .live-vignette {
   position: absolute;
   inset: 0;
@@ -1703,6 +1759,7 @@ input { font: inherit; color: inherit; }
   flex-shrink: 0;
 }
 .join-guest-btn.joined { background: var(--accent); border-color: var(--accent); }
+.join-guest-btn.pending { background: rgba(255,255,255,0.08); border-color: rgba(255,255,255,0.25); color: rgba(255,255,255,0.65); }
 .live-follow-btn {
   background: rgba(255,255,255,0.15);
   border: 1px solid rgba(255,255,255,0.4);

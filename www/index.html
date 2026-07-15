@@ -12,7 +12,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="Reelflix" />
-  <link rel="stylesheet" href="style.css?v=38" />
+  <link rel="stylesheet" href="style.css?v=39" />
 </head>
 <body>
   <svg width="0" height="0" style="position:absolute" aria-hidden="true">
@@ -509,6 +509,7 @@
     <section id="view-live-host" class="view">
       <div class="live-stage" id="liveHostStage">
         <video id="hostCamPreview" class="live-cam" autoplay muted playsinline></video>
+        <video id="hostGuestVideo" class="live-cam" autoplay playsinline style="display:none"></video>
         <div class="live-bg" id="hostFallbackBg" style="display:none"></div>
         <div class="live-vignette"></div>
         <div class="live-topbar">
@@ -519,6 +520,12 @@
         <div class="live-earn-tally">
           <svg class="ic ic-coin"><use href="#ic-coin"/></svg> <span id="hostEarnedCoins">0</span> earned
         </div>
+        <div class="join-request-banner" id="joinRequestBanner" style="display:none">
+          <span id="joinRequestText">Someone wants to join</span>
+          <button class="join-req-accept" id="joinAcceptBtn">Accept</button>
+          <button class="join-req-decline" id="joinDeclineBtn">Decline</button>
+        </div>
+        <button class="remove-guest-btn" id="removeGuestBtn" style="display:none">Remove Guest</button>
         <div class="live-chat" id="hostChatFeed"></div>
         <div class="live-bottom-bar">
           <button class="end-live-btn" id="endLiveBtn">End Live</button>
@@ -796,8 +803,8 @@
     </div>
   </div>
 
-  <script src="vendor/supabase.js?v=38"></script>
-  <script src="vendor/livekit-client.js?v=38"></script>
-  <script src="app.js?v=38"></script>
+  <script src="vendor/supabase.js?v=39"></script>
+  <script src="vendor/livekit-client.js?v=39"></script>
+  <script src="app.js?v=39"></script>
 </body>
 </html>
