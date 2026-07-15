@@ -1,5 +1,5 @@
-const CACHE = "reelflix-v30";
-const ASSETS = ["./", "./index.html", "./style.css?v=30", "./vendor/supabase.js?v=30", "./vendor/livekit-client.js?v=30", "./app.js?v=30", "./favicon.svg", "./icon-192.png", "./icon-512.png", "./manifest.json"];
+const CACHE = "reelflix-v31";
+const ASSETS = ["./", "./index.html", "./style.css?v=31", "./vendor/supabase.js?v=31", "./vendor/livekit-client.js?v=31", "./app.js?v=31", "./favicon.svg", "./icon-192.png", "./icon-512.png", "./manifest.json"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(ASSETS)));

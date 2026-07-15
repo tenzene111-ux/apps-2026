@@ -12,7 +12,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="Reelflix" />
-  <link rel="stylesheet" href="style.css?v=30" />
+  <link rel="stylesheet" href="style.css?v=31" />
 </head>
 <body>
   <svg width="0" height="0" style="position:absolute" aria-hidden="true">
@@ -284,6 +284,27 @@
           <h4 class="section-title">Following</h4>
           <div id="followingList" class="creator-list"></div>
         </div>
+      </div>
+    </section>
+
+    <!-- CREATOR PROFILE -->
+    <section id="view-creator-profile" class="view">
+      <header class="topbar">
+        <button class="icon-btn" id="creatorProfileBackBtn">←</button>
+        <h1 class="logo">Profile</h1>
+      </header>
+      <div class="creator-profile-scroll">
+        <div class="creator-profile-header">
+          <div class="creator-profile-avatar" id="creatorProfileAvatar"></div>
+          <h2 id="creatorProfileName"></h2>
+          <div class="creator-profile-stats">
+            <div><b id="creatorProfileFollowers">0</b><span>Followers</span></div>
+            <div><b id="creatorProfileDramaCount">0</b><span>Dramas</span></div>
+          </div>
+          <button class="creator-follow-btn" id="creatorProfileFollowBtn">+ Follow</button>
+          <button class="btn-watch-now" id="creatorProfileWatchLiveBtn" style="display:none">Watch Live Now</button>
+        </div>
+        <div class="poster-grid" id="creatorProfileDramaGrid"></div>
       </div>
     </section>
 
@@ -673,8 +694,8 @@
     </div>
   </div>
 
-  <script src="vendor/supabase.js?v=30"></script>
-  <script src="vendor/livekit-client.js?v=30"></script>
-  <script src="app.js?v=30"></script>
+  <script src="vendor/supabase.js?v=31"></script>
+  <script src="vendor/livekit-client.js?v=31"></script>
+  <script src="app.js?v=31"></script>
 </body>
 </html>

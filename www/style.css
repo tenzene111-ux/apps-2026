@@ -1045,10 +1045,47 @@ input { font: inherit; color: inherit; }
 .creator-follow-btn.following { background: transparent; color: var(--text-dim); }
 .creator-empty { padding: 20px 16px; text-align: center; color: var(--text-dim); font-size: 13px; }
 
+/* ---------- Creator profile ---------- */
+.creator-profile-scroll { flex: 1; overflow-y: auto; padding-bottom: 90px; }
+.creator-profile-header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 24px 16px;
+  text-align: center;
+}
+.creator-profile-avatar {
+  width: 76px; height: 76px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-weight: 800;
+  font-size: 28px;
+}
+.creator-profile-header h2 { font-size: 18px; font-weight: 800; }
+.creator-profile-stats { display: flex; gap: 28px; margin: 4px 0; }
+.creator-profile-stats div { display: flex; flex-direction: column; align-items: center; }
+.creator-profile-stats b { font-size: 16px; }
+.creator-profile-stats span { font-size: 11.5px; color: var(--text-dim); }
+.creator-profile-header .creator-follow-btn {
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  color: var(--text);
+  font-weight: 700;
+  font-size: 13px;
+  padding: 8px 24px;
+  border-radius: 999px;
+}
+.creator-follow-btn.following { background: transparent; color: var(--text-dim); }
+.creator-profile-header .btn-watch-now { margin-top: 4px; }
+
 /* ---------- Upload ---------- */
 .upload-progress-text { font-size: 12.5px; color: var(--text-dim); min-height: 16px; }
 .upload-cover-label { font-size: 12.5px; color: var(--text-dim); margin: 2px 0 -6px; }
-.ep-creator { font-size: 12px; color: var(--text-dim); margin-top: 2px; }
+.ep-creator { font-size: 12px; color: var(--text-dim); margin-top: 2px; cursor: pointer; width: fit-content; }
 .player-video { width: 100%; height: 100%; object-fit: cover; position: absolute; inset: 0; }
 
 .crackbox-card {

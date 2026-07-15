@@ -452,12 +452,7 @@ function buildCreatorCard(profile) {
       btn.classList.toggle("following", nowFollowing);
     });
   });
-  card.addEventListener("click", () => {
-    if (isLive) {
-      const host = liveSessionsCache.find((h) => h.hostId === profile.id);
-      if (host) openLiveGuest(host);
-    }
-  });
+  card.addEventListener("click", () => openCreatorProfile(profile.id));
   return card;
 }
 
@@ -469,6 +464,74 @@ async function renderFollowingList() {
   const { data } = await supabaseClient.from("profiles").select("id, username").in("id", Array.from(followingIds));
   (data || []).forEach((p) => wrap.appendChild(buildCreatorCard(p)));
 }
+
+async function openCreatorProfile(userId) {
+  switchView("creator-profile");
+  document.getElementById("creatorProfileAvatar").style.background = gradientFor(userId);
+  document.getElementById("creatorProfileAvatar").textContent = "?";
+  document.getElementById("creatorProfileName").textContent = "Loading...";
+  document.getElementById("creatorProfileFollowers").textContent = "0";
+  document.getElementById("creatorProfileDramaCount").textContent = "0";
+  document.getElementById("creatorProfileDramaGrid").innerHTML = "";
+  document.getElementById("creatorProfileWatchLiveBtn").style.display = "none";
+
+  const { data: profile } = await supabaseClient.from("profiles").select("username").eq("id", userId).single();
+  const username = profile?.username || "User";
+  document.getElementById("creatorProfileName").textContent = username;
+  document.getElementById("creatorProfileAvatar").textContent = username[0].toUpperCase();
+
+  const { count: followerCount } = await supabaseClient
+    .from("follows")
+    .select("follower_id", { count: "exact", head: true })
+    .eq("followed_id", userId);
+  document.getElementById("creatorProfileFollowers").textContent = followerCount || 0;
+
+  const dramas = DRAMAS.filter((d) => d.real && d.creatorId === userId);
+  document.getElementById("creatorProfileDramaCount").textContent = dramas.length;
+  const grid = document.getElementById("creatorProfileDramaGrid");
+  if (!dramas.length) {
+    grid.innerHTML = '<div class="empty-state">No dramas uploaded yet.</div>';
+  } else {
+    dramas.forEach((d) => {
+      const card = document.createElement("div");
+      card.className = "poster-card";
+      card.innerHTML = `
+        <div class="poster-cover" style="${coverStyle(d)}"></div>
+        <h3 class="poster-title">${d.title}</h3>
+        <p class="poster-genre">${d.label}</p>`;
+      card.addEventListener("click", () => openDetail(d.id));
+      grid.appendChild(card);
+    });
+  }
+
+  const followBtn = document.getElementById("creatorProfileFollowBtn");
+  followBtn.style.display = currentUser && currentUser.id === userId ? "none" : "";
+  const applyFollowState = () => {
+    const isFollowing = followingIds.has(userId);
+    followBtn.textContent = isFollowing ? "Following" : "+ Follow";
+    followBtn.classList.toggle("following", isFollowing);
+  };
+  applyFollowState();
+  followBtn.onclick = async () => {
+    await toggleFollow(userId, followBtn);
+    applyFollowState();
+    const { count } = await supabaseClient.from("follows").select("follower_id", { count: "exact", head: true }).eq("followed_id", userId);
+    document.getElementById("creatorProfileFollowers").textContent = count || 0;
+  };
+
+  const liveHost = liveSessionsCache.find((h) => h.hostId === userId);
+  const watchLiveBtn = document.getElementById("creatorProfileWatchLiveBtn");
+  if (liveHost) {
+    watchLiveBtn.style.display = "";
+    watchLiveBtn.onclick = () => openLiveGuest(liveHost);
+  }
+}
+
+document.getElementById("creatorProfileBackBtn").addEventListener("click", () => {
+  document.querySelectorAll(".nav-item").forEach((b) => b.classList.toggle("active", b.dataset.tab === "mylist"));
+  switchView("mylist");
+  renderMyList();
+});
 
 let creatorSearchTimer = null;
 document.getElementById("creatorSearchInput").addEventListener("input", (e) => {
@@ -492,6 +555,8 @@ document.getElementById("creatorSearchInput").addEventListener("input", (e) => {
 /* ---------------- Content upload (real user-generated dramas) ---------------- */
 let uploadDramaId = null;
 let uploadNextEpisodeNumber = 1;
+let episodeLikeCounts = {};
+let myLikedEpisodes = new Set();
 
 function showUploadStep(step) {
   document.getElementById("uploadStepList").style.display = step === "list" ? "" : "none";
@@ -642,6 +707,20 @@ async function fetchRealDramas() {
   (episodeRows || []).forEach((e) => {
     (episodesByDrama[e.drama_id] ||= []).push(e);
   });
+
+  const { data: viewRows } = await supabaseClient.from("drama_views").select("drama_id");
+  const viewCounts = {};
+  (viewRows || []).forEach((v) => { viewCounts[v.drama_id] = (viewCounts[v.drama_id] || 0) + 1; });
+
+  const { data: likeRows } = await supabaseClient.from("episode_likes").select("drama_id, episode_number, user_id");
+  episodeLikeCounts = {};
+  myLikedEpisodes = new Set();
+  (likeRows || []).forEach((l) => {
+    const key = l.drama_id + ":" + l.episode_number;
+    episodeLikeCounts[key] = (episodeLikeCounts[key] || 0) + 1;
+    if (l.user_id === currentUser?.id) myLikedEpisodes.add(key);
+  });
+
   for (let i = DRAMAS.length - 1; i >= 0; i--) {
     if (DRAMAS[i].real) DRAMAS.splice(i, 1);
   }
@@ -658,7 +737,7 @@ async function fetchRealDramas() {
       genre: row.genre,
       label: "Original",
       badge: "New",
-      views: "0",
+      views: String(viewCounts[row.id] || 0),
       desc: row.description || "",
       episodes: eps.length,
       free: row.free_episodes,
@@ -730,6 +809,20 @@ function openPlayer(dramaId, epIndex) {
 function recordWatchProgress(dramaId, epNum) {
   state.watchHistory[dramaId] = { epNum, updatedAt: Date.now() };
   saveState();
+  recordRealView(dramaId);
+}
+
+let viewedDramaIds = new Set();
+async function recordRealView(dramaId) {
+  if (!currentUser || !supabaseClient) return;
+  if (viewedDramaIds.has(dramaId)) return;
+  const drama = DRAMAS.find((d) => d.id === dramaId);
+  if (!drama?.real) return;
+  viewedDramaIds.add(dramaId);
+  const { error } = await supabaseClient.from("drama_views").insert({ drama_id: dramaId, user_id: currentUser.id });
+  if (!error) {
+    drama.views = String((parseInt(drama.views, 10) || 0) + 1);
+  }
 }
 
 function buildPlayerCard(d, epNum) {
@@ -739,7 +832,8 @@ function buildPlayerCard(d, epNum) {
   card.dataset.ep = epNum;
   const likeKey = d.id + ":" + epNum;
   const baseLikes = 1200 + (epNum * 37) % 900;
-  const liked = !!state.likes[likeKey];
+  const liked = d.real ? myLikedEpisodes.has(likeKey) : !!state.likes[likeKey];
+  const likeCount = d.real ? (episodeLikeCounts[likeKey] || 0) : baseLikes + (liked ? 1 : 0);
 
   let dots = "";
   for (let i = 1; i <= d.episodes; i++) {
@@ -759,7 +853,7 @@ function buildPlayerCard(d, epNum) {
       <button class="icon-btn mute-btn" data-muted="${realVideoUrl ? "true" : "false"}">${muteIconHTML(!!realVideoUrl)}</button>
     </div>
     <div class="player-rail">
-      <button class="rail-btn like-btn ${liked ? 'liked' : ''}" data-like="${likeKey}">${heartIconHTML(liked)}<span>${formatCount(baseLikes + (liked ? 1 : 0))}</span></button>
+      <button class="rail-btn like-btn ${liked ? 'liked' : ''}" data-like="${likeKey}">${heartIconHTML(liked)}<span>${formatCount(likeCount)}</span></button>
       <button class="rail-btn comment-btn"><svg class="ic"><use href="#ic-comment"/></svg><span>${120 + epNum % 40}</span></button>
       <button class="rail-btn share-btn2"><svg class="ic"><use href="#ic-share"/></svg><span>Share</span></button>
       <button class="rail-btn coin-shortcut" data-open="coinModal"><svg class="ic ic-coin"><use href="#ic-coin"/></svg><span data-coin-balance>${state.coins}</span></button>
@@ -768,12 +862,29 @@ function buildPlayerCard(d, epNum) {
       <h3>${d.title}</h3>
       <p class="ep-label">EP ${epNum} · ${episodeSubtitle(epNum)}</p>
       <p class="ep-desc">${d.desc}</p>
-      ${d.real ? `<p class="ep-creator">by ${d.creatorName}</p>` : ""}
+      ${d.real ? `<p class="ep-creator" data-creator-id="${d.creatorId}">by ${d.creatorName}</p>` : ""}
     </div>
     ${!unlocked ? lockOverlayHTML(d, epNum) : ""}
   `;
 
   function setLiked(forceOn) {
+    if (d.real) {
+      if (!currentUser) { toast("Sign in to like"); openAuthModal("signin"); return; }
+      if (forceOn && myLikedEpisodes.has(likeKey)) return;
+      const nowLiked = forceOn ? true : !myLikedEpisodes.has(likeKey);
+      if (nowLiked) myLikedEpisodes.add(likeKey); else myLikedEpisodes.delete(likeKey);
+      episodeLikeCounts[likeKey] = (episodeLikeCounts[likeKey] || 0) + (nowLiked ? 1 : -1);
+      const btn = card.querySelector(".like-btn");
+      btn.classList.toggle("liked", nowLiked);
+      btn.querySelector("use").setAttribute("href", nowLiked ? "#ic-heart-filled" : "#ic-heart");
+      btn.querySelector("span").textContent = formatCount(episodeLikeCounts[likeKey]);
+      if (nowLiked) {
+        supabaseClient.from("episode_likes").insert({ drama_id: d.id, episode_number: epNum, user_id: currentUser.id });
+      } else {
+        supabaseClient.from("episode_likes").delete().eq("drama_id", d.id).eq("episode_number", epNum).eq("user_id", currentUser.id);
+      }
+      return;
+    }
     if (forceOn && state.likes[likeKey]) return;
     state.likes[likeKey] = forceOn ? true : !state.likes[likeKey];
     saveState();
@@ -784,6 +895,8 @@ function buildPlayerCard(d, epNum) {
   }
 
   card.querySelector('[data-back="detail"]').addEventListener("click", () => openDetail(d.id));
+  const creatorCredit = card.querySelector(".ep-creator");
+  if (creatorCredit) creatorCredit.addEventListener("click", () => openCreatorProfile(creatorCredit.dataset.creatorId));
   card.querySelector(".mute-btn").addEventListener("click", (e) => {
     const btn = e.currentTarget;
     const muted = btn.dataset.muted !== "true";
