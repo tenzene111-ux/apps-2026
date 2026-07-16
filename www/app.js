@@ -156,6 +156,7 @@ const state = {
   notifOn: true,
   autoplayNext: true,
   watchHistory: {},
+  foryouMuted: true,
 };
 
 function loadState() {
@@ -1967,6 +1968,7 @@ document.getElementById("dmVoiceBtn").addEventListener("pointerdown", async (e) 
   e.preventDefault();
   if (!currentDmPartnerId) return;
   const btn = document.getElementById("dmVoiceBtn");
+  try { btn.setPointerCapture(e.pointerId); } catch (err) {}
   try {
     dmVoiceStream = await navigator.mediaDevices.getUserMedia({ audio: true });
     dmVoiceChunks = [];
@@ -1992,7 +1994,7 @@ async function stopDmVoiceRecording() {
   await stopped;
   dmVoiceRecorder = null;
   dmVoiceStream = null;
-  if (duration < 500) { dmVoiceChunks = []; return; }
+  if (duration < 500) { dmVoiceChunks = []; toast("Hold the mic button to record a voice message"); return; }
   const mimeType = recorder.mimeType || "audio/webm";
   const blob = new Blob(dmVoiceChunks, { type: mimeType });
   dmVoiceChunks = [];
@@ -2014,7 +2016,7 @@ async function stopDmVoiceRecording() {
   markDmAccepted(currentDmPartnerId);
 }
 document.getElementById("dmVoiceBtn").addEventListener("pointerup", stopDmVoiceRecording);
-document.getElementById("dmVoiceBtn").addEventListener("pointerleave", stopDmVoiceRecording);
+document.getElementById("dmVoiceBtn").addEventListener("pointercancel", stopDmVoiceRecording);
 
 document.getElementById("copyLinkBtn").addEventListener("click", async () => {
   if (!state.currentDrama) return;
@@ -2866,6 +2868,7 @@ function buildReelCard(reel) {
       </div>
       <div class="fyu-topbar-right">
         <span class="mutual-badge">Reel</span>
+        <button class="fyu-mute-btn">${muteIconHTML(state.foryouMuted)}</button>
       </div>
     </div>
     <div class="center-play-btn"><svg class="ic"><use href="#ic-play"/></svg></div>
@@ -2906,6 +2909,7 @@ function buildReelCard(reel) {
   card.querySelector(".comment-btn").addEventListener("click", () => openReelComments(reel));
   card.querySelector(".share-btn2").addEventListener("click", () => toast("Sharing reels is coming soon"));
   card.querySelector(".fyu-explore-btn").addEventListener("click", (e) => { e.stopPropagation(); openExplore(); });
+  card.querySelector(".fyu-mute-btn").addEventListener("click", (e) => { e.stopPropagation(); toggleForYouMute(); });
   card.querySelectorAll("[data-follow-creator]").forEach((btn) => {
     btn.addEventListener("click", async (e) => {
       e.stopPropagation();
@@ -3761,6 +3765,20 @@ function renderForYouFeed() {
     feed.appendChild(card);
   });
   observeForYouCards();
+  applyForYouMuteState();
+}
+
+function applyForYouMuteState() {
+  document.querySelectorAll("#forYouFeed .foryou-video").forEach((v) => { v.muted = state.foryouMuted; });
+  document.querySelectorAll("#forYouFeed .fyu-mute-btn use").forEach((use) => {
+    use.setAttribute("href", state.foryouMuted ? "#ic-mute" : "#ic-unmute");
+  });
+}
+
+function toggleForYouMute() {
+  state.foryouMuted = !state.foryouMuted;
+  saveState();
+  applyForYouMuteState();
 }
 
 function buildLockedEpisodeCard(d) {
@@ -3846,6 +3864,7 @@ function buildForYouCard(d, epNum) {
       </div>
       <div class="fyu-topbar-right">
         ${d.mutual ? '<span class="mutual-badge">Mutual</span>' : ""}
+        ${previewUrl ? `<button class="fyu-mute-btn">${muteIconHTML(state.foryouMuted)}</button>` : ""}
         <button class="fyu-search-btn"><svg class="ic"><use href="#ic-search"/></svg></button>
       </div>
     </div>
@@ -3942,6 +3961,8 @@ function buildForYouCard(d, epNum) {
     e.stopPropagation();
     openExplore();
   });
+  const muteBtn = card.querySelector(".fyu-mute-btn");
+  if (muteBtn) muteBtn.addEventListener("click", (e) => { e.stopPropagation(); toggleForYouMute(); });
   card.querySelector(".reel-caption").addEventListener("click", () => openDetail(d.id));
   card.querySelector(".more-link").addEventListener("click", (e) => { e.stopPropagation(); openDetail(d.id); });
 
