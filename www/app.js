@@ -2416,8 +2416,9 @@ async function renderUploadDramaList() {
     card.querySelector(".add-episode-btn").addEventListener("click", () => {
       uploadDramaId = row.id;
       uploadNextEpisodeNumber = epCount + 1;
-      document.getElementById("uploadEpisodesForText").textContent = `Add episodes to "${row.title}" — select one or more video files.`;
+      document.getElementById("uploadEpisodesForText").textContent = `Add episodes to "${row.title}" — select video files or record one now.`;
       document.getElementById("uploadNextEpNum").textContent = uploadNextEpisodeNumber;
+      document.getElementById("uploadRecordEpNum").textContent = uploadNextEpisodeNumber;
       document.getElementById("uploadProgressText").textContent = "";
       document.getElementById("uploadBulkList").innerHTML = "";
       document.getElementById("uploadReleaseAtInput").value = "";
@@ -2608,20 +2609,41 @@ document.getElementById("uploadCreateBtn").addEventListener("click", async () =>
     }
   }
 
-  document.getElementById("uploadEpisodesForText").textContent = `Add episodes to "${data.title}" — select one or more video files.`;
+  document.getElementById("uploadEpisodesForText").textContent = `Add episodes to "${data.title}" — select video files or record one now.`;
   document.getElementById("uploadNextEpNum").textContent = 1;
+  document.getElementById("uploadRecordEpNum").textContent = 1;
   document.getElementById("uploadProgressText").textContent = "";
   document.getElementById("uploadBulkList").innerHTML = "";
   document.getElementById("uploadReleaseAtInput").value = "";
   showUploadStep("episodes");
 });
 
+function currentReleaseAtValue() {
+  const releaseInput = document.getElementById("uploadReleaseAtInput");
+  return releaseInput.value ? new Date(releaseInput.value).toISOString() : null;
+}
+
+async function uploadOneEpisode(fileOrBlob, releaseAt) {
+  const epNum = uploadNextEpisodeNumber;
+  const ext = fileExt(fileOrBlob);
+  const path = `${currentUser.id}/${uploadDramaId}/${epNum}.${ext}`;
+  const { error: uploadError } = await supabaseClient.storage.from("episode-videos").upload(path, fileOrBlob);
+  if (uploadError) return { success: false, error: uploadError };
+  const { error: insertError } = await supabaseClient
+    .from("episodes")
+    .insert({ drama_id: uploadDramaId, episode_number: epNum, video_path: path, release_at: releaseAt });
+  if (insertError) return { success: false, error: insertError };
+  uploadNextEpisodeNumber++;
+  document.getElementById("uploadNextEpNum").textContent = uploadNextEpisodeNumber;
+  document.getElementById("uploadRecordEpNum").textContent = uploadNextEpisodeNumber;
+  return { success: true, epNum };
+}
+
 document.getElementById("uploadEpisodeBtn").addEventListener("click", async () => {
   const fileInput = document.getElementById("uploadVideoInput");
   const files = Array.from(fileInput.files || []);
   if (!files.length) { toast("Choose at least one video file"); return; }
-  const releaseInput = document.getElementById("uploadReleaseAtInput");
-  const releaseAt = releaseInput.value ? new Date(releaseInput.value).toISOString() : null;
+  const releaseAt = currentReleaseAtValue();
   const btn = document.getElementById("uploadEpisodeBtn");
   const progress = document.getElementById("uploadProgressText");
   const bulkList = document.getElementById("uploadBulkList");
@@ -2637,23 +2659,11 @@ document.getElementById("uploadEpisodeBtn").addEventListener("click", async () =
 
   let uploadedCount = 0;
   for (let i = 0; i < files.length; i++) {
-    const file = files[i];
     const statusEl = rows[i].querySelector(".upload-bulk-status");
     statusEl.textContent = "Uploading...";
     progress.textContent = `Uploading ${i + 1} of ${files.length}...`;
-    const epNum = uploadNextEpisodeNumber;
-    const ext = file.name.split(".").pop() || "mp4";
-    const path = `${currentUser.id}/${uploadDramaId}/${epNum}.${ext}`;
-    const { error: uploadError } = await supabaseClient.storage.from("episode-videos").upload(path, file);
-    if (uploadError) {
-      statusEl.textContent = "Failed";
-      rows[i].classList.add("failed");
-      continue;
-    }
-    const { error: insertError } = await supabaseClient
-      .from("episodes")
-      .insert({ drama_id: uploadDramaId, episode_number: epNum, video_path: path, release_at: releaseAt });
-    if (insertError) {
+    const result = await uploadOneEpisode(files[i], releaseAt);
+    if (!result.success) {
       statusEl.textContent = "Failed";
       rows[i].classList.add("failed");
       continue;
@@ -2661,13 +2671,22 @@ document.getElementById("uploadEpisodeBtn").addEventListener("click", async () =
     statusEl.textContent = "Done";
     rows[i].classList.add("done");
     uploadedCount++;
-    uploadNextEpisodeNumber++;
-    document.getElementById("uploadNextEpNum").textContent = uploadNextEpisodeNumber;
   }
   btn.disabled = false;
   fileInput.value = "";
   progress.textContent = "";
   if (uploadedCount) toast(`${uploadedCount} episode${uploadedCount === 1 ? "" : "s"} uploaded!`);
+});
+
+document.getElementById("uploadRecordEpisodeBtn").addEventListener("click", () => {
+  openRecordVideoModal(async (blob) => {
+    const progress = document.getElementById("uploadProgressText");
+    progress.textContent = "Uploading recorded episode...";
+    const result = await uploadOneEpisode(blob, currentReleaseAtValue());
+    progress.textContent = "";
+    if (!result.success) { toast("Couldn't save episode: " + result.error.message); return; }
+    toast(`Episode ${result.epNum} uploaded!`);
+  });
 });
 
 document.getElementById("uploadEpisodesNextBtn").addEventListener("click", () => openPreviewDrama(uploadDramaId));
@@ -2937,17 +2956,33 @@ function openUploadReelModal() {
   openModal("uploadReelModal");
 }
 
+function fileExt(fileOrBlob, fallback) {
+  if (fileOrBlob.name && fileOrBlob.name.includes(".")) return fileOrBlob.name.split(".").pop();
+  const type = fileOrBlob.type || "";
+  if (type.includes("mp4")) return "mp4";
+  if (type.includes("webm")) return "webm";
+  if (type.includes("quicktime")) return "mov";
+  return fallback || "mp4";
+}
+
+function applyReelPickedFile(fileOrBlob) {
+  reelPickedFile = fileOrBlob;
+  const video = document.getElementById("reelUploadPreviewVideo");
+  video.src = URL.createObjectURL(fileOrBlob);
+  document.getElementById("reelUploadPicker").style.display = "none";
+  document.getElementById("reelUploadPreviewWrap").style.display = "flex";
+}
+
 document.getElementById("reelPickVideoBtn").addEventListener("click", () => document.getElementById("reelVideoInput").click());
 document.getElementById("reelUploadChangeBtn").addEventListener("click", () => document.getElementById("reelVideoInput").click());
+document.getElementById("reelRecordVideoBtn").addEventListener("click", () => {
+  openRecordVideoModal((blob) => applyReelPickedFile(blob));
+});
 
 document.getElementById("reelVideoInput").addEventListener("change", (e) => {
   const file = e.target.files[0];
   if (!file) return;
-  reelPickedFile = file;
-  const video = document.getElementById("reelUploadPreviewVideo");
-  video.src = URL.createObjectURL(file);
-  document.getElementById("reelUploadPicker").style.display = "none";
-  document.getElementById("reelUploadPreviewWrap").style.display = "flex";
+  applyReelPickedFile(file);
 });
 
 document.getElementById("reelPostBtn").addEventListener("click", async () => {
@@ -2957,7 +2992,7 @@ document.getElementById("reelPostBtn").addEventListener("click", async () => {
   const progress = document.getElementById("reelUploadProgressText");
   btn.disabled = true;
   progress.textContent = "Uploading...";
-  const ext = reelPickedFile.name.split(".").pop() || "mp4";
+  const ext = fileExt(reelPickedFile);
   const path = `${currentUser.id}/${Date.now()}.${ext}`;
   const { error: uploadError } = await supabaseClient.storage.from("reel-videos").upload(path, reelPickedFile);
   if (uploadError) {
@@ -2976,6 +3011,109 @@ document.getElementById("reelPostBtn").addEventListener("click", async () => {
   closeModal("uploadReelModal");
   await fetchRealReels();
   if (state.view === "foryou") renderForYouFeed();
+});
+
+/* ---------------- Shared TikTok-style camera recording ---------------- */
+let recordMediaStream = null;
+let recordMediaRecorder = null;
+let recordedChunks = [];
+let recordedBlob = null;
+let recordStartedAt = 0;
+let recordTimerInterval = null;
+let recordVideoCallback = null;
+
+async function openRecordVideoModal(onRecorded) {
+  recordVideoCallback = onRecorded;
+  recordedBlob = null;
+  recordedChunks = [];
+  document.getElementById("recordVideoReview").style.display = "none";
+  document.getElementById("recordVideoControls").style.display = "flex";
+  document.getElementById("recordTimer").style.display = "none";
+  document.getElementById("recordStartStopBtn").classList.remove("recording");
+  const preview = document.getElementById("recordVideoPreview");
+  preview.src = "";
+  preview.srcObject = null;
+  openModal("recordVideoModal");
+  try {
+    recordMediaStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" }, audio: true });
+    preview.srcObject = recordMediaStream;
+    preview.muted = true;
+    preview.play().catch(() => {});
+  } catch (e) {
+    toast("Camera access denied");
+    closeModal("recordVideoModal");
+  }
+}
+
+function stopRecordVideoModal() {
+  clearInterval(recordTimerInterval);
+  recordTimerInterval = null;
+  if (recordMediaRecorder && recordMediaRecorder.state !== "inactive") {
+    recordMediaRecorder.onstop = null;
+    recordMediaRecorder.stop();
+  }
+  recordMediaRecorder = null;
+  if (recordMediaStream) {
+    recordMediaStream.getTracks().forEach((t) => t.stop());
+    recordMediaStream = null;
+  }
+  recordVideoCallback = null;
+}
+
+document.getElementById("recordStartStopBtn").addEventListener("click", () => {
+  const btn = document.getElementById("recordStartStopBtn");
+  if (!recordMediaStream) return;
+  if (!recordMediaRecorder || recordMediaRecorder.state === "inactive") {
+    recordedChunks = [];
+    recordMediaRecorder = new MediaRecorder(recordMediaStream);
+    recordMediaRecorder.ondataavailable = (e) => { if (e.data.size > 0) recordedChunks.push(e.data); };
+    recordMediaRecorder.onstop = () => {
+      recordedBlob = new Blob(recordedChunks, { type: recordMediaRecorder.mimeType || "video/webm" });
+      const preview = document.getElementById("recordVideoPreview");
+      preview.srcObject = null;
+      preview.muted = false;
+      preview.src = URL.createObjectURL(recordedBlob);
+      preview.play().catch(() => {});
+      document.getElementById("recordVideoReview").style.display = "flex";
+      document.getElementById("recordVideoControls").style.display = "none";
+      document.getElementById("recordTimer").style.display = "none";
+      clearInterval(recordTimerInterval);
+    };
+    recordMediaRecorder.start();
+    recordStartedAt = Date.now();
+    btn.classList.add("recording");
+    const timerEl = document.getElementById("recordTimer");
+    timerEl.style.display = "block";
+    timerEl.textContent = "00:00";
+    recordTimerInterval = setInterval(() => {
+      const secs = Math.floor((Date.now() - recordStartedAt) / 1000);
+      const mm = String(Math.floor(secs / 60)).padStart(2, "0");
+      const ss = String(secs % 60).padStart(2, "0");
+      timerEl.textContent = `${mm}:${ss}`;
+    }, 250);
+  } else {
+    recordMediaRecorder.stop();
+    btn.classList.remove("recording");
+  }
+});
+
+document.getElementById("recordRetakeBtn").addEventListener("click", () => {
+  recordedBlob = null;
+  const preview = document.getElementById("recordVideoPreview");
+  preview.src = "";
+  preview.srcObject = recordMediaStream;
+  preview.muted = true;
+  preview.play().catch(() => {});
+  document.getElementById("recordVideoReview").style.display = "none";
+  document.getElementById("recordVideoControls").style.display = "flex";
+});
+
+document.getElementById("recordUseVideoBtn").addEventListener("click", () => {
+  const blob = recordedBlob;
+  const cb = recordVideoCallback;
+  recordVideoCallback = null;
+  closeModal("recordVideoModal");
+  if (cb && blob) cb(blob);
 });
 
 function openDetail(dramaId) {
@@ -3485,6 +3623,7 @@ function closeModal(id) {
     supabaseClient.removeChannel(commentsChannel);
     commentsChannel = null;
   }
+  if (id === "recordVideoModal") stopRecordVideoModal();
 }
 document.querySelectorAll("[data-close]").forEach(btn => {
   btn.addEventListener("click", () => closeModal(btn.dataset.close));

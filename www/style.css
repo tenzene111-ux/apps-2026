@@ -1641,6 +1641,7 @@ input { font: inherit; color: inherit; }
 }
 .reel-upload-picker svg { width: 40px; height: 40px; color: var(--accent-2); }
 .reel-upload-picker p { text-align: center; }
+.reel-upload-picker-actions { display: flex; gap: 10px; }
 .reel-upload-preview-wrap { display: flex; flex-direction: column; gap: 10px; }
 .reel-upload-preview-wrap video {
   width: 100%; max-height: 340px;
@@ -1648,6 +1649,46 @@ input { font: inherit; color: inherit; }
   background: #000;
   object-fit: contain;
 }
+
+.record-video-modal { align-items: stretch; }
+.record-video-stage {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 9 / 14;
+  max-height: 55vh;
+  border-radius: 16px;
+  overflow: hidden;
+  background: #000;
+}
+.record-video-stage video { width: 100%; height: 100%; object-fit: cover; }
+.record-timer {
+  position: absolute;
+  top: 12px; left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0,0,0,0.55);
+  color: #fff;
+  font-size: 12.5px;
+  font-weight: 700;
+  padding: 4px 12px;
+  border-radius: 999px;
+}
+.record-video-controls { display: flex; justify-content: center; padding: 14px 0; }
+.record-btn {
+  width: 68px; height: 68px;
+  border-radius: 50%;
+  border: 4px solid #fff;
+  display: flex; align-items: center; justify-content: center;
+  background: transparent;
+}
+.record-btn-dot {
+  width: 52px; height: 52px;
+  border-radius: 50%;
+  background: #e0245e;
+  transition: border-radius 0.2s, width 0.2s, height 0.2s;
+}
+.record-btn.recording .record-btn-dot { width: 28px; height: 28px; border-radius: 8px; }
+.record-video-review { display: flex; gap: 10px; }
+.record-video-review button { flex: 1; }
 .ep-creator { font-size: 12px; color: var(--text-dim); margin-top: 2px; cursor: pointer; width: fit-content; }
 .player-video { width: 100%; height: 100%; object-fit: cover; position: absolute; inset: 0; }
 
