@@ -12,7 +12,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="Reelflix" />
-  <link rel="stylesheet" href="style.css?v=56" />
+  <link rel="stylesheet" href="style.css?v=57" />
 </head>
 <body>
   <svg width="0" height="0" style="position:absolute" aria-hidden="true">
@@ -267,6 +267,7 @@
     <!-- EXPLORE -->
     <section id="view-explore" class="view">
       <header class="topbar-v2">
+        <button class="icon-btn" id="exploreBackBtn">←</button>
         <h1 class="logo">Explore</h1>
         <div class="search-bar">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
@@ -753,10 +754,6 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11.5L12 4l9 7.5"/><path d="M5.5 10v9a1 1 0 0 0 1 1h11a1 1 0 0 0 1-1v-9"/><path d="M9.5 20v-6h5v6"/></svg>
         <span>Home</span>
       </button>
-      <button class="nav-item" data-tab="explore">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M15.2 8.8l-2.1 4.9-4.9 2.1 2.1-4.9z"/></svg>
-        <span>Explore</span>
-      </button>
       <button class="nav-item" data-tab="foryou">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="16" height="18" rx="3"/><path d="M10 8.5l6 3.5-6 3.5z"/></svg>
         <span>Reels</span>
@@ -764,9 +761,12 @@
       <button class="nav-item nav-create-btn" id="navCreateBtn" aria-label="Create">
         <span class="nav-create-circle"><svg class="ic"><use href="#ic-plus"/></svg></span>
       </button>
-      <button class="nav-item" data-tab="mylist">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 4h12v17l-6-4-6 4z"/></svg>
-        <span>My List</span>
+      <button class="nav-item" data-tab="inbox">
+        <span class="nav-icon-wrap">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H9l-4 4v-4H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z"/></svg>
+          <span class="nav-dot" id="inboxDot"></span>
+        </span>
+        <span>Inbox</span>
       </button>
       <button class="nav-item" data-tab="profile">
         <span class="nav-icon-wrap">
@@ -1145,8 +1145,8 @@
     </div>
   </div>
 
-  <script src="vendor/supabase.js?v=56"></script>
-  <script src="vendor/livekit-client.js?v=56"></script>
-  <script src="app.js?v=56"></script>
+  <script src="vendor/supabase.js?v=57"></script>
+  <script src="vendor/livekit-client.js?v=57"></script>
+  <script src="app.js?v=57"></script>
 </body>
 </html>

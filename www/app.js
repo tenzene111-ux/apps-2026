@@ -487,7 +487,7 @@ function switchView(name) {
   document.getElementById("view-" + name).classList.add("active");
   state.view = name;
   document.getElementById("bottomNav").style.display = (name === "player" || name === "live-host" || name === "live-guest" || name === "dm-chat" || name === "group-chat" || name === "call") ? "none" : "flex";
-  const tabForView = { home: "home", explore: "explore", foryou: "foryou", mylist: "mylist", rewards: "profile", mine: "profile" };
+  const tabForView = { home: "home", foryou: "foryou", "dm-inbox": "inbox", rewards: "profile", mine: "profile" };
   if (tabForView[name]) {
     document.querySelectorAll(".nav-item").forEach(b => b.classList.toggle("active", b.dataset.tab === tabForView[name]));
   }
@@ -1029,14 +1029,14 @@ async function renderTopGifters() {
 
 /* ---------------- Direct messages (real, via Supabase Realtime) ---------------- */
 async function refreshDmUnread() {
-  if (!currentUser || !supabaseClient) { dmUnreadCount = 0; return; }
+  if (!currentUser || !supabaseClient) { dmUnreadCount = 0; document.getElementById("inboxDot").style.display = "none"; return; }
   const { count } = await supabaseClient
     .from("dm_messages")
     .select("id", { count: "exact", head: true })
     .eq("receiver_id", currentUser.id)
     .eq("read", false);
   dmUnreadCount = count || 0;
-  renderProfileMenu();
+  document.getElementById("inboxDot").style.display = dmUnreadCount > 0 ? "block" : "none";
 }
 
 function subscribeDmInboxRealtime() {
@@ -3235,15 +3235,28 @@ document.addEventListener("click", (e) => {
 });
 
 /* ---------------- Nav & tabs ---------------- */
+function openExplore() {
+  switchView("explore");
+  renderFeed();
+}
+
+document.getElementById("exploreBackBtn").addEventListener("click", () => {
+  document.querySelectorAll(".nav-item").forEach((b) => b.classList.toggle("active", b.dataset.tab === "foryou"));
+  switchView("foryou");
+  renderForYouFeed();
+});
+
 document.querySelectorAll(".nav-item[data-tab]").forEach(btn => {
   btn.addEventListener("click", () => {
     document.querySelectorAll(".nav-item").forEach(b => b.classList.remove("active"));
     btn.classList.add("active");
     const tab = btn.dataset.tab;
     if (tab === "home") { switchView("home"); renderHomeDashboard(); }
-    if (tab === "explore") { switchView("explore"); renderFeed(); }
     if (tab === "foryou") { switchView("foryou"); renderForYouFeed(); }
-    if (tab === "mylist") { switchView("mylist"); renderMyList(); }
+    if (tab === "inbox") {
+      if (!currentUser) { toast("Sign in to see messages"); openAuthModal("signin"); return; }
+      openDmInbox();
+    }
     if (tab === "profile") { switchView("mine"); renderMine(); }
   });
 });
@@ -3371,9 +3384,14 @@ function buildLiveTeaserCard(host) {
     <div class="player-bg" style="background:${gradientFor(host.id, 2)}"></div>
     <div class="player-vignette"></div>
     <div class="fyu-topbar">
-      <div class="fyu-logo"><svg viewBox="0 0 64 64"><rect x="1" y="1" width="62" height="62" rx="15" fill="none" stroke="currentColor" stroke-width="3"/><text x="32" y="42" font-size="30" font-weight="800" text-anchor="middle" fill="currentColor" font-family="Arial, sans-serif">R</text></svg></div>
-      ${host.following ? '<span class="mutual-badge">Following</span>' : ""}
-      <span class="live-teaser-badge">LIVE</span>
+      <div class="fyu-topbar-left">
+        <div class="fyu-logo"><svg viewBox="0 0 64 64"><rect x="1" y="1" width="62" height="62" rx="15" fill="none" stroke="currentColor" stroke-width="3"/><text x="32" y="42" font-size="30" font-weight="800" text-anchor="middle" fill="currentColor" font-family="Arial, sans-serif">R</text></svg></div>
+        <button class="fyu-explore-btn">Explore</button>
+      </div>
+      <div class="fyu-topbar-right">
+        ${host.following ? '<span class="mutual-badge">Following</span>' : ""}
+        <span class="live-teaser-badge">LIVE</span>
+      </div>
     </div>
     <div class="live-teaser-center">
       <div class="live-teaser-avatar" style="background:${gradientFor(host.id)}">${host.name[0].toUpperCase()}</div>
@@ -3386,6 +3404,10 @@ function buildLiveTeaserCard(host) {
     </div>
   `;
   card.querySelector(".live-teaser-cta").addEventListener("click", () => openLiveGuest(host));
+  card.querySelector(".fyu-explore-btn").addEventListener("click", (e) => {
+    e.stopPropagation();
+    openExplore();
+  });
   card.addEventListener("pointerup", (e) => {
     if (e.target.closest("button")) return;
     openLiveGuest(host);
@@ -3411,9 +3433,14 @@ function buildForYouCard(d, epNum) {
     ${previewUrl ? `<video class="foryou-video" muted loop playsinline preload="none" src="${previewUrl}"></video>` : ""}
     <div class="player-vignette"></div>
     <div class="fyu-topbar">
-      <div class="fyu-logo"><svg viewBox="0 0 64 64"><rect width="64" height="64" rx="16" fill="url(#coinGrad)" opacity="0"/><rect x="1" y="1" width="62" height="62" rx="15" fill="none" stroke="currentColor" stroke-width="3"/><text x="32" y="42" font-size="30" font-weight="800" text-anchor="middle" fill="currentColor" font-family="Arial, sans-serif">R</text></svg></div>
-      ${d.mutual ? '<span class="mutual-badge">Mutual</span>' : ""}
-      <button class="fyu-search-btn"><svg class="ic"><use href="#ic-search"/></svg></button>
+      <div class="fyu-topbar-left">
+        <div class="fyu-logo"><svg viewBox="0 0 64 64"><rect width="64" height="64" rx="16" fill="url(#coinGrad)" opacity="0"/><rect x="1" y="1" width="62" height="62" rx="15" fill="none" stroke="currentColor" stroke-width="3"/><text x="32" y="42" font-size="30" font-weight="800" text-anchor="middle" fill="currentColor" font-family="Arial, sans-serif">R</text></svg></div>
+        <button class="fyu-explore-btn">Explore</button>
+      </div>
+      <div class="fyu-topbar-right">
+        ${d.mutual ? '<span class="mutual-badge">Mutual</span>' : ""}
+        <button class="fyu-search-btn"><svg class="ic"><use href="#ic-search"/></svg></button>
+      </div>
     </div>
     ${!claimed ? `
     <button class="claim-chip" data-claim="${claimKey}">
@@ -3499,11 +3526,14 @@ function buildForYouCard(d, epNum) {
     openModal("moreModal");
   });
   card.querySelector(".fyu-search-btn").addEventListener("click", () => {
-    document.querySelectorAll(".nav-item").forEach((b) => b.classList.toggle("active", b.dataset.tab === "mylist"));
     switchView("mylist");
     renderMyList();
     document.querySelector('.mltab[data-mltab="creators"]').click();
     setTimeout(() => document.getElementById("creatorSearchInput").focus(), 150);
+  });
+  card.querySelector(".fyu-explore-btn").addEventListener("click", (e) => {
+    e.stopPropagation();
+    openExplore();
   });
   card.querySelector(".reel-caption").addEventListener("click", () => openDetail(d.id));
   card.querySelector(".more-link").addEventListener("click", (e) => { e.stopPropagation(); openDetail(d.id); });
@@ -3852,7 +3882,6 @@ const PROFILE_MENU = [
 const PROFILE_MENU_MORE = [
   { key: "analytics", label: "Analytics" },
   { key: "leaderboard", label: "Leaderboard" },
-  { key: "messages", label: "Messages", dot: true },
   { key: "following", label: "Find Creators" },
   { key: "notifications", label: "Notifications", dot: true },
   { key: "invite", label: "Invitation Code" },
@@ -3933,7 +3962,7 @@ async function loadProfileStats() {
 function renderProfileMenuInto(wrapId, items) {
   const wrap = document.getElementById(wrapId);
   wrap.innerHTML = "";
-  const dotCountByKey = { notifications: notificationsUnreadCount, messages: dmUnreadCount };
+  const dotCountByKey = { notifications: notificationsUnreadCount };
   items.forEach((item) => {
     const row = document.createElement("button");
     row.className = "profile-row";
@@ -3982,9 +4011,6 @@ function handleProfileMenuAction(action) {
     openAnalytics();
   } else if (action === "leaderboard") {
     openLeaderboard();
-  } else if (action === "messages") {
-    if (!currentUser) { toast("Sign in to see messages"); openAuthModal("signin"); return; }
-    openDmInbox();
   } else if (action === "following" || action === "mylist") {
     document.querySelectorAll(".nav-item").forEach((b) => b.classList.toggle("active", b.dataset.tab === "mylist"));
     switchView("mylist");
