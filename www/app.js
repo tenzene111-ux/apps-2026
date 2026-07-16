@@ -2338,6 +2338,15 @@ let uploadDramaId = null;
 let uploadNextEpisodeNumber = 1;
 let episodeLikeCounts = {};
 let myLikedEpisodes = new Set();
+let episodeCommentCounts = {};
+
+function bumpCommentCount(dramaId, epNum, delta) {
+  const key = dramaId + ":" + epNum;
+  episodeCommentCounts[key] = Math.max(0, (episodeCommentCounts[key] || 0) + delta);
+  document.querySelectorAll(`[data-comment-key="${key}"] span`).forEach((span) => {
+    span.textContent = formatCount(episodeCommentCounts[key]);
+  });
+}
 
 function showUploadStep(step) {
   document.getElementById("uploadStepList").style.display = step === "list" ? "" : "none";
@@ -2609,6 +2618,13 @@ async function fetchRealDramas() {
     if (l.user_id === currentUser?.id) myLikedEpisodes.add(key);
   });
 
+  const { data: commentRows } = await supabaseClient.from("comments").select("drama_id, episode_number");
+  episodeCommentCounts = {};
+  (commentRows || []).forEach((c) => {
+    const key = c.drama_id + ":" + c.episode_number;
+    episodeCommentCounts[key] = (episodeCommentCounts[key] || 0) + 1;
+  });
+
   for (let i = DRAMAS.length - 1; i >= 0; i--) {
     if (DRAMAS[i].real) DRAMAS.splice(i, 1);
   }
@@ -2789,9 +2805,8 @@ function buildPlayerCard(d, epNum) {
   card.className = "player-card";
   card.dataset.ep = epNum;
   const likeKey = d.id + ":" + epNum;
-  const baseLikes = 1200 + (epNum * 37) % 900;
-  const liked = d.real ? myLikedEpisodes.has(likeKey) : !!state.likes[likeKey];
-  const likeCount = d.real ? (episodeLikeCounts[likeKey] || 0) : baseLikes + (liked ? 1 : 0);
+  const liked = myLikedEpisodes.has(likeKey);
+  const likeCount = episodeLikeCounts[likeKey] || 0;
 
   let dots = "";
   for (let i = 1; i <= d.episodes; i++) {
@@ -2812,7 +2827,7 @@ function buildPlayerCard(d, epNum) {
     </div>
     <div class="player-rail">
       <button class="rail-btn like-btn ${liked ? 'liked' : ''}" data-like="${likeKey}">${heartIconHTML(liked)}<span>${formatCount(likeCount)}</span></button>
-      <button class="rail-btn comment-btn"><svg class="ic"><use href="#ic-comment"/></svg><span>${120 + epNum % 40}</span></button>
+      <button class="rail-btn comment-btn" data-comment-key="${likeKey}"><svg class="ic"><use href="#ic-comment"/></svg><span>${formatCount(episodeCommentCounts[likeKey] || 0)}</span></button>
       <button class="rail-btn share-btn2"><svg class="ic"><use href="#ic-share"/></svg><span>Share</span></button>
       <button class="rail-btn coin-shortcut" data-open="coinModal"><svg class="ic ic-coin"><use href="#ic-coin"/></svg><span data-coin-balance>${state.coins}</span></button>
     </div>
@@ -2826,30 +2841,20 @@ function buildPlayerCard(d, epNum) {
   `;
 
   function setLiked(forceOn) {
-    if (d.real) {
-      if (!currentUser) { toast("Sign in to like"); openAuthModal("signin"); return; }
-      if (forceOn && myLikedEpisodes.has(likeKey)) return;
-      const nowLiked = forceOn ? true : !myLikedEpisodes.has(likeKey);
-      if (nowLiked) myLikedEpisodes.add(likeKey); else myLikedEpisodes.delete(likeKey);
-      episodeLikeCounts[likeKey] = (episodeLikeCounts[likeKey] || 0) + (nowLiked ? 1 : -1);
-      const btn = card.querySelector(".like-btn");
-      btn.classList.toggle("liked", nowLiked);
-      btn.querySelector("use").setAttribute("href", nowLiked ? "#ic-heart-filled" : "#ic-heart");
-      btn.querySelector("span").textContent = formatCount(episodeLikeCounts[likeKey]);
-      if (nowLiked) {
-        supabaseClient.from("episode_likes").insert({ drama_id: d.id, episode_number: epNum, user_id: currentUser.id });
-      } else {
-        supabaseClient.from("episode_likes").delete().eq("drama_id", d.id).eq("episode_number", epNum).eq("user_id", currentUser.id);
-      }
-      return;
-    }
-    if (forceOn && state.likes[likeKey]) return;
-    state.likes[likeKey] = forceOn ? true : !state.likes[likeKey];
-    saveState();
+    if (!currentUser) { toast("Sign in to like"); openAuthModal("signin"); return; }
+    if (forceOn && myLikedEpisodes.has(likeKey)) return;
+    const nowLiked = forceOn ? true : !myLikedEpisodes.has(likeKey);
+    if (nowLiked) myLikedEpisodes.add(likeKey); else myLikedEpisodes.delete(likeKey);
+    episodeLikeCounts[likeKey] = Math.max(0, (episodeLikeCounts[likeKey] || 0) + (nowLiked ? 1 : -1));
     const btn = card.querySelector(".like-btn");
-    btn.classList.toggle("liked", state.likes[likeKey]);
-    btn.querySelector("use").setAttribute("href", state.likes[likeKey] ? "#ic-heart-filled" : "#ic-heart");
-    btn.querySelector("span").textContent = formatCount(baseLikes + (state.likes[likeKey] ? 1 : 0));
+    btn.classList.toggle("liked", nowLiked);
+    btn.querySelector("use").setAttribute("href", nowLiked ? "#ic-heart-filled" : "#ic-heart");
+    btn.querySelector("span").textContent = formatCount(episodeLikeCounts[likeKey]);
+    if (nowLiked) {
+      supabaseClient.from("episode_likes").insert({ drama_id: d.id, episode_number: epNum, user_id: currentUser.id });
+    } else {
+      supabaseClient.from("episode_likes").delete().eq("drama_id", d.id).eq("episode_number", epNum).eq("user_id", currentUser.id);
+    }
   }
 
   card.querySelector('[data-back="detail"]').addEventListener("click", () => openDetail(d.id));
@@ -3026,6 +3031,7 @@ async function openComments(drama, epNum) {
         if (payload.new.episode_number !== epNum) return;
         if (payload.new.user_id === currentUser?.id) return;
         if (blockedIds.has(payload.new.user_id)) return;
+        bumpCommentCount(drama.id, epNum, 1);
         supabaseClient
           .from("profiles")
           .select("username")
@@ -3071,7 +3077,8 @@ async function sendComment() {
     user_id: currentUser.id,
     text,
   });
-  if (error) toast("Comment failed to send");
+  if (error) { toast("Comment failed to send"); return; }
+  bumpCommentCount(dramaId, epNum, 1);
 }
 
 /* ---------------- Coin packages ---------------- */
@@ -3275,11 +3282,10 @@ function buildLiveTeaserCard(host) {
 function buildForYouCard(d, epNum) {
   const card = document.createElement("div");
   card.className = "player-card foryou-card";
-  const likeKey = d.id + ":foryou:" + epNum;
+  const likeKey = d.id + ":" + epNum;
   const claimKey = "foryouClaim:" + d.id + ":" + epNum;
-  const baseLikes = 2000 + (d.id.charCodeAt(1) * 53 * epNum) % 3000;
-  const baseSaves = 8000 + (d.id.charCodeAt(1) * 337) % 30000;
-  const liked = !!state.likes[likeKey];
+  const liked = myLikedEpisodes.has(likeKey);
+  const likeCount = episodeLikeCounts[likeKey] || 0;
   const saved = !!state.followed[d.id];
   const claimed = !!state.claimedTasks[claimKey];
   const followingCreator = followingIds.has(d.creatorId);
@@ -3305,10 +3311,10 @@ function buildForYouCard(d, epNum) {
         <div class="reel-avatar" style="background:${gradientFor(d.creatorId || d.id)}">${(d.creatorName || "C")[0].toUpperCase()}</div>
         ${!followingCreator ? `<button class="reel-follow-plus" data-follow-creator="${d.creatorId}">+</button>` : ""}
       </div>
-      <button class="reel-action-btn like-btn ${liked ? 'liked' : ''}" data-like="${likeKey}">${heartIconHTML(liked)}<span>${formatCount(baseLikes + (liked ? 1 : 0))}</span></button>
-      <button class="reel-action-btn comment-btn"><svg class="ic"><use href="#ic-comment"/></svg><span>Comment</span></button>
+      <button class="reel-action-btn like-btn ${liked ? 'liked' : ''}" data-like="${likeKey}">${heartIconHTML(liked)}<span>${formatCount(likeCount)}</span></button>
+      <button class="reel-action-btn comment-btn" data-comment-key="${likeKey}"><svg class="ic"><use href="#ic-comment"/></svg><span>${formatCount(episodeCommentCounts[likeKey] || 0)}</span></button>
       <button class="reel-action-btn share-btn2"><svg class="ic"><use href="#ic-share"/></svg><span>Share</span></button>
-      <button class="reel-action-btn bookmark-btn ${saved ? 'saved' : ''}" data-bookmark="${d.id}"><svg class="ic"><use href="#ic-bookmark${saved ? '-filled' : ''}"/></svg><span>${formatCount(baseSaves + (saved ? 1 : 0))}</span></button>
+      <button class="reel-action-btn bookmark-btn ${saved ? 'saved' : ''}" data-bookmark="${d.id}"><svg class="ic"><use href="#ic-bookmark${saved ? '-filled' : ''}"/></svg></button>
       <button class="reel-action-btn more-btn"><svg class="ic"><use href="#ic-more"/></svg></button>
     </div>
     <div class="reel-bottom-info player-bottom-nav-spacer">
@@ -3321,11 +3327,19 @@ function buildForYouCard(d, epNum) {
   `;
 
   card.querySelector(".like-btn").addEventListener("click", (e) => {
-    state.likes[likeKey] = !state.likes[likeKey];
-    saveState();
-    e.currentTarget.classList.toggle("liked", state.likes[likeKey]);
-    e.currentTarget.querySelector("use").setAttribute("href", state.likes[likeKey] ? "#ic-heart-filled" : "#ic-heart");
-    e.currentTarget.querySelector("span").textContent = formatCount(baseLikes + (state.likes[likeKey] ? 1 : 0));
+    if (!currentUser) { toast("Sign in to like"); openAuthModal("signin"); return; }
+    const nowLiked = !myLikedEpisodes.has(likeKey);
+    if (nowLiked) myLikedEpisodes.add(likeKey); else myLikedEpisodes.delete(likeKey);
+    episodeLikeCounts[likeKey] = Math.max(0, (episodeLikeCounts[likeKey] || 0) + (nowLiked ? 1 : -1));
+    const btn = e.currentTarget;
+    btn.classList.toggle("liked", nowLiked);
+    btn.querySelector("use").setAttribute("href", nowLiked ? "#ic-heart-filled" : "#ic-heart");
+    btn.querySelector("span").textContent = formatCount(episodeLikeCounts[likeKey]);
+    if (nowLiked) {
+      supabaseClient.from("episode_likes").insert({ drama_id: d.id, episode_number: epNum, user_id: currentUser.id });
+    } else {
+      supabaseClient.from("episode_likes").delete().eq("drama_id", d.id).eq("episode_number", epNum).eq("user_id", currentUser.id);
+    }
   });
   card.querySelector(".bookmark-btn").addEventListener("click", (e) => {
     state.followed[d.id] = !state.followed[d.id];
@@ -3333,7 +3347,6 @@ function buildForYouCard(d, epNum) {
     const btn = e.currentTarget;
     btn.classList.toggle("saved", state.followed[d.id]);
     btn.querySelector("use").setAttribute("href", state.followed[d.id] ? "#ic-bookmark-filled" : "#ic-bookmark");
-    btn.querySelector("span").textContent = formatCount(baseSaves + (state.followed[d.id] ? 1 : 0));
     toast(state.followed[d.id] ? "Added to My List" : "Removed from My List");
   });
   card.querySelector(".comment-btn").addEventListener("click", () => openComments(d, epNum));
@@ -3388,7 +3401,7 @@ function buildForYouCard(d, epNum) {
     const now = Date.now();
     if (now - lastTap < 320) {
       clearTimeout(singleTapTimer);
-      if (!state.likes[likeKey]) card.querySelector(".like-btn").click();
+      if (!myLikedEpisodes.has(likeKey)) card.querySelector(".like-btn").click();
       spawnHeartBurst(card, e.clientX, e.clientY);
     } else {
       singleTapTimer = setTimeout(() => {
