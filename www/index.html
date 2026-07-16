@@ -12,7 +12,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="Reelflix" />
-  <link rel="stylesheet" href="style.css?v=53" />
+  <link rel="stylesheet" href="style.css?v=54" />
 </head>
 <body>
   <svg width="0" height="0" style="position:absolute" aria-hidden="true">
@@ -952,7 +952,7 @@
         <p>Create your series, then add episode videos.</p>
         <input id="uploadTitleInput" class="modal-input" placeholder="Drama title" />
         <textarea id="uploadDescInput" class="modal-textarea" placeholder="Short description"></textarea>
-        <label class="upload-cover-label">Cover image (optional)</label>
+        <label class="upload-cover-label" for="uploadCoverInput">Cover image (optional)</label>
         <input type="file" id="uploadCoverInput" accept="image/*" class="modal-input" />
         <select id="uploadGenreSelect" class="modal-input">
           <option value="romance">Romance</option>
@@ -979,7 +979,7 @@
         <p>Edit your series details.</p>
         <input id="editTitleInput" class="modal-input" placeholder="Drama title" />
         <textarea id="editDescInput" class="modal-textarea" placeholder="Short description"></textarea>
-        <label class="upload-cover-label">Replace cover image (optional)</label>
+        <label class="upload-cover-label" for="editCoverInput">Replace cover image (optional)</label>
         <input type="file" id="editCoverInput" accept="image/*" class="modal-input" />
         <select id="editGenreSelect" class="modal-input">
           <option value="romance">Romance</option>
@@ -1080,8 +1080,8 @@
     </div>
   </div>
 
-  <script src="vendor/supabase.js?v=53"></script>
-  <script src="vendor/livekit-client.js?v=53"></script>
-  <script src="app.js?v=53"></script>
+  <script src="vendor/supabase.js?v=54"></script>
+  <script src="vendor/livekit-client.js?v=54"></script>
+  <script src="app.js?v=54"></script>
 </body>
 </html>
