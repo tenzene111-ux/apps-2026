@@ -2352,9 +2352,22 @@ function showUploadStep(step) {
   document.getElementById("uploadStepList").style.display = step === "list" ? "" : "none";
   document.getElementById("uploadStepCreate").style.display = step === "create" ? "" : "none";
   document.getElementById("uploadStepEpisodes").style.display = step === "episodes" ? "" : "none";
+  document.getElementById("uploadStepPreview").style.display = step === "preview" ? "" : "none";
+  document.getElementById("uploadStepPublished").style.display = step === "published" ? "" : "none";
   document.getElementById("uploadStepEdit").style.display = step === "edit" ? "" : "none";
-  const titles = { list: "My Dramas", create: "New Drama", episodes: "Add Episodes", edit: "Edit Drama" };
+  const titles = { list: "My Dramas", create: "New Drama", episodes: "Add Episodes", preview: "Preview Drama", published: "Published", edit: "Edit Drama" };
   document.getElementById("uploadModalTitle").textContent = titles[step];
+
+  const stepNByStep = { create: 1, episodes: 2, preview: 3, published: 4 };
+  const n = stepNByStep[step];
+  document.getElementById("uploadStepsRow").style.display = n ? "flex" : "none";
+  if (n) {
+    document.querySelectorAll(".upload-step").forEach((el) => {
+      const elN = parseInt(el.dataset.stepN, 10);
+      el.classList.toggle("active", elN === n);
+      el.classList.toggle("done", elN < n);
+    });
+  }
 }
 
 function openUploadModal() {
@@ -2369,18 +2382,23 @@ async function renderUploadDramaList() {
   wrap.innerHTML = '<div class="creator-empty">Loading...</div>';
   const { data: dramaRows } = await supabaseClient
     .from("dramas")
-    .select("id, title, genre")
+    .select("id, title, genre, is_draft")
     .eq("creator_id", currentUser.id)
     .order("created_at", { ascending: false });
-  const { data: episodeRows } = await supabaseClient.from("episodes").select("drama_id, episode_number");
-  const countByDrama = {};
-  (episodeRows || []).forEach((e) => { countByDrama[e.drama_id] = (countByDrama[e.drama_id] || 0) + 1; });
 
   wrap.innerHTML = "";
   if (!dramaRows || !dramaRows.length) {
     wrap.innerHTML = '<div class="creator-empty">You haven\'t created any dramas yet.</div>';
     return;
   }
+
+  const { data: episodeRows } = await supabaseClient
+    .from("episodes")
+    .select("drama_id, episode_number")
+    .in("drama_id", dramaRows.map((d) => d.id));
+  const countByDrama = {};
+  (episodeRows || []).forEach((e) => { countByDrama[e.drama_id] = (countByDrama[e.drama_id] || 0) + 1; });
+
   dramaRows.forEach((row) => {
     const epCount = countByDrama[row.id] || 0;
     const card = document.createElement("div");
@@ -2388,7 +2406,7 @@ async function renderUploadDramaList() {
     card.innerHTML = `
       <div class="creator-avatar" style="background:${gradientFor(row.id)}">${row.title[0].toUpperCase()}</div>
       <div class="creator-info">
-        <div class="creator-name">${row.title}</div>
+        <div class="creator-name">${row.title} <span class="upload-status-badge${row.is_draft ? "" : " published"}">${row.is_draft ? "Draft" : "Published"}</span></div>
         <div class="creator-status">${epCount} episode${epCount === 1 ? "" : "s"}</div>
       </div>
       <button class="creator-follow-btn edit-drama-btn">Edit</button>
@@ -2398,13 +2416,38 @@ async function renderUploadDramaList() {
     card.querySelector(".add-episode-btn").addEventListener("click", () => {
       uploadDramaId = row.id;
       uploadNextEpisodeNumber = epCount + 1;
-      document.getElementById("uploadEpisodesForText").textContent = `Add episodes to "${row.title}" — upload one video file at a time.`;
+      document.getElementById("uploadEpisodesForText").textContent = `Add episodes to "${row.title}" — select one or more video files.`;
       document.getElementById("uploadNextEpNum").textContent = uploadNextEpisodeNumber;
       document.getElementById("uploadProgressText").textContent = "";
+      document.getElementById("uploadBulkList").innerHTML = "";
+      document.getElementById("uploadReleaseAtInput").value = "";
       showUploadStep("episodes");
     });
     wrap.appendChild(card);
   });
+}
+
+async function openPreviewDrama(dramaId) {
+  showUploadStep("preview");
+  const { data: row } = await supabaseClient
+    .from("dramas")
+    .select("title, description, genre, cover_path, is_draft")
+    .eq("id", dramaId)
+    .single();
+  const { count: epCount } = await supabaseClient
+    .from("episodes")
+    .select("id", { count: "exact", head: true })
+    .eq("drama_id", dramaId);
+  if (!row) return;
+  const coverUrl = row.cover_path ? `${SUPABASE_URL}/storage/v1/object/public/drama-covers/${row.cover_path}` : null;
+  document.getElementById("uploadPreviewCover").style.cssText = coverUrl
+    ? `background-image:url('${coverUrl}')`
+    : `background:${gradientFor(dramaId)}`;
+  document.getElementById("uploadPreviewGenre").textContent = row.genre;
+  document.getElementById("uploadPreviewTitle").textContent = row.title;
+  document.getElementById("uploadPreviewDesc").textContent = row.description || "";
+  document.getElementById("uploadPreviewMeta").textContent = `${epCount || 0} Episode${epCount === 1 ? "" : "s"}`;
+  document.getElementById("uploadPublishBtn").textContent = row.is_draft ? "Publish" : "Update & Keep Live";
 }
 
 let editDramaId = null;
@@ -2414,21 +2457,41 @@ async function openEditDrama(dramaId) {
   document.getElementById("editCoverInput").value = "";
   showUploadStep("edit");
 
-  const { data: row } = await supabaseClient.from("dramas").select("title, description, genre").eq("id", dramaId).single();
+  const { data: row } = await supabaseClient.from("dramas").select("title, description, genre, is_draft").eq("id", dramaId).single();
   if (row) {
     document.getElementById("editTitleInput").value = row.title;
     document.getElementById("editDescInput").value = row.description || "";
     document.getElementById("editGenreSelect").value = row.genre;
+    updateEditStatusUI(row.is_draft);
   }
   renderEditEpisodeList(dramaId);
 }
+
+function updateEditStatusUI(isDraft) {
+  const badge = document.getElementById("editStatusBadge");
+  badge.textContent = isDraft ? "Draft" : "Published";
+  badge.classList.toggle("published", !isDraft);
+  document.getElementById("editPublishToggleBtn").textContent = isDraft ? "Publish Now" : "Unpublish";
+}
+
+document.getElementById("editPublishToggleBtn").addEventListener("click", async () => {
+  const isCurrentlyDraft = document.getElementById("editStatusBadge").textContent === "Draft";
+  const btn = document.getElementById("editPublishToggleBtn");
+  btn.disabled = true;
+  const { error } = await supabaseClient.from("dramas").update({ is_draft: !isCurrentlyDraft }).eq("id", editDramaId);
+  btn.disabled = false;
+  if (error) { toast("Couldn't update status"); return; }
+  updateEditStatusUI(!isCurrentlyDraft);
+  toast(isCurrentlyDraft ? "Published!" : "Moved back to drafts");
+  await fetchRealDramas();
+});
 
 async function renderEditEpisodeList(dramaId) {
   const list = document.getElementById("editEpisodeList");
   list.innerHTML = '<div class="creator-empty">Loading...</div>';
   const { data: episodes } = await supabaseClient
     .from("episodes")
-    .select("episode_number, video_path")
+    .select("episode_number, video_path, release_at")
     .eq("drama_id", dramaId)
     .order("episode_number", { ascending: true });
   list.innerHTML = "";
@@ -2438,10 +2501,14 @@ async function renderEditEpisodeList(dramaId) {
   }
   const lastEpNum = episodes[episodes.length - 1].episode_number;
   episodes.forEach((ep) => {
+    const scheduled = ep.release_at && new Date(ep.release_at) > new Date();
     const row = document.createElement("div");
     row.className = "creator-card";
     row.innerHTML = `
-      <div class="creator-info"><div class="creator-name">Episode ${ep.episode_number}</div></div>
+      <div class="creator-info">
+        <div class="creator-name">Episode ${ep.episode_number}</div>
+        ${scheduled ? `<div class="creator-status">Scheduled for ${new Date(ep.release_at).toLocaleString()}</div>` : ""}
+      </div>
       ${ep.episode_number === lastEpNum ? '<button class="creator-follow-btn delete-episode-btn">Delete</button>' : ""}
     `;
     const deleteBtn = row.querySelector(".delete-episode-btn");
@@ -2523,7 +2590,7 @@ document.getElementById("uploadCreateBtn").addEventListener("click", async () =>
   btn.disabled = true;
   const { data, error } = await supabaseClient
     .from("dramas")
-    .insert({ creator_id: currentUser.id, title, description, genre, free_episodes: 3 })
+    .insert({ creator_id: currentUser.id, title, description, genre, free_episodes: 3, is_draft: true })
     .select()
     .single();
   btn.disabled = false;
@@ -2541,39 +2608,86 @@ document.getElementById("uploadCreateBtn").addEventListener("click", async () =>
     }
   }
 
-  document.getElementById("uploadEpisodesForText").textContent = `Add episodes to "${data.title}" — upload one video file at a time.`;
+  document.getElementById("uploadEpisodesForText").textContent = `Add episodes to "${data.title}" — select one or more video files.`;
   document.getElementById("uploadNextEpNum").textContent = 1;
   document.getElementById("uploadProgressText").textContent = "";
+  document.getElementById("uploadBulkList").innerHTML = "";
+  document.getElementById("uploadReleaseAtInput").value = "";
   showUploadStep("episodes");
 });
 
 document.getElementById("uploadEpisodeBtn").addEventListener("click", async () => {
   const fileInput = document.getElementById("uploadVideoInput");
-  const file = fileInput.files[0];
-  if (!file) { toast("Choose a video file first"); return; }
+  const files = Array.from(fileInput.files || []);
+  if (!files.length) { toast("Choose at least one video file"); return; }
+  const releaseInput = document.getElementById("uploadReleaseAtInput");
+  const releaseAt = releaseInput.value ? new Date(releaseInput.value).toISOString() : null;
   const btn = document.getElementById("uploadEpisodeBtn");
   const progress = document.getElementById("uploadProgressText");
+  const bulkList = document.getElementById("uploadBulkList");
   btn.disabled = true;
-  progress.textContent = "Uploading...";
-  const ext = file.name.split(".").pop() || "mp4";
-  const path = `${currentUser.id}/${uploadDramaId}/${uploadNextEpisodeNumber}.${ext}`;
-  const { error: uploadError } = await supabaseClient.storage.from("episode-videos").upload(path, file);
-  if (uploadError) {
-    progress.textContent = "";
-    btn.disabled = false;
-    toast("Upload failed: " + uploadError.message);
-    return;
+  bulkList.innerHTML = "";
+  const rows = files.map((file) => {
+    const row = document.createElement("div");
+    row.className = "upload-bulk-item";
+    row.innerHTML = `<span class="upload-bulk-name">${file.name}</span><span class="upload-bulk-status">Waiting...</span>`;
+    bulkList.appendChild(row);
+    return row;
+  });
+
+  let uploadedCount = 0;
+  for (let i = 0; i < files.length; i++) {
+    const file = files[i];
+    const statusEl = rows[i].querySelector(".upload-bulk-status");
+    statusEl.textContent = "Uploading...";
+    progress.textContent = `Uploading ${i + 1} of ${files.length}...`;
+    const epNum = uploadNextEpisodeNumber;
+    const ext = file.name.split(".").pop() || "mp4";
+    const path = `${currentUser.id}/${uploadDramaId}/${epNum}.${ext}`;
+    const { error: uploadError } = await supabaseClient.storage.from("episode-videos").upload(path, file);
+    if (uploadError) {
+      statusEl.textContent = "Failed";
+      rows[i].classList.add("failed");
+      continue;
+    }
+    const { error: insertError } = await supabaseClient
+      .from("episodes")
+      .insert({ drama_id: uploadDramaId, episode_number: epNum, video_path: path, release_at: releaseAt });
+    if (insertError) {
+      statusEl.textContent = "Failed";
+      rows[i].classList.add("failed");
+      continue;
+    }
+    statusEl.textContent = "Done";
+    rows[i].classList.add("done");
+    uploadedCount++;
+    uploadNextEpisodeNumber++;
+    document.getElementById("uploadNextEpNum").textContent = uploadNextEpisodeNumber;
   }
-  const { error: insertError } = await supabaseClient
-    .from("episodes")
-    .insert({ drama_id: uploadDramaId, episode_number: uploadNextEpisodeNumber, video_path: path });
   btn.disabled = false;
-  if (insertError) { progress.textContent = ""; toast("Couldn't save episode: " + insertError.message); return; }
-  toast(`Episode ${uploadNextEpisodeNumber} uploaded!`);
-  uploadNextEpisodeNumber++;
-  document.getElementById("uploadNextEpNum").textContent = uploadNextEpisodeNumber;
   fileInput.value = "";
   progress.textContent = "";
+  if (uploadedCount) toast(`${uploadedCount} episode${uploadedCount === 1 ? "" : "s"} uploaded!`);
+});
+
+document.getElementById("uploadEpisodesNextBtn").addEventListener("click", () => openPreviewDrama(uploadDramaId));
+document.getElementById("uploadPreviewBackBtn").addEventListener("click", () => showUploadStep("episodes"));
+
+document.getElementById("uploadPublishBtn").addEventListener("click", async () => {
+  const btn = document.getElementById("uploadPublishBtn");
+  btn.disabled = true;
+  const { data: row } = await supabaseClient.from("dramas").select("title").eq("id", uploadDramaId).single();
+  const { error } = await supabaseClient.from("dramas").update({ is_draft: false }).eq("id", uploadDramaId);
+  btn.disabled = false;
+  if (error) { toast("Couldn't publish: " + error.message); return; }
+  document.getElementById("uploadPublishedSub").textContent = `Congratulations, "${row?.title || "your drama"}" has published successfully.`;
+  showUploadStep("published");
+  await fetchRealDramas();
+});
+
+document.getElementById("uploadPublishedDoneBtn").addEventListener("click", () => {
+  showUploadStep("list");
+  renderUploadDramaList();
 });
 
 document.getElementById("uploadDoneBtn").addEventListener("click", async () => {
@@ -3121,7 +3235,7 @@ document.addEventListener("click", (e) => {
 });
 
 /* ---------------- Nav & tabs ---------------- */
-document.querySelectorAll(".nav-item").forEach(btn => {
+document.querySelectorAll(".nav-item[data-tab]").forEach(btn => {
   btn.addEventListener("click", () => {
     document.querySelectorAll(".nav-item").forEach(b => b.classList.remove("active"));
     btn.classList.add("active");
@@ -3736,8 +3850,6 @@ const PROFILE_MENU = [
 ];
 
 const PROFILE_MENU_MORE = [
-  { key: "golive", label: "Go Live" },
-  { key: "upload", label: "Upload Drama" },
   { key: "analytics", label: "Analytics" },
   { key: "leaderboard", label: "Leaderboard" },
   { key: "messages", label: "Messages", dot: true },
@@ -3837,17 +3949,36 @@ function renderProfileMenuInto(wrapId, items) {
   });
 }
 
+let profileMoreExpanded = false;
+function renderProfileMenuMore() {
+  if (profileMoreExpanded) {
+    renderProfileMenuInto("profileMenuMore", PROFILE_MENU_MORE);
+    const row = document.createElement("button");
+    row.className = "profile-row";
+    row.id = "profileMoreToggle";
+    row.innerHTML = `
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M18 15l-6-6-6 6"/></svg>
+      <span class="row-label">See Less</span>
+    `;
+    document.getElementById("profileMenuMore").appendChild(row);
+  } else {
+    const wrap = document.getElementById("profileMenuMore");
+    wrap.innerHTML = `
+      <button class="profile-row" id="profileMoreToggle">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+        <span class="row-label">See More</span>
+      </button>
+    `;
+  }
+}
+
 function renderProfileMenu() {
   renderProfileMenuInto("profileMenu", PROFILE_MENU);
-  renderProfileMenuInto("profileMenuMore", PROFILE_MENU_MORE);
+  renderProfileMenuMore();
 }
 
 function handleProfileMenuAction(action) {
-  if (action === "golive") {
-    openLiveHost();
-  } else if (action === "upload") {
-    openUploadModal();
-  } else if (action === "analytics") {
+  if (action === "analytics") {
     openAnalytics();
   } else if (action === "leaderboard") {
     openLeaderboard();
@@ -3887,6 +4018,11 @@ function handleProfileMenuAction(action) {
 
 ["profileMenu", "profileMenuMore"].forEach((id) => {
   document.getElementById(id).addEventListener("click", (e) => {
+    if (e.target.closest("#profileMoreToggle")) {
+      profileMoreExpanded = !profileMoreExpanded;
+      renderProfileMenuMore();
+      return;
+    }
     const row = e.target.closest(".profile-row");
     if (!row) return;
     handleProfileMenuAction(row.dataset.action);
@@ -3894,6 +4030,16 @@ function handleProfileMenuAction(action) {
 });
 
 document.getElementById("profileContinueSeeAll").addEventListener("click", () => handleProfileMenuAction("history"));
+
+document.getElementById("navCreateBtn").addEventListener("click", () => openModal("createChoiceModal"));
+document.getElementById("createGoLiveBtn").addEventListener("click", () => {
+  closeModal("createChoiceModal");
+  openLiveHost();
+});
+document.getElementById("createUploadDramaBtn").addEventListener("click", () => {
+  closeModal("createChoiceModal");
+  openUploadModal();
+});
 
 document.getElementById("signInBtn").addEventListener("click", () => openAuthModal("signin"));
 document.getElementById("signOutBtn").addEventListener("click", async () => {

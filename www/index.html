@@ -12,7 +12,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="Reelflix" />
-  <link rel="stylesheet" href="style.css?v=55" />
+  <link rel="stylesheet" href="style.css?v=56" />
 </head>
 <body>
   <svg width="0" height="0" style="position:absolute" aria-hidden="true">
@@ -194,6 +194,10 @@
 
     <symbol id="ic-crown" viewBox="0 0 24 24">
       <path d="M3 8l4 3 5-6 5 6 4-3-2 11H5L3 8z" fill="currentColor"/>
+    </symbol>
+
+    <symbol id="ic-plus" viewBox="0 0 24 24">
+      <path d="M12 4v16M4 12h16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
     </symbol>
 
     <symbol id="ic-rose" viewBox="0 0 24 24">
@@ -757,6 +761,9 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="16" height="18" rx="3"/><path d="M10 8.5l6 3.5-6 3.5z"/></svg>
         <span>Reels</span>
       </button>
+      <button class="nav-item nav-create-btn" id="navCreateBtn" aria-label="Create">
+        <span class="nav-create-circle"><svg class="ic"><use href="#ic-plus"/></svg></span>
+      </button>
       <button class="nav-item" data-tab="mylist">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 4h12v17l-6-4-6 4z"/></svg>
         <span>My List</span>
@@ -903,6 +910,23 @@
     </div>
   </div>
 
+  <div class="modal-backdrop" id="createChoiceModal">
+    <div class="modal">
+      <h3>Create</h3>
+      <button class="profile-row" id="createGoLiveBtn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="6" width="13" height="12" rx="2"/><path d="M16 10l5-3v10l-5-3z"/></svg>
+        <span class="row-label">Go Live</span>
+        <span class="row-chevron">›</span>
+      </button>
+      <button class="profile-row" id="createUploadDramaBtn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M12 16V8M8.5 11.5 12 8l3.5 3.5"/></svg>
+        <span class="row-label">Upload Drama</span>
+        <span class="row-chevron">›</span>
+      </button>
+      <button class="modal-close" data-close="createChoiceModal">✕</button>
+    </div>
+  </div>
+
   <div class="modal-backdrop" id="inviteModal">
     <div class="modal">
       <h3>Invitation Code</h3>
@@ -942,12 +966,20 @@
   </div>
 
   <div class="modal-backdrop" id="uploadModal">
-    <div class="modal">
+    <div class="modal upload-modal">
       <h3 id="uploadModalTitle">My Dramas</h3>
+      <div class="upload-steps-row" id="uploadStepsRow" style="display:none">
+        <div class="upload-step" data-step-n="1"><span class="upload-step-dot">1</span><span class="upload-step-label">Details</span></div>
+        <div class="upload-step" data-step-n="2"><span class="upload-step-dot">2</span><span class="upload-step-label">Episodes</span></div>
+        <div class="upload-step" data-step-n="3"><span class="upload-step-dot">3</span><span class="upload-step-label">Preview</span></div>
+        <div class="upload-step" data-step-n="4"><span class="upload-step-dot">4</span><span class="upload-step-label">Publish</span></div>
+      </div>
+
       <div id="uploadStepList">
         <div id="uploadDramaList" class="creator-list"></div>
         <button class="btn-primary" id="uploadNewDramaBtn">+ New Drama</button>
       </div>
+
       <div id="uploadStepCreate" style="display:none">
         <p>Create your series, then add episode videos.</p>
         <input id="uploadTitleInput" class="modal-input" placeholder="Drama title" />
@@ -965,18 +997,51 @@
           <option value="mystery">Mystery</option>
           <option value="historical">Historical</option>
         </select>
-        <button class="btn-primary" id="uploadCreateBtn">Create Drama</button>
+        <button class="btn-primary" id="uploadCreateBtn">Next</button>
         <button class="btn-ghost" id="uploadCreateBackBtn">← Back to My Dramas</button>
       </div>
+
       <div id="uploadStepEpisodes" style="display:none">
-        <p id="uploadEpisodesForText">Add episodes — upload one video file at a time.</p>
-        <input type="file" id="uploadVideoInput" accept="video/*" class="modal-input" />
+        <p id="uploadEpisodesForText">Add episodes — select one or more video files.</p>
+        <input type="file" id="uploadVideoInput" accept="video/*" class="modal-input" multiple />
+        <label class="upload-cover-label" for="uploadReleaseAtInput">Release date &amp; time (optional — leave blank to publish right away)</label>
+        <input type="datetime-local" id="uploadReleaseAtInput" class="modal-input" />
         <div id="uploadProgressText" class="upload-progress-text"></div>
-        <button class="btn-primary" id="uploadEpisodeBtn">Upload Episode <span id="uploadNextEpNum">1</span></button>
+        <div id="uploadBulkList" class="upload-bulk-list"></div>
+        <button class="btn-primary" id="uploadEpisodeBtn">Upload Starting at Episode <span id="uploadNextEpNum">1</span></button>
+        <button class="btn-primary" id="uploadEpisodesNextBtn">Next: Preview</button>
         <button class="btn-ghost" id="uploadDoneBtn">← Back to My Dramas</button>
       </div>
+
+      <div id="uploadStepPreview" style="display:none">
+        <div class="upload-preview-card">
+          <div class="upload-preview-cover" id="uploadPreviewCover"></div>
+          <div class="upload-preview-info">
+            <span class="upload-preview-genre" id="uploadPreviewGenre"></span>
+            <h3 id="uploadPreviewTitle"></h3>
+            <p id="uploadPreviewDesc"></p>
+            <div class="upload-preview-meta" id="uploadPreviewMeta"></div>
+          </div>
+        </div>
+        <button class="btn-primary" id="uploadPublishBtn">Publish</button>
+        <button class="btn-ghost" id="uploadPreviewBackBtn">← Back to Episodes</button>
+      </div>
+
+      <div id="uploadStepPublished" style="display:none">
+        <div class="upload-published-check">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M8 12.5l2.5 2.5L16 9.5"/></svg>
+        </div>
+        <h3>Your drama is live!</h3>
+        <p id="uploadPublishedSub">Congratulations, your drama has published successfully.</p>
+        <button class="btn-primary" id="uploadPublishedDoneBtn">Done</button>
+      </div>
+
       <div id="uploadStepEdit" style="display:none">
         <p>Edit your series details.</p>
+        <div class="upload-status-row" id="editStatusRow">
+          <span class="upload-status-badge" id="editStatusBadge">Draft</span>
+          <button class="btn-ghost" id="editPublishToggleBtn">Publish Now</button>
+        </div>
         <input id="editTitleInput" class="modal-input" placeholder="Drama title" />
         <textarea id="editDescInput" class="modal-textarea" placeholder="Short description"></textarea>
         <label class="upload-cover-label" for="editCoverInput">Replace cover image (optional)</label>
@@ -1080,8 +1145,8 @@
     </div>
   </div>
 
-  <script src="vendor/supabase.js?v=55"></script>
-  <script src="vendor/livekit-client.js?v=55"></script>
-  <script src="app.js?v=55"></script>
+  <script src="vendor/supabase.js?v=56"></script>
+  <script src="vendor/livekit-client.js?v=56"></script>
+  <script src="app.js?v=56"></script>
 </body>
 </html>
