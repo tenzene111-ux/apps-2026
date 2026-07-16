@@ -1659,12 +1659,14 @@ document.getElementById("uploadDoneBtn").addEventListener("click", async () => {
 
 async function fetchRealDramas() {
   if (!supabaseClient) return;
-  const { data: dramaRows } = await supabaseClient
+  const { data: dramaRows, error: dramaError } = await supabaseClient
     .from("dramas")
     .select("id, creator_id, title, description, genre, free_episodes, cover_path, created_at, creator:profiles(username)")
     .order("created_at", { ascending: false });
+  if (dramaError) { console.error("fetchRealDramas: dramas query failed", dramaError); return; }
   if (!dramaRows) return;
-  const { data: episodeRows } = await supabaseClient.from("episodes").select("drama_id, episode_number, video_path");
+  const { data: episodeRows, error: episodeError } = await supabaseClient.from("episodes").select("drama_id, episode_number, video_path");
+  if (episodeError) console.error("fetchRealDramas: episodes query failed", episodeError);
   const episodesByDrama = {};
   (episodeRows || []).forEach((e) => {
     (episodesByDrama[e.drama_id] ||= []).push(e);
