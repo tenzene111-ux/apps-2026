@@ -2191,23 +2191,61 @@ function renderForYouFeed() {
   const feed = document.getElementById("forYouFeed");
   feed.innerHTML = "";
 
-  const maxDramaViews = Math.max(...DRAMAS.map((d) => parseFloat(d.views)));
+  const maxDramaViews = Math.max(1, ...DRAMAS.map((d) => parseFloat(d.views)));
 
-  const items = [
-    // Real live sessions always rank as maximally "hot" — someone is live right now.
-    ...liveSessionsCache.map((host) => ({ type: "live", data: host, mutual: !!host.following, score: 1 })),
-    ...DRAMAS.map((d) => ({ type: "drama", data: d, mutual: !!d.mutual, score: parseFloat(d.views) / maxDramaViews })),
-  ];
+  // Every creator's free episodes stay grouped in order (ep1, ep2, ...) so a
+  // scroll never jumps mid-drama into someone else's upload; only the
+  // ordering of whole dramas (and where live sessions slot in) is ranked.
+  const dramaGroups = DRAMAS.map((d) => {
+    const freeCount = Math.min(d.free || 0, d.episodes);
+    const cards = [];
+    for (let n = 1; n <= freeCount; n++) {
+      if (d.videoUrls && d.videoUrls[n]) cards.push({ type: "episode", data: d, epNum: n });
+    }
+    if (d.episodes > freeCount) cards.push({ type: "locked", data: d });
+    return { mutual: !!d.mutual, score: parseFloat(d.views) / maxDramaViews, cards };
+  }).filter((g) => g.cards.length);
 
-  items.sort((a, b) => {
+  dramaGroups.sort((a, b) => {
     if (a.mutual !== b.mutual) return a.mutual ? -1 : 1;
     return b.score - a.score;
   });
 
+  const items = [
+    // Real live sessions always rank as maximally "hot" — someone is live right now.
+    ...liveSessionsCache.map((host) => ({ type: "live", data: host })),
+    ...dramaGroups.flatMap((g) => g.cards),
+  ];
+
   items.forEach((item) => {
-    feed.appendChild(item.type === "live" ? buildLiveTeaserCard(item.data) : buildForYouCard(item.data));
+    let card;
+    if (item.type === "live") card = buildLiveTeaserCard(item.data);
+    else if (item.type === "locked") card = buildLockedEpisodeCard(item.data);
+    else card = buildForYouCard(item.data, item.epNum);
+    feed.appendChild(card);
   });
   observeForYouCards();
+}
+
+function buildLockedEpisodeCard(d) {
+  const card = document.createElement("div");
+  card.className = "player-card locked-teaser-card";
+  card.innerHTML = `
+    <div class="player-bg" style="${coverStyle(d, 1)}"></div>
+    <div class="player-vignette"></div>
+    <div class="locked-teaser-center">
+      <svg class="ic locked-lock-ic"><use href="#ic-lock"/></svg>
+      <h3>${d.title}</h3>
+      <p>You've watched all ${d.free} free episodes. Unlock the rest with coins.</p>
+      <button class="btn-watch-now locked-teaser-cta">Unlock Episodes</button>
+    </div>
+  `;
+  card.querySelector(".locked-teaser-cta").addEventListener("click", () => openDetail(d.id));
+  card.addEventListener("pointerup", (e) => {
+    if (e.target.closest("button")) return;
+    openDetail(d.id);
+  });
+  return card;
 }
 
 function buildLiveTeaserCard(host) {
@@ -2239,18 +2277,18 @@ function buildLiveTeaserCard(host) {
   return card;
 }
 
-function buildForYouCard(d) {
+function buildForYouCard(d, epNum) {
   const card = document.createElement("div");
   card.className = "player-card foryou-card";
-  const likeKey = d.id + ":foryou";
-  const claimKey = "foryouClaim:" + d.id;
-  const baseLikes = 2000 + (d.id.charCodeAt(1) * 53) % 3000;
+  const likeKey = d.id + ":foryou:" + epNum;
+  const claimKey = "foryouClaim:" + d.id + ":" + epNum;
+  const baseLikes = 2000 + (d.id.charCodeAt(1) * 53 * epNum) % 3000;
   const baseSaves = 8000 + (d.id.charCodeAt(1) * 337) % 30000;
   const liked = !!state.likes[likeKey];
   const saved = !!state.followed[d.id];
   const claimed = !!state.claimedTasks[claimKey];
 
-  const previewUrl = d.real && d.videoUrls ? d.videoUrls[1] : null;
+  const previewUrl = d.real && d.videoUrls ? d.videoUrls[epNum] : null;
 
   card.innerHTML = `
     <div class="player-bg" style="${coverStyle(d, 1)}"></div>
@@ -2277,7 +2315,7 @@ function buildForYouCard(d) {
         <div class="fyu-thumb" style="${coverStyle(d)}"></div>
         <div class="fyu-title-info">
           <h3>${d.title} <span class="chevron">›</span></h3>
-          <span class="fyu-tag">${d.label}</span>
+          <span class="fyu-tag">${d.label} · EP ${epNum}</span>
         </div>
       </div>
       <p class="ep-desc">${d.desc} <span class="more-link">More</span></p>
@@ -2324,7 +2362,7 @@ function buildForYouCard(d) {
     document.querySelector('.mltab[data-mltab="creators"]').click();
     setTimeout(() => document.getElementById("creatorSearchInput").focus(), 150);
   });
-  card.querySelector(".foryou-cta").addEventListener("click", () => openDetail(d.id));
+  card.querySelector(".foryou-cta").addEventListener("click", () => openPlayer(d.id, epNum - 1));
   card.querySelector(".fyu-title-row").addEventListener("click", () => openDetail(d.id));
   card.querySelector(".more-link").addEventListener("click", () => openDetail(d.id));
 

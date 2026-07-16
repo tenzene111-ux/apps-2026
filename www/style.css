@@ -1366,6 +1366,24 @@ input { font: inherit; color: inherit; }
 .fyu-tag .ic { width: 12px; height: 12px; vertical-align: -1px; }
 .live-teaser-cta { background: var(--accent); }
 
+/* ---------- Locked-episode teaser card (For You feed) ---------- */
+.locked-teaser-center {
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 2;
+  width: 82%;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+.locked-lock-ic { width: 40px; height: 40px; color: var(--gold); }
+.locked-teaser-center h3 { font-size: 18px; }
+.locked-teaser-center p { font-size: 13px; color: rgba(255,255,255,0.75); }
+.locked-teaser-cta { background: var(--accent); margin-top: 6px; }
+
 /* ---------- Double-tap heart burst ---------- */
 .heart-burst {
   position: absolute;
