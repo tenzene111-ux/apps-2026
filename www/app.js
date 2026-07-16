@@ -2240,8 +2240,11 @@ function buildForYouCard(d) {
   const saved = !!state.followed[d.id];
   const claimed = !!state.claimedTasks[claimKey];
 
+  const previewUrl = d.real && d.videoUrls ? d.videoUrls[1] : null;
+
   card.innerHTML = `
     <div class="player-bg" style="${coverStyle(d, 1)}"></div>
+    ${previewUrl ? `<video class="foryou-video" muted loop playsinline preload="none" src="${previewUrl}"></video>` : ""}
     <div class="player-vignette"></div>
     <div class="fyu-topbar">
       <div class="fyu-logo"><svg viewBox="0 0 64 64"><rect width="64" height="64" rx="16" fill="url(#coinGrad)" opacity="0"/><rect x="1" y="1" width="62" height="62" rx="15" fill="none" stroke="currentColor" stroke-width="3"/><text x="32" y="42" font-size="30" font-weight="800" text-anchor="middle" fill="currentColor" font-family="Arial, sans-serif">R</text></svg></div>
@@ -2325,7 +2328,14 @@ function buildForYouCard(d) {
       if (!state.likes[likeKey]) card.querySelector(".like-btn").click();
       spawnHeartBurst(card, e.clientX, e.clientY);
     } else {
-      singleTapTimer = setTimeout(() => card.classList.toggle("paused"), 300);
+      singleTapTimer = setTimeout(() => {
+        card.classList.toggle("paused");
+        const video = card.querySelector(".foryou-video");
+        if (video) {
+          if (card.classList.contains("paused")) video.pause();
+          else video.play().catch(() => {});
+        }
+      }, 300);
     }
     lastTap = now;
   });
@@ -2335,7 +2345,18 @@ function buildForYouCard(d) {
 
 function observeForYouCards() {
   const cards = document.querySelectorAll("#forYouFeed .player-card");
-  const io = new IntersectionObserver(() => {}, { threshold: [0.6], root: document.getElementById("forYouFeed") });
+  const io = new IntersectionObserver((entries) => {
+    entries.forEach((entry) => {
+      const video = entry.target.querySelector(".foryou-video");
+      if (!video) return;
+      if (entry.isIntersecting) {
+        if (!entry.target.classList.contains("paused")) video.play().catch(() => {});
+      } else {
+        video.pause();
+        video.currentTime = 0;
+      }
+    });
+  }, { threshold: [0.6], root: document.getElementById("forYouFeed") });
   cards.forEach(c => io.observe(c));
 }
 
@@ -3611,7 +3632,8 @@ function init() {
   renderFeed();
   renderLiveStrip();
   renderContinueWatching();
-  switchView("home");
+  renderForYouFeed();
+  switchView("foryou");
   renderCoinPackages();
   updateRewardsDots();
   setInterval(updateRewardsDots, 5000);
