@@ -12,7 +12,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="Reelflix" />
-  <link rel="stylesheet" href="style.css?v=52" />
+  <link rel="stylesheet" href="style.css?v=53" />
 </head>
 <body>
   <svg width="0" height="0" style="position:absolute" aria-hidden="true">
@@ -180,6 +180,20 @@
       <circle cx="5" cy="12" r="1.7" fill="currentColor"/>
       <circle cx="12" cy="12" r="1.7" fill="currentColor"/>
       <circle cx="19" cy="12" r="1.7" fill="currentColor"/>
+    </symbol>
+
+    <symbol id="ic-settings" viewBox="0 0 24 24">
+      <circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="1.7"/>
+      <path d="M19.4 13.5a1.7 1.7 0 0 0 .34 1.87l.06.06a2.05 2.05 0 1 1-2.9 2.9l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1.03 1.56V19.6a2.05 2.05 0 1 1-4.1 0v-.09a1.7 1.7 0 0 0-1.11-1.56 1.7 1.7 0 0 0-1.87.34l-.06.06a2.05 2.05 0 1 1-2.9-2.9l.06-.06a1.7 1.7 0 0 0 .34-1.87 1.7 1.7 0 0 0-1.56-1.03H4.4a2.05 2.05 0 1 1 0-4.1h.09a1.7 1.7 0 0 0 1.56-1.11 1.7 1.7 0 0 0-.34-1.87l-.06-.06a2.05 2.05 0 1 1 2.9-2.9l.06.06a1.7 1.7 0 0 0 1.87.34H10.5a1.7 1.7 0 0 0 1.03-1.56V4.4a2.05 2.05 0 1 1 4.1 0v.09a1.7 1.7 0 0 0 1.03 1.56 1.7 1.7 0 0 0 1.87-.34l.06-.06a2.05 2.05 0 1 1 2.9 2.9l-.06.06a1.7 1.7 0 0 0-.34 1.87V10.5a1.7 1.7 0 0 0 1.56 1.03h.09a2.05 2.05 0 1 1 0 4.1h-.09a1.7 1.7 0 0 0-1.56 1.03z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/>
+    </symbol>
+
+    <symbol id="ic-edit" viewBox="0 0 24 24">
+      <path d="M4 20h4L18.5 9.5a2 2 0 0 0 0-2.8l-1.2-1.2a2 2 0 0 0-2.8 0L4 15.5V20z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>
+      <path d="M13 6l5 5" fill="none" stroke="currentColor" stroke-width="1.7"/>
+    </symbol>
+
+    <symbol id="ic-crown" viewBox="0 0 24 24">
+      <path d="M3 8l4 3 5-6 5 6 4-3-2 11H5L3 8z" fill="currentColor"/>
     </symbol>
 
     <symbol id="ic-rose" viewBox="0 0 24 24">
@@ -586,26 +600,29 @@
           <h1 class="logo">Profile</h1>
           <div class="home-header-icons">
             <button class="icon-btn-flat" id="profileNotifBtn"><svg class="ic"><use href="#ic-bell"/></svg></button>
-            <button class="icon-btn-flat" id="profileSettingsBtn"><svg class="ic"><use href="#ic-more"/></svg></button>
+            <button class="icon-btn-flat" id="profileSettingsBtn"><svg class="ic"><use href="#ic-settings"/></svg></button>
           </div>
         </header>
 
         <div class="profile-header">
           <button class="firstlogin-badge task-btn" data-task="firstlogin" data-coins="20"><svg class="ic"><use href="#ic-gift"/></svg> Get 20 first login Coins!</button>
           <div class="profile-id-row">
-            <div class="profile-avatar"><svg class="ic"><use href="#ic-person"/></svg></div>
+            <div class="profile-avatar-wrap">
+              <div class="profile-avatar"><svg class="ic"><use href="#ic-person"/></svg></div>
+              <button class="avatar-edit-btn" id="editProfileBtn" style="display:none"><svg class="ic"><use href="#ic-edit"/></svg></button>
+            </div>
             <div class="profile-id">
               <div class="profile-name-row">
                 <span class="profile-name" id="profileNameText">Guest</span>
-                <span class="pro-badge" id="profileProBadge" style="display:none">VIP</span>
+                <span class="pro-badge" id="profileProBadge" style="display:none">Pro</span>
               </div>
-              <div class="profile-uid">UID: <span id="uidText">1062724055</span> <button class="uid-copy" id="copyUidBtn">⧉</button></div>
+              <div class="profile-handle" id="profileHandleText" style="display:none"></div>
+              <p class="profile-bio" id="profileBioText" style="display:none"></p>
             </div>
             <button class="signin-btn" id="signInBtn">Sign in</button>
             <button class="signin-btn" id="signOutBtn" style="display:none">Sign out</button>
           </div>
-          <p class="profile-bio" id="profileBioText" style="display:none"></p>
-          <button class="edit-profile-btn" id="editProfileBtn" style="display:none">Edit Profile</button>
+          <div class="profile-uid" id="profileUidRow">UID: <span id="uidText">1062724055</span> <button class="uid-copy" id="copyUidBtn">⧉</button></div>
         </div>
 
         <div class="profile-stats-row">
@@ -616,12 +633,16 @@
         </div>
 
         <div class="vip-promo-card" data-open="vipModal">
-          <h3 id="premiumCardTitle">Become a VIP – Enjoy all benefits</h3>
-          <p>Unlock every episode, skip the coin cost, and get a daily VIP reward.</p>
+          <div class="vip-promo-text">
+            <h3><svg class="ic ic-crown"><use href="#ic-crown"/></svg> <span id="premiumCardTitle">ReelFlix Premium</span></h3>
+            <p id="premiumCardDesc">Enjoy ad-free streaming, unlocked episodes, exclusive content and more.</p>
+          </div>
           <button class="btn-go" id="premiumCardBtn" data-open="vipModal">GO</button>
         </div>
 
-        <div class="profile-menu" id="profileMenu"></div>
+        <div class="profile-menu-card">
+          <div class="profile-menu" id="profileMenu"></div>
+        </div>
 
         <div class="wallet-card">
           <div class="wallet-header">My Wallet <span>›</span></div>
@@ -642,11 +663,13 @@
           <div class="watch-stat-tile"><svg class="ic"><use href="#ic-comment"/></svg><b id="statCommentsPosted">0</b><span>Comments Posted</span></div>
         </div>
 
-        <div class="section-title-row" id="profileContinueTitle" style="display:none"><h4 class="section-title">Continue Watching</h4></div>
+        <div class="section-title-row" id="profileContinueTitle" style="display:none"><h4 class="section-title">Continue Watching</h4><span class="see-all-btn" id="profileContinueSeeAll">See All</span></div>
         <div class="continue-strip" id="profileContinueStrip"></div>
 
         <div class="section-title-row"><h4 class="section-title">More</h4></div>
-        <div class="profile-menu" id="profileMenuMore"></div>
+        <div class="profile-menu-card">
+          <div class="profile-menu" id="profileMenuMore"></div>
+        </div>
       </div>
     </section>
 
@@ -1057,8 +1080,8 @@
     </div>
   </div>
 
-  <script src="vendor/supabase.js?v=52"></script>
-  <script src="vendor/livekit-client.js?v=52"></script>
-  <script src="app.js?v=52"></script>
+  <script src="vendor/supabase.js?v=53"></script>
+  <script src="vendor/livekit-client.js?v=53"></script>
+  <script src="app.js?v=53"></script>
 </body>
 </html>

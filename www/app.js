@@ -201,6 +201,9 @@ function updateAuthUI() {
     ? (currentProfile?.username || currentUser.email || "Member")
     : "Guest";
   document.getElementById("uidText").textContent = signedIn ? currentUser.id.slice(0, 10) : "1062724055";
+  const handleEl = document.getElementById("profileHandleText");
+  handleEl.style.display = signedIn && currentProfile?.username ? "block" : "none";
+  handleEl.textContent = currentProfile?.username ? "@" + currentProfile.username : "";
   const bioEl = document.getElementById("profileBioText");
   bioEl.style.display = signedIn && currentProfile?.bio ? "block" : "none";
   bioEl.textContent = currentProfile?.bio || "";
@@ -3746,13 +3749,16 @@ function renderMine() {
 function renderProfileVipCard() {
   const badge = document.getElementById("profileProBadge");
   const title = document.getElementById("premiumCardTitle");
+  const desc = document.getElementById("premiumCardDesc");
   const btn = document.getElementById("premiumCardBtn");
   badge.style.display = state.vip ? "inline-block" : "none";
   if (state.vip) {
-    title.textContent = "You're a ReelFlix VIP — enjoy every benefit";
+    title.textContent = "ReelFlix Premium — Active";
+    desc.textContent = "Enjoy ad-free streaming, unlocked episodes, exclusive content and more.";
     btn.textContent = "Manage Plan";
   } else {
-    title.textContent = "Become a VIP – Enjoy all benefits";
+    title.textContent = "Become a ReelFlix VIP";
+    desc.textContent = "Unlock every episode, skip the coin cost, and get a daily VIP reward.";
     btn.textContent = "GO";
   }
 }
@@ -3873,6 +3879,8 @@ function handleProfileMenuAction(action) {
     handleProfileMenuAction(row.dataset.action);
   });
 });
+
+document.getElementById("profileContinueSeeAll").addEventListener("click", () => handleProfileMenuAction("history"));
 
 document.getElementById("signInBtn").addEventListener("click", () => openAuthModal("signin"));
 document.getElementById("signOutBtn").addEventListener("click", async () => {
