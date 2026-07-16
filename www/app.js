@@ -2767,9 +2767,216 @@ async function fetchRealDramas() {
     });
   });
   renderFeed();
+  await fetchRealReels();
   if (state.view === "foryou") renderForYouFeed();
   if (state.view === "home") renderHomeDashboard();
 }
+
+/* ---------------- Reels (standalone short videos, TikTok-style) ---------------- */
+const REELS = [];
+let reelLikeCounts = {};
+let myLikedReels = new Set();
+let reelCommentCounts = {};
+let reelPickedFile = null;
+
+function bumpReelCommentCount(reelId, delta) {
+  reelCommentCounts[reelId] = Math.max(0, (reelCommentCounts[reelId] || 0) + delta);
+  document.querySelectorAll(`[data-reel-comment-key="${reelId}"] span`).forEach((span) => {
+    span.textContent = formatCount(reelCommentCounts[reelId]);
+  });
+}
+
+async function fetchRealReels() {
+  if (!supabaseClient) return;
+  const { data: reelRows, error: reelError } = await supabaseClient
+    .from("reels")
+    .select("id, creator_id, video_path, caption, created_at")
+    .order("created_at", { ascending: false });
+  if (reelError) { console.error("fetchRealReels: reels query failed", reelError); return; }
+  if (!reelRows) return;
+
+  const creatorIds = [...new Set(reelRows.map((r) => r.creator_id))];
+  const creatorNameById = {};
+  if (creatorIds.length) {
+    const { data: creatorRows } = await supabaseClient.from("profiles").select("id, username").in("id", creatorIds);
+    (creatorRows || []).forEach((p) => { creatorNameById[p.id] = p.username; });
+  }
+
+  const { data: likeRows } = await supabaseClient.from("reel_likes").select("reel_id, user_id");
+  reelLikeCounts = {};
+  myLikedReels = new Set();
+  (likeRows || []).forEach((l) => {
+    reelLikeCounts[l.reel_id] = (reelLikeCounts[l.reel_id] || 0) + 1;
+    if (l.user_id === currentUser?.id) myLikedReels.add(l.reel_id);
+  });
+
+  const { data: commentRows } = await supabaseClient.from("reel_comments").select("reel_id");
+  reelCommentCounts = {};
+  (commentRows || []).forEach((c) => {
+    reelCommentCounts[c.reel_id] = (reelCommentCounts[c.reel_id] || 0) + 1;
+  });
+
+  REELS.length = 0;
+  reelRows.forEach((row) => {
+    REELS.push({
+      id: row.id,
+      creatorId: row.creator_id,
+      creatorName: creatorNameById[row.creator_id] || "Creator",
+      caption: row.caption || "",
+      videoUrl: `${SUPABASE_URL}/storage/v1/object/public/reel-videos/${row.video_path}`,
+      createdAt: row.created_at,
+    });
+  });
+}
+
+function buildReelCard(reel) {
+  const card = document.createElement("div");
+  card.className = "player-card foryou-card";
+  const liked = myLikedReels.has(reel.id);
+  const likeCount = reelLikeCounts[reel.id] || 0;
+  const followingCreator = followingIds.has(reel.creatorId);
+
+  card.innerHTML = `
+    <div class="player-bg" style="background:${gradientFor(reel.id, 1)}"></div>
+    <video class="foryou-video" muted loop playsinline preload="none" src="${reel.videoUrl}"></video>
+    <div class="player-vignette"></div>
+    <div class="fyu-topbar">
+      <div class="fyu-topbar-left">
+        <div class="fyu-logo"><svg viewBox="0 0 64 64"><rect x="1" y="1" width="62" height="62" rx="15" fill="none" stroke="currentColor" stroke-width="3"/><text x="32" y="42" font-size="30" font-weight="800" text-anchor="middle" fill="currentColor" font-family="Arial, sans-serif">R</text></svg></div>
+        <button class="fyu-explore-btn">Explore</button>
+      </div>
+      <div class="fyu-topbar-right">
+        <span class="mutual-badge">Reel</span>
+      </div>
+    </div>
+    <div class="center-play-btn"><svg class="ic"><use href="#ic-play"/></svg></div>
+    <div class="reel-side-rail">
+      <div class="reel-avatar-wrap">
+        <div class="reel-avatar" style="background:${gradientFor(reel.creatorId || reel.id)}">${(reel.creatorName || "C")[0].toUpperCase()}</div>
+        ${!followingCreator ? `<button class="reel-follow-plus" data-follow-creator="${reel.creatorId}">+</button>` : ""}
+      </div>
+      <button class="reel-action-btn like-btn ${liked ? "liked" : ""}">${heartIconHTML(liked)}<span>${formatCount(likeCount)}</span></button>
+      <button class="reel-action-btn comment-btn" data-reel-comment-key="${reel.id}"><svg class="ic"><use href="#ic-comment"/></svg><span>${formatCount(reelCommentCounts[reel.id] || 0)}</span></button>
+      <button class="reel-action-btn share-btn2"><svg class="ic"><use href="#ic-share"/></svg><span>Share</span></button>
+      <button class="reel-action-btn more-btn"><svg class="ic"><use href="#ic-more"/></svg></button>
+    </div>
+    <div class="reel-bottom-info player-bottom-nav-spacer">
+      <div class="reel-creator-row">
+        <b class="reel-creator-name">@${reel.creatorName || "creator"}</b>
+        ${!followingCreator ? `<button class="reel-follow-text-btn" data-follow-creator="${reel.creatorId}">Follow</button>` : '<span class="reel-following-tag">Following</span>'}
+      </div>
+      <p class="reel-caption">${reel.caption || ""}</p>
+    </div>
+  `;
+
+  card.querySelector(".like-btn").addEventListener("click", (e) => {
+    if (!currentUser) { toast("Sign in to like"); openAuthModal("signin"); return; }
+    const nowLiked = !myLikedReels.has(reel.id);
+    if (nowLiked) myLikedReels.add(reel.id); else myLikedReels.delete(reel.id);
+    reelLikeCounts[reel.id] = Math.max(0, (reelLikeCounts[reel.id] || 0) + (nowLiked ? 1 : -1));
+    const btn = e.currentTarget;
+    btn.classList.toggle("liked", nowLiked);
+    btn.querySelector("use").setAttribute("href", nowLiked ? "#ic-heart-filled" : "#ic-heart");
+    btn.querySelector("span:last-child").textContent = formatCount(reelLikeCounts[reel.id]);
+    if (nowLiked) {
+      supabaseClient.from("reel_likes").insert({ reel_id: reel.id, user_id: currentUser.id });
+    } else {
+      supabaseClient.from("reel_likes").delete().eq("reel_id", reel.id).eq("user_id", currentUser.id);
+    }
+  });
+  card.querySelector(".comment-btn").addEventListener("click", () => openReelComments(reel));
+  card.querySelector(".share-btn2").addEventListener("click", () => toast("Sharing reels is coming soon"));
+  card.querySelector(".fyu-explore-btn").addEventListener("click", (e) => { e.stopPropagation(); openExplore(); });
+  card.querySelectorAll("[data-follow-creator]").forEach((btn) => {
+    btn.addEventListener("click", async (e) => {
+      e.stopPropagation();
+      if (!reel.creatorId) return;
+      await toggleFollow(reel.creatorId, btn);
+      const nowFollowing = followingIds.has(reel.creatorId);
+      card.querySelectorAll("[data-follow-creator]").forEach((b) => { if (nowFollowing) b.remove(); });
+      if (nowFollowing) {
+        card.querySelector(".reel-creator-row").insertAdjacentHTML("beforeend", '<span class="reel-following-tag">Following</span>');
+      }
+    });
+  });
+  card.querySelector(".more-btn").addEventListener("click", () => toast("More options coming soon"));
+
+  let lastTap = 0;
+  let singleTapTimer = null;
+  card.addEventListener("pointerup", (e) => {
+    if (e.target.closest("button, .reel-bottom-info")) return;
+    const now = Date.now();
+    if (now - lastTap < 320) {
+      clearTimeout(singleTapTimer);
+      if (!myLikedReels.has(reel.id)) card.querySelector(".like-btn").click();
+      spawnHeartBurst(card, e.clientX, e.clientY);
+    } else {
+      singleTapTimer = setTimeout(() => {
+        card.classList.toggle("paused");
+        const video = card.querySelector(".foryou-video");
+        if (video) {
+          if (card.classList.contains("paused")) video.pause();
+          else video.play().catch(() => {});
+        }
+      }, 300);
+    }
+    lastTap = now;
+  });
+
+  return card;
+}
+
+function openUploadReelModal() {
+  if (!currentUser) { toast("Sign in to upload"); openAuthModal("signin"); return; }
+  reelPickedFile = null;
+  document.getElementById("reelVideoInput").value = "";
+  document.getElementById("reelCaptionInput").value = "";
+  document.getElementById("reelUploadProgressText").textContent = "";
+  document.getElementById("reelUploadPicker").style.display = "";
+  document.getElementById("reelUploadPreviewWrap").style.display = "none";
+  openModal("uploadReelModal");
+}
+
+document.getElementById("reelPickVideoBtn").addEventListener("click", () => document.getElementById("reelVideoInput").click());
+document.getElementById("reelUploadChangeBtn").addEventListener("click", () => document.getElementById("reelVideoInput").click());
+
+document.getElementById("reelVideoInput").addEventListener("change", (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  reelPickedFile = file;
+  const video = document.getElementById("reelUploadPreviewVideo");
+  video.src = URL.createObjectURL(file);
+  document.getElementById("reelUploadPicker").style.display = "none";
+  document.getElementById("reelUploadPreviewWrap").style.display = "flex";
+});
+
+document.getElementById("reelPostBtn").addEventListener("click", async () => {
+  if (!reelPickedFile || !currentUser) { toast("Choose a video first"); return; }
+  const caption = document.getElementById("reelCaptionInput").value.trim();
+  const btn = document.getElementById("reelPostBtn");
+  const progress = document.getElementById("reelUploadProgressText");
+  btn.disabled = true;
+  progress.textContent = "Uploading...";
+  const ext = reelPickedFile.name.split(".").pop() || "mp4";
+  const path = `${currentUser.id}/${Date.now()}.${ext}`;
+  const { error: uploadError } = await supabaseClient.storage.from("reel-videos").upload(path, reelPickedFile);
+  if (uploadError) {
+    btn.disabled = false;
+    progress.textContent = "";
+    toast("Upload failed: " + uploadError.message);
+    return;
+  }
+  const { error: insertError } = await supabaseClient
+    .from("reels")
+    .insert({ creator_id: currentUser.id, video_path: path, caption });
+  btn.disabled = false;
+  progress.textContent = "";
+  if (insertError) { toast("Couldn't post reel: " + insertError.message); return; }
+  toast("Reel posted!");
+  closeModal("uploadReelModal");
+  await fetchRealReels();
+  if (state.view === "foryou") renderForYouFeed();
+});
 
 function openDetail(dramaId) {
   const d = DRAMAS.find(x => x.id === dramaId);
@@ -3110,14 +3317,14 @@ async function submitReport(drama) {
 }
 
 /* ---------------- Comments ---------------- */
-let currentCommentKey = null;
+let currentCommentTarget = null; // { type: "episode", dramaId, epNum } | { type: "reel", reelId }
 let commentsChannel = null;
 
 async function openComments(drama, epNum) {
   const list = document.getElementById("commentList");
   list.innerHTML = '<div class="creator-empty">Loading comments...</div>';
   openModal("commentModal");
-  currentCommentKey = { dramaId: drama.id, epNum };
+  currentCommentTarget = { type: "episode", dramaId: drama.id, epNum };
 
   const { data } = await supabaseClient
     .from("comments")
@@ -3162,6 +3369,53 @@ async function openComments(drama, epNum) {
     .subscribe();
 }
 
+async function openReelComments(reel) {
+  const list = document.getElementById("commentList");
+  list.innerHTML = '<div class="creator-empty">Loading comments...</div>';
+  openModal("commentModal");
+  currentCommentTarget = { type: "reel", reelId: reel.id };
+
+  const { data } = await supabaseClient
+    .from("reel_comments")
+    .select("text, user_id, author:profiles(username)")
+    .eq("reel_id", reel.id)
+    .order("created_at", { ascending: true });
+
+  const visible = (data || []).filter((c) => !blockedIds.has(c.user_id));
+  list.innerHTML = "";
+  if (!visible.length) {
+    list.innerHTML = '<div class="creator-empty">No comments yet — be the first!</div>';
+  } else {
+    visible.forEach((c) => list.appendChild(commentRow(c.author?.username || "User", c.text)));
+    list.scrollTop = list.scrollHeight;
+  }
+
+  if (commentsChannel) supabaseClient.removeChannel(commentsChannel);
+  commentsChannel = supabaseClient
+    .channel(`reel-comments:${reel.id}`)
+    .on(
+      "postgres_changes",
+      { event: "INSERT", schema: "public", table: "reel_comments", filter: `reel_id=eq.${reel.id}` },
+      (payload) => {
+        if (payload.new.user_id === currentUser?.id) return;
+        if (blockedIds.has(payload.new.user_id)) return;
+        bumpReelCommentCount(reel.id, 1);
+        supabaseClient
+          .from("profiles")
+          .select("username")
+          .eq("id", payload.new.user_id)
+          .single()
+          .then(({ data: p }) => {
+            const empty = list.querySelector(".creator-empty");
+            if (empty) empty.remove();
+            list.appendChild(commentRow(p?.username || "User", payload.new.text));
+            list.scrollTop = list.scrollHeight;
+          });
+      }
+    )
+    .subscribe();
+}
+
 function commentRow(name, text) {
   const row = document.createElement("div");
   row.className = "comment-item";
@@ -3176,15 +3430,24 @@ document.getElementById("commentInput").addEventListener("keydown", (e) => { if 
 async function sendComment() {
   const input = document.getElementById("commentInput");
   const text = input.value.trim();
-  if (!text || !currentCommentKey) return;
+  if (!text || !currentCommentTarget) return;
   if (!currentUser) { toast("Sign in to comment"); openAuthModal("signin"); return; }
-  const { dramaId, epNum } = currentCommentKey;
   input.value = "";
   const list = document.getElementById("commentList");
   const empty = list.querySelector(".creator-empty");
   if (empty) empty.remove();
   list.appendChild(commentRow(currentProfile?.username || "You", text));
   list.scrollTop = list.scrollHeight;
+
+  if (currentCommentTarget.type === "reel") {
+    const { reelId } = currentCommentTarget;
+    const { error } = await supabaseClient.from("reel_comments").insert({ reel_id: reelId, user_id: currentUser.id, text });
+    if (error) { toast("Comment failed to send"); return; }
+    bumpReelCommentCount(reelId, 1);
+    return;
+  }
+
+  const { dramaId, epNum } = currentCommentTarget;
   const { error } = await supabaseClient.from("comments").insert({
     drama_id: dramaId,
     episode_number: epNum,
@@ -3340,15 +3603,20 @@ function renderForYouFeed() {
     return b.score - a.score;
   });
 
+  const reelsByRecency = [...REELS].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
   const items = [
     // Real live sessions always rank as maximally "hot" — someone is live right now.
     ...liveSessionsCache.map((host) => ({ type: "live", data: host })),
+    // Fresh standalone reels surface right after live, ahead of drama episodes.
+    ...reelsByRecency.map((reel) => ({ type: "reel", data: reel })),
     ...dramaGroups.flatMap((g) => g.cards),
   ];
 
   items.forEach((item) => {
     let card;
     if (item.type === "live") card = buildLiveTeaserCard(item.data);
+    else if (item.type === "reel") card = buildReelCard(item.data);
     else if (item.type === "locked") card = buildLockedEpisodeCard(item.data);
     else card = buildForYouCard(item.data, item.epNum);
     feed.appendChild(card);
@@ -4057,14 +4325,26 @@ function handleProfileMenuAction(action) {
 
 document.getElementById("profileContinueSeeAll").addEventListener("click", () => handleProfileMenuAction("history"));
 
-document.getElementById("navCreateBtn").addEventListener("click", () => openModal("createChoiceModal"));
-document.getElementById("createGoLiveBtn").addEventListener("click", () => {
-  closeModal("createChoiceModal");
+function closeFabMenu() {
+  document.getElementById("fabMenu").classList.remove("open");
+  document.getElementById("navCreateBtn").classList.remove("open");
+}
+document.getElementById("navCreateBtn").addEventListener("click", () => {
+  document.getElementById("fabMenu").classList.toggle("open");
+  document.getElementById("navCreateBtn").classList.toggle("open");
+});
+document.getElementById("fabBackdrop").addEventListener("click", closeFabMenu);
+document.getElementById("fabGoLive").addEventListener("click", () => {
+  closeFabMenu();
   openLiveHost();
 });
-document.getElementById("createUploadDramaBtn").addEventListener("click", () => {
-  closeModal("createChoiceModal");
+document.getElementById("fabUploadDrama").addEventListener("click", () => {
+  closeFabMenu();
   openUploadModal();
+});
+document.getElementById("fabUploadReel").addEventListener("click", () => {
+  closeFabMenu();
+  openUploadReelModal();
 });
 
 document.getElementById("signInBtn").addEventListener("click", () => openAuthModal("signin"));

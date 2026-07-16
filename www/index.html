@@ -12,7 +12,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="Reelflix" />
-  <link rel="stylesheet" href="style.css?v=57" />
+  <link rel="stylesheet" href="style.css?v=58" />
 </head>
 <body>
   <svg width="0" height="0" style="position:absolute" aria-hidden="true">
@@ -910,20 +910,39 @@
     </div>
   </div>
 
-  <div class="modal-backdrop" id="createChoiceModal">
+  <div class="fab-menu" id="fabMenu">
+    <div class="fab-backdrop" id="fabBackdrop"></div>
+    <button class="fab-arc-item" id="fabGoLive" style="--tx:0px; --ty:-118px;">
+      <span class="fab-arc-circle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="6" width="13" height="12" rx="2"/><path d="M16 10l5-3v10l-5-3z"/></svg></span>
+      <span class="fab-arc-label">Go Live</span>
+    </button>
+    <button class="fab-arc-item" id="fabUploadReel" style="--tx:-100px; --ty:-70px;">
+      <span class="fab-arc-circle"><svg class="ic"><use href="#ic-play-square"/></svg></span>
+      <span class="fab-arc-label">Upload Reel</span>
+    </button>
+    <button class="fab-arc-item" id="fabUploadDrama" style="--tx:100px; --ty:-70px;">
+      <span class="fab-arc-circle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M12 16V8M8.5 11.5 12 8l3.5 3.5"/></svg></span>
+      <span class="fab-arc-label">Upload Drama</span>
+    </button>
+  </div>
+
+  <div class="modal-backdrop" id="uploadReelModal">
     <div class="modal">
-      <h3>Create</h3>
-      <button class="profile-row" id="createGoLiveBtn">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="6" width="13" height="12" rx="2"/><path d="M16 10l5-3v10l-5-3z"/></svg>
-        <span class="row-label">Go Live</span>
-        <span class="row-chevron">›</span>
-      </button>
-      <button class="profile-row" id="createUploadDramaBtn">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M12 16V8M8.5 11.5 12 8l3.5 3.5"/></svg>
-        <span class="row-label">Upload Drama</span>
-        <span class="row-chevron">›</span>
-      </button>
-      <button class="modal-close" data-close="createChoiceModal">✕</button>
+      <h3>Upload Reel</h3>
+      <div class="reel-upload-picker" id="reelUploadPicker">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M10 8.5l6 3.5-6 3.5z" fill="currentColor" stroke="none"/></svg>
+        <p>Pick a short video to share as a Reel.</p>
+        <input type="file" id="reelVideoInput" accept="video/*" style="display:none" />
+        <button class="btn-primary" id="reelPickVideoBtn">Select Video</button>
+      </div>
+      <div class="reel-upload-preview-wrap" id="reelUploadPreviewWrap" style="display:none">
+        <video id="reelUploadPreviewVideo" muted loop playsinline autoplay></video>
+        <button class="btn-ghost" id="reelUploadChangeBtn">Choose a different video</button>
+        <textarea id="reelCaptionInput" class="modal-textarea" placeholder="Write a caption... #hashtags" maxlength="300"></textarea>
+        <div id="reelUploadProgressText" class="upload-progress-text"></div>
+        <button class="btn-primary" id="reelPostBtn">Post</button>
+      </div>
+      <button class="modal-close" data-close="uploadReelModal">✕</button>
     </div>
   </div>
 
@@ -1145,8 +1164,8 @@
     </div>
   </div>
 
-  <script src="vendor/supabase.js?v=57"></script>
-  <script src="vendor/livekit-client.js?v=57"></script>
-  <script src="app.js?v=57"></script>
+  <script src="vendor/supabase.js?v=58"></script>
+  <script src="vendor/livekit-client.js?v=58"></script>
+  <script src="app.js?v=58"></script>
 </body>
 </html>
