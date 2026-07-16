@@ -59,6 +59,47 @@ Deno.serve(async (req) => {
       userId = record.receiver_id;
       title = "New message";
       body = record.text ? record.text.slice(0, 100) : "📷 Sent a photo";
+
+      const { data: meta } = await supabaseAdmin
+        .from("dm_conversation_meta")
+        .select("muted")
+        .eq("owner_id", record.receiver_id)
+        .eq("partner_id", record.sender_id)
+        .maybeSingle();
+      if (meta?.muted) return new Response("muted", { status: 200 });
+    } else if (table === "group_messages") {
+      const { data: members } = await supabaseAdmin
+        .from("group_members")
+        .select("user_id")
+        .eq("group_id", record.group_id)
+        .neq("user_id", record.sender_id);
+      const { data: group } = await supabaseAdmin.from("groups").select("name").eq("id", record.group_id).single();
+      title = group?.name ? `New message in ${group.name}` : "New group message";
+      body = record.text ? record.text.slice(0, 100) : "📷 Sent a photo";
+      const recipientIds = (members || []).map((m) => m.user_id);
+      if (!recipientIds.length) return new Response("no recipients", { status: 200 });
+
+      const { data: subs } = await supabaseAdmin
+        .from("push_subscriptions")
+        .select("endpoint, p256dh, auth")
+        .in("user_id", recipientIds);
+
+      await Promise.all(
+        (subs || []).map((s) =>
+          webpush
+            .sendNotification(
+              { endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } },
+              JSON.stringify({ title, body, url: "./" })
+            )
+            .catch(() => {})
+        )
+      );
+      return new Response("ok", { status: 200 });
+    } else if (table === "calls") {
+      if (record.status !== "ringing") return new Response("ignored", { status: 200 });
+      userId = record.callee_id;
+      title = record.is_video ? "Incoming video call" : "Incoming voice call";
+      body = "Tap to answer";
     } else {
       return new Response("ignored", { status: 200 });
     }

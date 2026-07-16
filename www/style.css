@@ -1235,6 +1235,115 @@ input { font: inherit; color: inherit; }
 .dm-chat-status { font-size: 11px; color: var(--text-dim); }
 .dm-chat-status.online { color: #2ecc71; font-weight: 700; }
 .dm-typing-indicator { padding: 0 16px 6px; font-size: 12px; color: var(--text-dim); font-style: italic; }
+
+/* ---------- Inbox tabs / requests / pin / mute ---------- */
+.dm-inbox-tabs { display: flex; gap: 22px; border-bottom: 1px solid var(--line); padding: 0 16px; margin-bottom: 6px; }
+.dm-inbox-tab { padding: 10px 0; font-size: 13.5px; font-weight: 700; color: var(--text-dim); border-bottom: 2px solid transparent; display: flex; align-items: center; gap: 6px; }
+.dm-inbox-tab.active { color: var(--text); border-bottom-color: var(--accent); }
+.dm-requests-badge { background: var(--accent); color: #fff; font-size: 10.5px; font-weight: 800; padding: 1px 7px; border-radius: 999px; }
+.creator-card.pinned { background: var(--panel-2); }
+.creator-card-pin-ic { width: 13px; height: 13px; color: var(--accent-2); flex-shrink: 0; }
+.creator-card-muted-ic { width: 13px; height: 13px; color: var(--text-dim); flex-shrink: 0; }
+.dm-request-actions { display: flex; gap: 8px; flex-shrink: 0; }
+.dm-request-accept-btn, .dm-request-delete-btn {
+  font-size: 12px;
+  font-weight: 700;
+  padding: 6px 12px;
+  border-radius: 999px;
+}
+.dm-request-accept-btn { background: var(--accent); color: #fff; }
+.dm-request-delete-btn { background: var(--panel-2); color: var(--text-dim); }
+
+/* ---------- DM chat search bar ---------- */
+.dm-chat-search-bar { display: flex; align-items: center; gap: 8px; padding: 8px 16px; border-bottom: 1px solid var(--line); }
+.dm-chat-search-bar input {
+  flex: 1;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 8px 14px;
+  color: var(--text);
+  font-size: 13px;
+}
+.dm-msg.search-hidden { display: none; }
+.dm-msg.search-match { outline: 2px solid var(--accent-2); }
+
+/* ---------- Image preview ---------- */
+#imagePreviewModal .image-preview-wrap { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; position: relative; }
+#imagePreviewModal.open { background: rgba(0,0,0,0.9); align-items: center; }
+.image-preview-wrap img { max-width: 92%; max-height: 80%; border-radius: 8px; }
+.image-preview-close { position: absolute; top: 30px; right: 20px; }
+
+/* ---------- Group chats ---------- */
+.group-selected-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.group-chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--panel-2);
+  border-radius: 999px;
+  padding: 5px 10px 5px 12px;
+  font-size: 12.5px;
+  font-weight: 600;
+}
+.group-chip button { color: var(--text-dim); font-size: 14px; }
+.group-msg-sender { font-size: 11px; color: var(--accent-2); font-weight: 700; margin-bottom: 2px; }
+
+/* ---------- Calls ---------- */
+.call-modal { align-items: center; text-align: center; gap: 14px; }
+.call-avatar-lg {
+  width: 84px; height: 84px;
+  border-radius: 50%;
+  background: var(--accent-grad);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 32px;
+  font-weight: 800;
+  color: #fff;
+  margin: 0 auto;
+}
+.call-actions-row { display: flex; justify-content: center; gap: 40px; margin-top: 10px; }
+.call-decline-btn, .call-accept-btn {
+  width: 58px; height: 58px;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  color: #fff;
+}
+.call-decline-btn { background: #dc2626; }
+.call-accept-btn { background: #22c55e; }
+.call-decline-btn .ic, .call-accept-btn .ic { width: 24px; height: 24px; }
+
+.call-stage { position: relative; height: 100%; background: #000; display: flex; flex-direction: column; justify-content: flex-end; }
+.call-video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.call-video-pip {
+  position: absolute;
+  top: 50px; right: 14px;
+  width: 84px; height: 112px;
+  border-radius: 10px;
+  object-fit: cover;
+  border: 2px solid rgba(255,255,255,0.8);
+  z-index: 4;
+}
+.call-bg { position: relative; z-index: 1; flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; color: #fff; }
+.call-bg h2 { font-size: 20px; }
+.call-bg p { color: rgba(255,255,255,0.7); font-size: 13px; }
+.call-bottom-bar { position: relative; z-index: 2; display: flex; justify-content: center; gap: 30px; padding: 24px 0 calc(24px + env(safe-area-inset-bottom)); }
+.call-control-btn {
+  width: 52px; height: 52px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.15);
+  color: #fff;
+  display: flex; align-items: center; justify-content: center;
+}
+.call-control-btn.active { background: #fff; color: #000; }
+.call-end-btn {
+  width: 58px; height: 58px;
+  border-radius: 50%;
+  background: #dc2626;
+  color: #fff;
+  display: flex; align-items: center; justify-content: center;
+  transform: rotate(135deg);
+}
+.call-end-btn .ic { width: 22px; height: 22px; }
 .online-dot {
   position: absolute;
   right: -1px;

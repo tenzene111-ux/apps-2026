@@ -40,14 +40,24 @@ Deno.serve(async (req) => {
     const { room } = await req.json();
     if (!room || typeof room !== "string") return json({ error: "room is required" }, 400);
 
-    // Only mint a token for a room that actually has an active live session.
-    const { data: session } = await supabase
-      .from("live_sessions")
-      .select("id")
-      .eq("room_name", room)
-      .is("ended_at", null)
-      .maybeSingle();
-    if (!session) return json({ error: "Room is not live" }, 404);
+    if (room.startsWith("call-")) {
+      // 1:1 / group DM calls: room name is "call-<uuid1>_<uuid2>_..." (user
+      // ids joined with underscore, since uuids themselves contain dashes).
+      // Anyone whose own user id appears in the room name is a legitimate
+      // participant, no live_sessions row needed.
+      const ids = room.slice("call-".length).split("_");
+      if (!ids.includes(user.id)) return json({ error: "Not a participant in this call" }, 403);
+    } else {
+      // Live streaming: only mint a token for a room that actually has an
+      // active live session.
+      const { data: session } = await supabase
+        .from("live_sessions")
+        .select("id")
+        .eq("room_name", room)
+        .is("ended_at", null)
+        .maybeSingle();
+      if (!session) return json({ error: "Room is not live" }, 404);
+    }
 
     const { data: profile } = await supabase
       .from("profiles")

@@ -107,6 +107,31 @@ let dmVoiceStream = null;
 let dmVoiceChunks = [];
 let dmVoiceStartedAt = 0;
 const DM_REACTION_EMOJIS = ["👍", "❤️", "😂", "😮", "😢"];
+let dmConversationMeta = new Map();
+let dmChatSearchActive = false;
+let dmChatSearchTerm = "";
+let groupsById = new Map();
+let groupMembersByGroup = new Map();
+let currentGroupId = null;
+let currentGroupName = null;
+let groupChatChannel = null;
+let groupsListChannel = null;
+let groupMessagesById = new Map();
+let groupMemberUsernames = new Map();
+let callRoom = null;
+let currentCallId = null;
+let currentCallIsCaller = false;
+let currentCallPartnerId = null;
+let currentCallPartnerName = null;
+let currentCallIsVideo = false;
+let currentCallEnded = true;
+let callLocalStream = null;
+let callLocalVideoTrack = null;
+let callLocalAudioTrack = null;
+let callRingTimeoutHandle = null;
+let callStatusChannel = null;
+let callConnectStartedAt = null;
+let pendingIncomingCall = null;
 
 const state = {
   coins: 0,
@@ -220,6 +245,7 @@ async function handleSignedIn(user) {
   updateCoinDisplays();
   await loadFollowing();
   await loadBlocked();
+  await loadDmConversationMeta();
   await loadRewardClaims();
   await loadRedemptions();
   fetchLiveSessions();
@@ -228,6 +254,7 @@ async function handleSignedIn(user) {
   syncWatchHistoryFromServer();
   refreshDmUnread();
   subscribeDmInboxRealtime();
+  subscribeIncomingCalls();
   joinGlobalPresence();
   touchLastSeen();
   if (lastSeenInterval) clearInterval(lastSeenInterval);
@@ -244,6 +271,25 @@ async function loadBlocked() {
   if (!currentUser || !supabaseClient) { blockedIds = new Set(); return; }
   const { data } = await supabaseClient.from("blocks").select("blocked_id").eq("blocker_id", currentUser.id);
   blockedIds = new Set((data || []).map((r) => r.blocked_id));
+}
+
+async function loadDmConversationMeta() {
+  dmConversationMeta = new Map();
+  if (!currentUser || !supabaseClient) return;
+  const { data } = await supabaseClient.from("dm_conversation_meta").select("*").eq("owner_id", currentUser.id);
+  (data || []).forEach((row) => dmConversationMeta.set(row.partner_id, row));
+}
+
+function getDmMeta(partnerId) {
+  return dmConversationMeta.get(partnerId) || { pinned: false, muted: false, accepted: false, hidden: false };
+}
+
+async function setDmMeta(partnerId, patch) {
+  if (!currentUser || !supabaseClient) return;
+  const current = getDmMeta(partnerId);
+  const next = { ...current, ...patch, owner_id: currentUser.id, partner_id: partnerId, updated_at: new Date().toISOString() };
+  dmConversationMeta.set(partnerId, next);
+  await supabaseClient.from("dm_conversation_meta").upsert(next, { onConflict: "owner_id,partner_id" });
 }
 
 function recordClaim(key) {
@@ -437,7 +483,7 @@ function switchView(name) {
   document.querySelectorAll(".view").forEach(v => v.classList.remove("active"));
   document.getElementById("view-" + name).classList.add("active");
   state.view = name;
-  document.getElementById("bottomNav").style.display = (name === "player" || name === "live-host" || name === "live-guest" || name === "dm-chat") ? "none" : "flex";
+  document.getElementById("bottomNav").style.display = (name === "player" || name === "live-host" || name === "live-guest" || name === "dm-chat" || name === "group-chat" || name === "call") ? "none" : "flex";
   const tabForView = { home: "home", explore: "explore", foryou: "foryou", mylist: "mylist", rewards: "profile", mine: "profile" };
   if (tabForView[name]) {
     document.querySelectorAll(".nav-item").forEach(b => b.classList.toggle("active", b.dataset.tab === tabForView[name]));
@@ -1058,55 +1104,491 @@ function renderDmChatStatus(partnerId) {
   }
 }
 
+let dmInboxConvByPartner = {};
+let dmInboxProfilesById = {};
+
 async function openDmInbox() {
   switchView("dm-inbox");
   const list = document.getElementById("dmConversationList");
+  const reqList = document.getElementById("dmRequestsList");
   list.innerHTML = '<div class="creator-empty">Loading...</div>';
 
   const { data } = await supabaseClient
     .from("dm_messages")
-    .select("sender_id, receiver_id, text, image_url, created_at, read")
+    .select("sender_id, receiver_id, text, image_url, audio_url, drama_share_id, created_at, read")
     .or(`sender_id.eq.${currentUser.id},receiver_id.eq.${currentUser.id}`)
     .order("created_at", { ascending: false });
 
   const convByPartner = {};
   (data || []).forEach((m) => {
     const partnerId = m.sender_id === currentUser.id ? m.receiver_id : m.sender_id;
-    const preview = m.text || (m.image_url ? "📷 Photo" : "");
-    if (!convByPartner[partnerId]) convByPartner[partnerId] = { lastText: preview, lastAt: m.created_at, unread: 0 };
+    const preview = dmPreviewText(m);
+    if (!convByPartner[partnerId]) {
+      convByPartner[partnerId] = { lastText: preview, lastAt: m.created_at, unread: 0, iSentAny: false };
+    }
+    if (m.sender_id === currentUser.id) convByPartner[partnerId].iSentAny = true;
     if (m.receiver_id === currentUser.id && !m.read) convByPartner[partnerId].unread++;
   });
   const partnerIds = Object.keys(convByPartner);
-  if (!partnerIds.length) {
-    list.innerHTML = '<div class="creator-empty">No messages yet. Message a creator from their profile.</div>';
-    return;
-  }
-  const { data: profiles } = await supabaseClient.from("profiles").select("id, username").in("id", partnerIds);
+  dmInboxConvByPartner = convByPartner;
   const byId = {};
-  (profiles || []).forEach((p) => { byId[p.id] = p; });
+  if (partnerIds.length) {
+    const { data: profiles } = await supabaseClient.from("profiles").select("id, username").in("id", partnerIds);
+    (profiles || []).forEach((p) => { byId[p.id] = p; });
+  }
+  dmInboxProfilesById = byId;
+
+  const primaryIds = [];
+  const requestIds = [];
+  partnerIds.forEach((id) => {
+    if (!byId[id]) return;
+    const conv = convByPartner[id];
+    const meta = getDmMeta(id);
+    if (meta.hidden && new Date(conv.lastAt) <= new Date(meta.updated_at || 0)) return;
+    const isRequest = !meta.accepted && !conv.iSentAny && !followingIds.has(id);
+    if (isRequest) requestIds.push(id);
+    else primaryIds.push(id);
+  });
+
+  const myGroups = await loadMyGroupsWithLastMessage();
+
+  const combined = [
+    ...primaryIds.map((id) => ({ type: "dm", id, lastAt: convByPartner[id].lastAt, pinned: !!getDmMeta(id).pinned })),
+    ...myGroups.map((g) => ({ type: "group", id: g.id, lastAt: g.lastAt, pinned: false, group: g })),
+  ];
+  combined.sort((a, b) => {
+    if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
+    return new Date(b.lastAt) - new Date(a.lastAt);
+  });
+  requestIds.sort((a, b) => new Date(convByPartner[b].lastAt) - new Date(convByPartner[a].lastAt));
+
+  document.getElementById("dmRequestsBadge").style.display = requestIds.length ? "" : "none";
+  document.getElementById("dmRequestsBadge").textContent = requestIds.length;
 
   list.innerHTML = "";
-  partnerIds
-    .sort((a, b) => new Date(convByPartner[b].lastAt) - new Date(convByPartner[a].lastAt))
-    .forEach((id) => {
-      const p = byId[id];
-      if (!p) return;
-      const conv = convByPartner[id];
+  if (!combined.length) {
+    list.innerHTML = '<div class="creator-empty">No messages yet. Message a creator from their profile, or start a group.</div>';
+  }
+  combined.forEach((entry) => {
+    if (entry.type === "dm") {
+      list.appendChild(buildDmInboxRow(entry.id, byId[entry.id], convByPartner[entry.id], false));
+    } else {
+      list.appendChild(buildGroupInboxRow(entry.group));
+    }
+  });
+
+  reqList.innerHTML = "";
+  if (!requestIds.length) {
+    reqList.innerHTML = '<div class="creator-empty">No message requests.</div>';
+  }
+  requestIds.forEach((id) => {
+    const p = byId[id];
+    if (!p) return;
+    reqList.appendChild(buildDmInboxRow(id, p, convByPartner[id], true));
+  });
+
+  updateDmPresenceUI();
+}
+
+async function loadMyGroupsWithLastMessage() {
+  if (!currentUser) return [];
+  const { data: memberRows } = await supabaseClient.from("group_members").select("group_id").eq("user_id", currentUser.id);
+  const groupIds = (memberRows || []).map((r) => r.group_id);
+  if (!groupIds.length) return [];
+  const { data: groups } = await supabaseClient.from("groups").select("id, name, created_at").in("id", groupIds);
+  const { data: lastMsgs } = await supabaseClient
+    .from("group_messages")
+    .select("group_id, text, image_url, audio_url, created_at")
+    .in("group_id", groupIds)
+    .order("created_at", { ascending: false });
+  const lastByGroup = {};
+  (lastMsgs || []).forEach((m) => { if (!lastByGroup[m.group_id]) lastByGroup[m.group_id] = m; });
+  return (groups || []).map((g) => {
+    const last = lastByGroup[g.id];
+    return {
+      id: g.id,
+      name: g.name,
+      lastText: last ? dmPreviewText(last) : "No messages yet",
+      lastAt: last ? last.created_at : g.created_at,
+    };
+  });
+}
+
+function buildGroupInboxRow(group) {
+  const row = document.createElement("div");
+  row.className = "creator-card";
+  row.innerHTML = `
+    <div class="creator-avatar" style="background:${gradientFor(group.id)}">${group.name[0].toUpperCase()}</div>
+    <div class="creator-info">
+      <div class="creator-name">👥 ${group.name}</div>
+      <div class="creator-status">${(group.lastText || "").slice(0, 40)}</div>
+    </div>
+  `;
+  row.addEventListener("click", () => openGroupChat(group.id, group.name));
+  return row;
+}
+
+function buildDmInboxRow(partnerId, profile, conv, isRequest) {
+  const meta = getDmMeta(partnerId);
+  const row = document.createElement("div");
+  row.className = "creator-card" + (meta.pinned ? " pinned" : "");
+  row.innerHTML = `
+    <div class="creator-avatar" style="background:${gradientFor(partnerId)}">${profile.username[0].toUpperCase()}<span class="online-dot" data-online-dot="${partnerId}"></span></div>
+    <div class="creator-info">
+      <div class="creator-name">
+        ${meta.pinned ? '<svg class="creator-card-pin-ic" viewBox="0 0 24 24" fill="currentColor"><use href="#ic-pin"/></svg>' : ""}
+        ${meta.muted ? '<svg class="creator-card-muted-ic ic"><use href="#ic-mute"/></svg>' : ""}
+        ${profile.username}
+      </div>
+      <div class="creator-status">${(conv.lastText || "").slice(0, 40)}</div>
+    </div>
+    ${isRequest
+      ? `<div class="dm-request-actions">
+           <button class="dm-request-accept-btn">Accept</button>
+           <button class="dm-request-delete-btn">Delete</button>
+         </div>`
+      : `${conv.unread > 0 ? '<span class="dm-unread-dot"></span>' : ""}<button class="icon-btn dm-conv-more-btn">⋮</button>`}
+  `;
+  if (isRequest) {
+    row.querySelector(".dm-request-accept-btn").addEventListener("click", async (e) => {
+      e.stopPropagation();
+      await setDmMeta(partnerId, { accepted: true });
+      openDmChat(partnerId, profile.username);
+    });
+    row.querySelector(".dm-request-delete-btn").addEventListener("click", async (e) => {
+      e.stopPropagation();
+      await setDmMeta(partnerId, { hidden: true });
+      openDmInbox();
+    });
+    row.addEventListener("click", () => openDmChat(partnerId, profile.username));
+  } else {
+    row.querySelector(".dm-conv-more-btn").addEventListener("click", (e) => {
+      e.stopPropagation();
+      openDmRowActionsModal(partnerId, profile.username);
+    });
+    row.addEventListener("click", () => openDmChat(partnerId, profile.username));
+  }
+  return row;
+}
+
+let dmRowActionsPartnerId = null;
+function openDmRowActionsModal(partnerId, username) {
+  dmRowActionsPartnerId = partnerId;
+  const meta = getDmMeta(partnerId);
+  document.getElementById("dmRowActionsTitle").textContent = username;
+  document.getElementById("dmActionPinLabel").textContent = meta.pinned ? "Unpin Chat" : "Pin Chat";
+  document.getElementById("dmActionMuteLabel").textContent = meta.muted ? "Unmute Notifications" : "Mute Notifications";
+  openModal("dmRowActionsModal");
+}
+document.getElementById("dmActionPinBtn").addEventListener("click", async () => {
+  if (!dmRowActionsPartnerId) return;
+  const meta = getDmMeta(dmRowActionsPartnerId);
+  await setDmMeta(dmRowActionsPartnerId, { pinned: !meta.pinned });
+  closeModal("dmRowActionsModal");
+  openDmInbox();
+});
+document.getElementById("dmActionMuteBtn").addEventListener("click", async () => {
+  if (!dmRowActionsPartnerId) return;
+  const meta = getDmMeta(dmRowActionsPartnerId);
+  await setDmMeta(dmRowActionsPartnerId, { muted: !meta.muted });
+  closeModal("dmRowActionsModal");
+  openDmInbox();
+});
+document.getElementById("dmActionHideBtn").addEventListener("click", async () => {
+  if (!dmRowActionsPartnerId) return;
+  if (!confirm("Delete this chat from your inbox?")) return;
+  await setDmMeta(dmRowActionsPartnerId, { hidden: true });
+  closeModal("dmRowActionsModal");
+  openDmInbox();
+});
+
+document.querySelectorAll(".dm-inbox-tab").forEach((tab) => {
+  tab.addEventListener("click", () => {
+    document.querySelectorAll(".dm-inbox-tab").forEach((t) => t.classList.remove("active"));
+    tab.classList.add("active");
+    document.getElementById("dmConversationList").style.display = tab.dataset.dmtab === "primary" ? "" : "none";
+    document.getElementById("dmRequestsList").style.display = tab.dataset.dmtab === "requests" ? "" : "none";
+  });
+});
+
+/* ---------------- New Message / Create Group ---------------- */
+let newMessageSearchTimer = null;
+document.getElementById("newMessageBtn").addEventListener("click", () => {
+  document.getElementById("newMessageSearchInput").value = "";
+  document.getElementById("newMessageResults").innerHTML = "";
+  openModal("newMessageModal");
+});
+document.getElementById("newMessageSearchInput").addEventListener("input", (e) => {
+  const term = e.target.value.trim();
+  clearTimeout(newMessageSearchTimer);
+  const results = document.getElementById("newMessageResults");
+  if (!term) { results.innerHTML = ""; return; }
+  newMessageSearchTimer = setTimeout(async () => {
+    const { data } = await supabaseClient
+      .from("profiles")
+      .select("id, username")
+      .ilike("username", `%${term}%`)
+      .neq("id", currentUser?.id || "")
+      .limit(20);
+    results.innerHTML = "";
+    if (!data || !data.length) { results.innerHTML = '<div class="creator-empty">No users found.</div>'; return; }
+    data.forEach((p) => {
       const row = document.createElement("div");
       row.className = "creator-card";
       row.innerHTML = `
-        <div class="creator-avatar" style="background:${gradientFor(id)}">${p.username[0].toUpperCase()}<span class="online-dot" data-online-dot="${id}"></span></div>
-        <div class="creator-info">
-          <div class="creator-name">${p.username}</div>
-          <div class="creator-status">${conv.lastText.slice(0, 40)}</div>
-        </div>
-        ${conv.unread > 0 ? '<span class="dm-unread-dot"></span>' : ""}
+        <div class="creator-avatar" style="background:${gradientFor(p.id)}">${p.username[0].toUpperCase()}</div>
+        <div class="creator-info"><div class="creator-name">${p.username}</div></div>
       `;
-      row.addEventListener("click", () => openDmChat(id, p.username));
-      list.appendChild(row);
+      row.addEventListener("click", () => {
+        closeModal("newMessageModal");
+        openDmChat(p.id, p.username);
+      });
+      results.appendChild(row);
     });
-  updateDmPresenceUI();
+  }, 350);
+});
+
+let groupSelectedMembers = new Map();
+let groupMemberSearchTimer = null;
+
+document.getElementById("createGroupBtn").addEventListener("click", () => {
+  closeModal("newMessageModal");
+  groupSelectedMembers = new Map();
+  document.getElementById("groupNameInput").value = "";
+  document.getElementById("groupMemberSearchInput").value = "";
+  document.getElementById("groupMemberResults").innerHTML = "";
+  renderGroupSelectedChips();
+  openModal("createGroupModal");
+});
+
+function renderGroupSelectedChips() {
+  const wrap = document.getElementById("groupSelectedMembers");
+  wrap.innerHTML = "";
+  groupSelectedMembers.forEach((username, id) => {
+    const chip = document.createElement("span");
+    chip.className = "group-chip";
+    chip.innerHTML = `${username} <button data-id="${id}">✕</button>`;
+    chip.querySelector("button").addEventListener("click", () => {
+      groupSelectedMembers.delete(id);
+      renderGroupSelectedChips();
+    });
+    wrap.appendChild(chip);
+  });
 }
+
+document.getElementById("groupMemberSearchInput").addEventListener("input", (e) => {
+  const term = e.target.value.trim();
+  clearTimeout(groupMemberSearchTimer);
+  const results = document.getElementById("groupMemberResults");
+  if (!term) { results.innerHTML = ""; return; }
+  groupMemberSearchTimer = setTimeout(async () => {
+    const { data } = await supabaseClient
+      .from("profiles")
+      .select("id, username")
+      .ilike("username", `%${term}%`)
+      .neq("id", currentUser?.id || "")
+      .limit(20);
+    results.innerHTML = "";
+    (data || []).filter((p) => !groupSelectedMembers.has(p.id)).forEach((p) => {
+      const row = document.createElement("div");
+      row.className = "creator-card";
+      row.innerHTML = `
+        <div class="creator-avatar" style="background:${gradientFor(p.id)}">${p.username[0].toUpperCase()}</div>
+        <div class="creator-info"><div class="creator-name">${p.username}</div></div>
+      `;
+      row.addEventListener("click", () => {
+        groupSelectedMembers.set(p.id, p.username);
+        renderGroupSelectedChips();
+        document.getElementById("groupMemberSearchInput").value = "";
+        results.innerHTML = "";
+      });
+      results.appendChild(row);
+    });
+  }, 350);
+});
+
+document.getElementById("createGroupSubmitBtn").addEventListener("click", async () => {
+  const name = document.getElementById("groupNameInput").value.trim();
+  if (!name) { toast("Enter a group name"); return; }
+  if (groupSelectedMembers.size < 2) { toast("Add at least 2 members"); return; }
+  if (!currentUser) return;
+  const btn = document.getElementById("createGroupSubmitBtn");
+  btn.disabled = true;
+  const { data: group, error } = await supabaseClient
+    .from("groups")
+    .insert({ name, created_by: currentUser.id })
+    .select()
+    .single();
+  if (error || !group) { toast("Couldn't create group"); btn.disabled = false; return; }
+  const memberRows = [currentUser.id, ...groupSelectedMembers.keys()].map((id) => ({ group_id: group.id, user_id: id }));
+  const { error: memberError } = await supabaseClient.from("group_members").insert(memberRows);
+  btn.disabled = false;
+  if (memberError) { toast("Couldn't add members"); return; }
+  closeModal("createGroupModal");
+  toast("Group created");
+  openGroupChat(group.id, group.name);
+});
+
+/* ---------------- Group chat ---------------- */
+function appendGroupMessage(mine, msg) {
+  groupMessagesById.set(msg.id, msg);
+  const messagesEl = document.getElementById("groupChatMessages");
+  const empty = messagesEl.querySelector(".creator-empty");
+  if (empty) empty.remove();
+  const row = document.createElement("div");
+  row.className = "dm-msg " + (mine ? "mine" : "theirs");
+  row.dataset.id = msg.id;
+  if (!mine) {
+    const sender = document.createElement("div");
+    sender.className = "group-msg-sender";
+    sender.textContent = groupMemberUsernames.get(msg.sender_id) || "Member";
+    row.appendChild(sender);
+  }
+  if (msg.image_url) {
+    const img = document.createElement("img");
+    img.className = "dm-msg-img";
+    img.src = msg.image_url;
+    img.addEventListener("click", (e) => { e.stopPropagation(); openImagePreview(msg.image_url); });
+    row.appendChild(img);
+  }
+  if (msg.audio_url) {
+    const audio = document.createElement("audio");
+    audio.className = "dm-msg-audio";
+    audio.controls = true;
+    audio.src = msg.audio_url;
+    row.appendChild(audio);
+  }
+  if (msg.text) {
+    const span = document.createElement("span");
+    span.textContent = msg.text;
+    row.appendChild(span);
+  }
+  messagesEl.appendChild(row);
+}
+
+async function openGroupChat(groupId, groupName) {
+  switchView("group-chat");
+  currentGroupId = groupId;
+  currentGroupName = groupName;
+  document.getElementById("groupChatTitle").textContent = groupName;
+  groupMessagesById = new Map();
+  const messagesEl = document.getElementById("groupChatMessages");
+  messagesEl.innerHTML = '<div class="creator-empty">Loading...</div>';
+
+  const { data: memberRows } = await supabaseClient.from("group_members").select("user_id").eq("group_id", groupId);
+  const memberIds = (memberRows || []).map((r) => r.user_id);
+  groupMembersByGroup.set(groupId, memberIds);
+  if (memberIds.length) {
+    const { data: memberProfiles } = await supabaseClient.from("profiles").select("id, username").in("id", memberIds);
+    (memberProfiles || []).forEach((p) => groupMemberUsernames.set(p.id, p.username));
+  }
+
+  const { data } = await supabaseClient
+    .from("group_messages")
+    .select("id, sender_id, text, image_url, audio_url, created_at")
+    .eq("group_id", groupId)
+    .order("created_at", { ascending: true });
+
+  messagesEl.innerHTML = "";
+  (data || []).forEach((m) => appendGroupMessage(m.sender_id === currentUser.id, m));
+  if (!data || !data.length) messagesEl.innerHTML = '<div class="creator-empty">No messages yet. Say hi!</div>';
+  messagesEl.scrollTop = messagesEl.scrollHeight;
+
+  if (groupChatChannel) supabaseClient.removeChannel(groupChatChannel);
+  groupChatChannel = supabaseClient
+    .channel(`group-chat:${groupId}`)
+    .on(
+      "postgres_changes",
+      { event: "INSERT", schema: "public", table: "group_messages", filter: `group_id=eq.${groupId}` },
+      (payload) => {
+        if (payload.new.sender_id === currentUser.id) return;
+        appendGroupMessage(false, payload.new);
+        messagesEl.scrollTop = messagesEl.scrollHeight;
+      }
+    )
+    .subscribe();
+}
+
+async function sendGroupMessage() {
+  const input = document.getElementById("groupChatInput");
+  const text = input.value.trim();
+  if (!text || !currentGroupId) return;
+  input.value = "";
+  const tempId = "temp-" + crypto.randomUUID();
+  const messagesEl = document.getElementById("groupChatMessages");
+  appendGroupMessage(true, { id: tempId, sender_id: currentUser.id, text, created_at: new Date().toISOString() });
+  messagesEl.scrollTop = messagesEl.scrollHeight;
+  const { data, error } = await supabaseClient
+    .from("group_messages")
+    .insert({ group_id: currentGroupId, sender_id: currentUser.id, text })
+    .select()
+    .single();
+  if (error) { toast("Message couldn't be delivered"); return; }
+  const row = messagesEl.querySelector(`[data-id="${tempId}"]`);
+  if (row && data) { row.dataset.id = data.id; groupMessagesById.delete(tempId); groupMessagesById.set(data.id, data); }
+}
+document.getElementById("groupChatSendBtn").addEventListener("click", sendGroupMessage);
+document.getElementById("groupChatInput").addEventListener("keydown", (e) => { if (e.key === "Enter") sendGroupMessage(); });
+
+document.getElementById("groupImageBtn").addEventListener("click", () => {
+  if (!currentGroupId) return;
+  document.getElementById("groupImageInput").click();
+});
+document.getElementById("groupImageInput").addEventListener("change", async (e) => {
+  const file = e.target.files[0];
+  e.target.value = "";
+  if (!file || !currentGroupId || !currentUser) return;
+  const ext = (file.name.split(".").pop() || "jpg").toLowerCase();
+  const path = `${currentUser.id}/${Date.now()}.${ext}`;
+  const { error: uploadError } = await supabaseClient.storage.from("group-media").upload(path, file);
+  if (uploadError) { toast("Photo upload failed"); return; }
+  const imageUrl = `${SUPABASE_URL}/storage/v1/object/public/group-media/${path}`;
+  const { data, error } = await supabaseClient
+    .from("group_messages")
+    .insert({ group_id: currentGroupId, sender_id: currentUser.id, image_url: imageUrl })
+    .select()
+    .single();
+  if (error) { toast("Message couldn't be delivered"); return; }
+  appendGroupMessage(true, data);
+  document.getElementById("groupChatMessages").scrollTop = document.getElementById("groupChatMessages").scrollHeight;
+});
+
+document.getElementById("groupChatBackBtn").addEventListener("click", () => {
+  if (groupChatChannel) { supabaseClient.removeChannel(groupChatChannel); groupChatChannel = null; }
+  currentGroupId = null;
+  openDmInbox();
+});
+
+document.getElementById("groupChatInfoBtn").addEventListener("click", async () => {
+  if (!currentGroupId) return;
+  document.getElementById("groupInfoName").textContent = currentGroupName;
+  const membersList = document.getElementById("groupInfoMembers");
+  membersList.innerHTML = '<div class="creator-empty">Loading...</div>';
+  openModal("groupInfoModal");
+  const memberIds = groupMembersByGroup.get(currentGroupId) || [];
+  const { data: profiles } = await supabaseClient.from("profiles").select("id, username").in("id", memberIds);
+  membersList.innerHTML = "";
+  (profiles || []).forEach((p) => {
+    const row = document.createElement("div");
+    row.className = "creator-card";
+    row.innerHTML = `
+      <div class="creator-avatar" style="background:${gradientFor(p.id)}">${p.username[0].toUpperCase()}</div>
+      <div class="creator-info"><div class="creator-name">${p.username}${p.id === currentUser.id ? " (You)" : ""}</div></div>
+    `;
+    membersList.appendChild(row);
+  });
+});
+
+document.getElementById("leaveGroupBtn").addEventListener("click", async () => {
+  if (!currentGroupId || !currentUser) return;
+  if (!confirm(`Leave ${currentGroupName}?`)) return;
+  await supabaseClient.from("group_members").delete().eq("group_id", currentGroupId).eq("user_id", currentUser.id);
+  closeModal("groupInfoModal");
+  toast("You left the group");
+  if (groupChatChannel) { supabaseClient.removeChannel(groupChatChannel); groupChatChannel = null; }
+  currentGroupId = null;
+  openDmInbox();
+});
 
 function dmPreviewText(msg) {
   if (msg.text) return msg.text;
@@ -1151,6 +1633,7 @@ function appendDmMessage(mine, msg) {
     const img = document.createElement("img");
     img.className = "dm-msg-img";
     img.src = msg.image_url;
+    img.addEventListener("click", (e) => { e.stopPropagation(); openImagePreview(msg.image_url); });
     row.appendChild(img);
   }
   if (msg.audio_url) {
@@ -1272,6 +1755,10 @@ async function openDmChat(partnerId, partnerName) {
   dmReplyTarget = null;
   dmMessagesById = new Map();
   dmReactionsByMessage = new Map();
+  dmChatSearchActive = false;
+  dmChatSearchTerm = "";
+  document.getElementById("dmChatSearchBar").style.display = "none";
+  document.getElementById("dmChatSearchInput").value = "";
   document.getElementById("dmReplyPreview").style.display = "none";
   document.getElementById("dmChatStatus").textContent = "";
   document.getElementById("dmTypingIndicator").style.display = "none";
@@ -1363,6 +1850,49 @@ function showDmTypingIndicator() {
   dmTypingTimeout = setTimeout(() => { el.style.display = "none"; }, 3000);
 }
 
+function openImagePreview(url) {
+  document.getElementById("imagePreviewImg").src = url;
+  openModal("imagePreviewModal");
+}
+
+function applyDmChatSearchFilter() {
+  const term = dmChatSearchTerm.trim().toLowerCase();
+  document.querySelectorAll("#dmChatMessages .dm-msg").forEach((row) => {
+    row.classList.remove("search-hidden", "search-match");
+    if (!term) return;
+    const msg = dmMessagesById.get(row.dataset.id);
+    const text = (msg?.text || "").toLowerCase();
+    if (text.includes(term)) row.classList.add("search-match");
+    else row.classList.add("search-hidden");
+  });
+}
+
+document.getElementById("dmChatSearchBtn").addEventListener("click", () => {
+  dmChatSearchActive = !dmChatSearchActive;
+  document.getElementById("dmChatSearchBar").style.display = dmChatSearchActive ? "flex" : "none";
+  if (dmChatSearchActive) {
+    document.getElementById("dmChatSearchInput").focus();
+  } else {
+    dmChatSearchTerm = "";
+    document.getElementById("dmChatSearchInput").value = "";
+    applyDmChatSearchFilter();
+  }
+});
+document.getElementById("dmChatSearchCloseBtn").addEventListener("click", () => {
+  dmChatSearchActive = false;
+  dmChatSearchTerm = "";
+  document.getElementById("dmChatSearchInput").value = "";
+  document.getElementById("dmChatSearchBar").style.display = "none";
+  applyDmChatSearchFilter();
+});
+document.getElementById("dmChatSearchInput").addEventListener("input", (e) => {
+  dmChatSearchTerm = e.target.value;
+  applyDmChatSearchFilter();
+});
+
+document.getElementById("dmChatCallBtn").addEventListener("click", () => startCall(false));
+document.getElementById("dmChatVideoCallBtn").addEventListener("click", () => startCall(true));
+
 document.getElementById("dmChatSendBtn").addEventListener("click", sendDmMessage);
 document.getElementById("dmChatInput").addEventListener("keydown", (e) => { if (e.key === "Enter") sendDmMessage(); });
 document.getElementById("dmChatInput").addEventListener("input", () => {
@@ -1398,6 +1928,11 @@ async function sendDmMessage() {
   if (error) { toast("Message couldn't be delivered"); return; }
   const row = messagesEl.querySelector(`[data-id="${tempId}"]`);
   if (row && data) { row.dataset.id = data.id; dmMessagesById.delete(tempId); dmMessagesById.set(data.id, data); }
+  markDmAccepted(currentDmPartnerId);
+}
+
+function markDmAccepted(partnerId) {
+  if (!getDmMeta(partnerId).accepted) setDmMeta(partnerId, { accepted: true });
 }
 
 document.getElementById("dmImageBtn").addEventListener("click", () => {
@@ -1422,6 +1957,7 @@ document.getElementById("dmImageInput").addEventListener("change", async (e) => 
   if (error) { toast("Message couldn't be delivered"); return; }
   appendDmMessage(true, data);
   document.getElementById("dmChatMessages").scrollTop = document.getElementById("dmChatMessages").scrollHeight;
+  markDmAccepted(currentDmPartnerId);
 });
 
 document.getElementById("dmVoiceBtn").addEventListener("pointerdown", async (e) => {
@@ -1472,6 +2008,7 @@ async function stopDmVoiceRecording() {
   if (error) { toast("Message couldn't be delivered"); return; }
   appendDmMessage(true, data);
   document.getElementById("dmChatMessages").scrollTop = document.getElementById("dmChatMessages").scrollHeight;
+  markDmAccepted(currentDmPartnerId);
 }
 document.getElementById("dmVoiceBtn").addEventListener("pointerup", stopDmVoiceRecording);
 document.getElementById("dmVoiceBtn").addEventListener("pointerleave", stopDmVoiceRecording);
@@ -1560,6 +2097,237 @@ document.getElementById("creatorSearchInput").addEventListener("input", (e) => {
     if (!data || !data.length) { results.innerHTML = '<div class="creator-empty">No creators found.</div>'; return; }
     data.forEach((p) => results.appendChild(buildCreatorCard(p)));
   }, 350);
+});
+
+/* ---------------- Voice / video calls (LiveKit) ---------------- */
+const CALL_RING_TIMEOUT_MS = 45000;
+
+function subscribeIncomingCalls() {
+  if (!supabaseClient || !currentUser) return;
+  if (callIncomingListenChannel) supabaseClient.removeChannel(callIncomingListenChannel);
+  callIncomingListenChannel = supabaseClient
+    .channel(`calls-incoming:${currentUser.id}`)
+    .on(
+      "postgres_changes",
+      { event: "INSERT", schema: "public", table: "calls", filter: `callee_id=eq.${currentUser.id}` },
+      (payload) => {
+        if (payload.new.status !== "ringing") return;
+        if (!currentCallEnded) {
+          supabaseClient.from("calls").update({ status: "declined", ended_at: new Date().toISOString() }).eq("id", payload.new.id);
+          return;
+        }
+        showIncomingCall(payload.new);
+      }
+    )
+    .subscribe();
+}
+let callIncomingListenChannel = null;
+
+async function showIncomingCall(callRow) {
+  pendingIncomingCall = callRow;
+  const { data: caller } = await supabaseClient.from("profiles").select("username").eq("id", callRow.caller_id).single();
+  const name = caller?.username || "Someone";
+  document.getElementById("incomingCallAvatar").style.background = gradientFor(callRow.caller_id);
+  document.getElementById("incomingCallAvatar").textContent = name[0].toUpperCase();
+  document.getElementById("incomingCallName").textContent = name;
+  document.getElementById("incomingCallType").textContent = callRow.is_video ? "Video call..." : "Voice call...";
+  openModal("incomingCallModal");
+}
+
+document.getElementById("acceptCallBtn").addEventListener("click", async () => {
+  const callRow = pendingIncomingCall;
+  if (!callRow) return;
+  pendingIncomingCall = null;
+  closeModal("incomingCallModal");
+  await supabaseClient.from("calls").update({ status: "accepted" }).eq("id", callRow.id);
+  const { data: caller } = await supabaseClient.from("profiles").select("username").eq("id", callRow.caller_id).single();
+  openCallView(callRow.id, callRow.caller_id, caller?.username || "Someone", callRow.is_video, false);
+  connectToCall(callRow.room, callRow.is_video);
+});
+
+document.getElementById("declineCallBtn").addEventListener("click", async () => {
+  const callRow = pendingIncomingCall;
+  if (!callRow) return;
+  pendingIncomingCall = null;
+  closeModal("incomingCallModal");
+  await supabaseClient.from("calls").update({ status: "declined", ended_at: new Date().toISOString() }).eq("id", callRow.id);
+});
+
+async function startCall(isVideo) {
+  if (!currentUser || !currentDmPartnerId) return;
+  const partnerId = currentDmPartnerId;
+  const partnerName = document.getElementById("dmChatTitle").textContent;
+  const room = `call-${[currentUser.id, partnerId].sort().join("_")}`;
+  const { data: callRow, error } = await supabaseClient
+    .from("calls")
+    .insert({ caller_id: currentUser.id, callee_id: partnerId, room, is_video: isVideo, status: "ringing" })
+    .select()
+    .single();
+  if (error || !callRow) { toast("Couldn't start the call"); return; }
+
+  openCallView(callRow.id, partnerId, partnerName, isVideo, true);
+  document.getElementById("callStatusText").textContent = "Calling...";
+
+  if (callStatusChannel) supabaseClient.removeChannel(callStatusChannel);
+  callStatusChannel = supabaseClient
+    .channel(`call-status:${callRow.id}`)
+    .on(
+      "postgres_changes",
+      { event: "UPDATE", schema: "public", table: "calls", filter: `id=eq.${callRow.id}` },
+      (payload) => {
+        if (payload.new.status === "accepted") {
+          clearTimeout(callRingTimeoutHandle);
+          document.getElementById("callStatusText").textContent = "Connecting...";
+          connectToCall(room, isVideo);
+        } else if (payload.new.status === "declined") {
+          clearTimeout(callRingTimeoutHandle);
+          toast(`${partnerName} declined the call`);
+          logCallOutcome(partnerId, isVideo, "declined");
+          endCallLocal(false);
+        }
+      }
+    )
+    .subscribe();
+
+  callRingTimeoutHandle = setTimeout(async () => {
+    await supabaseClient.from("calls").update({ status: "missed", ended_at: new Date().toISOString() }).eq("id", callRow.id).eq("status", "ringing");
+    toast("No answer");
+    logCallOutcome(partnerId, isVideo, "missed");
+    endCallLocal(false);
+  }, CALL_RING_TIMEOUT_MS);
+}
+
+function openCallView(callId, partnerId, partnerName, isVideo, isCaller) {
+  currentCallId = callId;
+  currentCallIsCaller = isCaller;
+  currentCallPartnerId = partnerId;
+  currentCallPartnerName = partnerName;
+  currentCallIsVideo = isVideo;
+  currentCallEnded = false;
+  callConnectStartedAt = null;
+  switchView("call");
+  document.getElementById("callPartnerName").textContent = partnerName;
+  document.getElementById("callAvatar").style.background = gradientFor(partnerId);
+  document.getElementById("callAvatar").textContent = partnerName[0].toUpperCase();
+  document.getElementById("callAvatarBg").style.display = "flex";
+  const remoteVideo = document.getElementById("callRemoteVideo");
+  const localVideo = document.getElementById("callLocalVideo");
+  remoteVideo.style.display = "none";
+  localVideo.style.display = "none";
+  document.getElementById("callVideoToggleBtn").style.display = isVideo ? "" : "none";
+  document.getElementById("callVideoToggleBtn").classList.remove("active");
+  document.getElementById("callMuteBtn").classList.remove("active");
+}
+
+async function connectToCall(room, isVideo) {
+  try {
+    const { token, url } = await getLiveKitToken(room);
+    const lkRoom = new LivekitClient.Room();
+    lkRoom.on(LivekitClient.RoomEvent.TrackSubscribed, (track) => {
+      if (track.kind === "audio") { track.attach(); return; }
+      if (track.kind !== "video") return;
+      const video = document.getElementById("callRemoteVideo");
+      track.attach(video);
+      video.style.display = "block";
+      document.getElementById("callAvatarBg").style.display = "none";
+    });
+    lkRoom.on(LivekitClient.RoomEvent.TrackUnsubscribed, (track) => {
+      if (track.kind === "audio") { track.detach().forEach((el) => el.remove()); return; }
+      const video = document.getElementById("callRemoteVideo");
+      video.style.display = "none";
+      document.getElementById("callAvatarBg").style.display = "flex";
+    });
+    lkRoom.on(LivekitClient.RoomEvent.ParticipantConnected, () => {
+      callConnectStartedAt = Date.now();
+      document.getElementById("callStatusText").textContent = "Connected";
+    });
+    lkRoom.on(LivekitClient.RoomEvent.ParticipantDisconnected, () => {
+      toast(`${currentCallPartnerName} left the call`);
+      endCallLocal(true);
+    });
+    await lkRoom.connect(url, token);
+    callRoom = lkRoom;
+
+    callLocalStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: isVideo ? { facingMode: "user" } : false });
+    callLocalAudioTrack = callLocalStream.getAudioTracks()[0];
+    callLocalVideoTrack = isVideo ? callLocalStream.getVideoTracks()[0] : null;
+    await lkRoom.localParticipant.publishTrack(callLocalAudioTrack, { source: LivekitClient.Track.Source.Microphone });
+    if (callLocalVideoTrack) {
+      await lkRoom.localParticipant.publishTrack(callLocalVideoTrack, { source: LivekitClient.Track.Source.Camera });
+      const localVideo = document.getElementById("callLocalVideo");
+      localVideo.srcObject = new MediaStream([callLocalVideoTrack]);
+      localVideo.style.display = "block";
+    }
+    if (lkRoom.numParticipants > 0) {
+      callConnectStartedAt = Date.now();
+      document.getElementById("callStatusText").textContent = "Connected";
+    }
+  } catch (e) {
+    toast("Couldn't connect the call");
+    endCallLocal(true);
+  }
+}
+
+function logCallOutcome(partnerId, isVideo, outcome) {
+  if (!currentUser || !partnerId) return;
+  const kind = isVideo ? "Video call" : "Voice call";
+  let text;
+  if (outcome === "missed") text = `📞 Missed ${kind.toLowerCase()}`;
+  else if (outcome === "declined") text = `📞 ${kind} declined`;
+  else if (outcome === "ended" && callConnectStartedAt) {
+    const secs = Math.round((Date.now() - callConnectStartedAt) / 1000);
+    const mm = Math.floor(secs / 60), ss = String(secs % 60).padStart(2, "0");
+    text = `📞 ${kind} · ${mm}:${ss}`;
+  } else {
+    text = `📞 ${kind} ended`;
+  }
+  supabaseClient.from("dm_messages").insert({ sender_id: currentUser.id, receiver_id: partnerId, text }).then(() => {});
+}
+
+function endCallLocal(remoteEnded) {
+  if (currentCallEnded) return;
+  currentCallEnded = true;
+  clearTimeout(callRingTimeoutHandle);
+  if (callStatusChannel && supabaseClient) { supabaseClient.removeChannel(callStatusChannel); callStatusChannel = null; }
+  if (callRoom) { try { callRoom.disconnect(); } catch (e) {} callRoom = null; }
+  if (callLocalStream) { callLocalStream.getTracks().forEach((t) => t.stop()); callLocalStream = null; }
+  callLocalVideoTrack = null;
+  callLocalAudioTrack = null;
+  const partnerId = currentCallPartnerId;
+  const partnerName = currentCallPartnerName;
+  currentCallId = null;
+  currentCallPartnerId = null;
+  currentCallPartnerName = null;
+  if (state.view === "call") {
+    if (partnerId) openDmChat(partnerId, partnerName || "Chat");
+    else switchView("dm-inbox");
+  }
+}
+
+document.getElementById("callEndBtn").addEventListener("click", async () => {
+  if (currentCallEnded) return;
+  const callId = currentCallId;
+  const isCaller = currentCallIsCaller;
+  const partnerId = currentCallPartnerId;
+  const isVideo = currentCallIsVideo;
+  const wasConnected = !!callConnectStartedAt;
+  if (callId) {
+    await supabaseClient.from("calls").update({ status: "ended", ended_at: new Date().toISOString() }).eq("id", callId).neq("status", "ended");
+  }
+  if (isCaller) logCallOutcome(partnerId, isVideo, wasConnected ? "ended" : "missed");
+  endCallLocal(false);
+});
+
+document.getElementById("callMuteBtn").addEventListener("click", () => {
+  if (!callLocalAudioTrack) return;
+  callLocalAudioTrack.enabled = !callLocalAudioTrack.enabled;
+  document.getElementById("callMuteBtn").classList.toggle("active", !callLocalAudioTrack.enabled);
+});
+document.getElementById("callVideoToggleBtn").addEventListener("click", () => {
+  if (!callLocalVideoTrack) return;
+  callLocalVideoTrack.enabled = !callLocalVideoTrack.enabled;
+  document.getElementById("callVideoToggleBtn").classList.toggle("active", !callLocalVideoTrack.enabled);
+  document.getElementById("callLocalVideo").style.display = callLocalVideoTrack.enabled ? "block" : "none";
 });
 
 /* ---------------- Content upload (real user-generated dramas) ---------------- */

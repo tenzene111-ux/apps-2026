@@ -12,7 +12,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="Reelflix" />
-  <link rel="stylesheet" href="style.css?v=51" />
+  <link rel="stylesheet" href="style.css?v=52" />
 </head>
 <body>
   <svg width="0" height="0" style="position:absolute" aria-hidden="true">
@@ -118,6 +118,14 @@
 
     <symbol id="ic-reply" viewBox="0 0 24 24">
       <path d="M10 8L4 13l6 5v-3.5c5.5 0 8 1.5 10 5.5-1-6.5-4-9.5-10-9.5V8z" fill="currentColor"/>
+    </symbol>
+
+    <symbol id="ic-phone" viewBox="0 0 24 24">
+      <path d="M6.5 3h3l1.5 4-2 1.5a11 11 0 0 0 6.5 6.5l1.5-2 4 1.5v3a2 2 0 0 1-2.2 2C11.5 19 5 12.5 4.5 5.2A2 2 0 0 1 6.5 3z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
+    </symbol>
+
+    <symbol id="ic-pin" viewBox="0 0 24 24">
+      <path d="M12 2l2 6 6 1-4.5 4.5L17 20l-5-3-5 3 1.5-6.5L4 9l6-1z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
     </symbol>
 
     <symbol id="ic-x" viewBox="0 0 24 24">
@@ -387,9 +395,15 @@
       <header class="topbar">
         <button class="icon-btn" id="dmInboxBackBtn">←</button>
         <h1 class="logo">Messages</h1>
+        <button class="icon-btn" id="newMessageBtn">+</button>
       </header>
+      <div class="dm-inbox-tabs">
+        <button class="dm-inbox-tab active" data-dmtab="primary">Primary</button>
+        <button class="dm-inbox-tab" data-dmtab="requests">Requests <span class="dm-requests-badge" id="dmRequestsBadge" style="display:none">0</span></button>
+      </div>
       <div class="mylist-scroll">
         <div id="dmConversationList" class="creator-list"></div>
+        <div id="dmRequestsList" class="creator-list" style="display:none"></div>
       </div>
     </section>
 
@@ -401,7 +415,14 @@
           <h1 class="logo" id="dmChatTitle"></h1>
           <div class="dm-chat-status" id="dmChatStatus"></div>
         </div>
+        <button class="icon-btn" id="dmChatSearchBtn"><svg class="ic"><use href="#ic-search"/></svg></button>
+        <button class="icon-btn" id="dmChatCallBtn"><svg class="ic"><use href="#ic-phone"/></svg></button>
+        <button class="icon-btn" id="dmChatVideoCallBtn"><svg class="ic"><use href="#ic-video"/></svg></button>
       </header>
+      <div class="dm-chat-search-bar" id="dmChatSearchBar" style="display:none">
+        <input id="dmChatSearchInput" placeholder="Search in conversation..." />
+        <button class="icon-btn" id="dmChatSearchCloseBtn"><svg class="ic"><use href="#ic-x"/></svg></button>
+      </div>
       <div class="dm-chat-scroll" id="dmChatMessages"></div>
       <div class="dm-typing-indicator" id="dmTypingIndicator" style="display:none">typing...</div>
       <div class="dm-reply-preview" id="dmReplyPreview" style="display:none">
@@ -414,6 +435,40 @@
         <button class="icon-btn dm-voice-btn" id="dmVoiceBtn"><svg class="ic"><use href="#ic-mic"/></svg></button>
         <input id="dmChatInput" class="modal-input" placeholder="Message..." />
         <button class="btn-primary dm-send-btn" id="dmChatSendBtn">Send</button>
+      </div>
+    </section>
+
+    <!-- GROUP CHAT -->
+    <section id="view-group-chat" class="view">
+      <header class="topbar">
+        <button class="icon-btn" id="groupChatBackBtn">←</button>
+        <h1 class="logo" id="groupChatTitle"></h1>
+        <button class="icon-btn" id="groupChatInfoBtn"><svg class="ic"><use href="#ic-more"/></svg></button>
+      </header>
+      <div class="dm-chat-scroll" id="groupChatMessages"></div>
+      <div class="dm-bottom-bar">
+        <input type="file" id="groupImageInput" accept="image/*" style="display:none" />
+        <button class="icon-btn dm-image-btn" id="groupImageBtn"><svg class="ic"><use href="#ic-camera"/></svg></button>
+        <input id="groupChatInput" class="modal-input" placeholder="Message..." />
+        <button class="btn-primary dm-send-btn" id="groupChatSendBtn">Send</button>
+      </div>
+    </section>
+
+    <!-- CALL -->
+    <section id="view-call" class="view">
+      <div class="call-stage" id="callStage">
+        <video id="callRemoteVideo" class="call-video" autoplay playsinline style="display:none"></video>
+        <video id="callLocalVideo" class="call-video-pip" autoplay muted playsinline style="display:none"></video>
+        <div class="call-bg" id="callAvatarBg">
+          <div class="call-avatar-lg" id="callAvatar"></div>
+          <h2 id="callPartnerName"></h2>
+          <p id="callStatusText">Calling...</p>
+        </div>
+        <div class="call-bottom-bar">
+          <button class="call-control-btn" id="callMuteBtn"><svg class="ic"><use href="#ic-mic"/></svg></button>
+          <button class="call-control-btn" id="callVideoToggleBtn" style="display:none"><svg class="ic"><use href="#ic-video"/></svg></button>
+          <button class="call-end-btn" id="callEndBtn"><svg class="ic"><use href="#ic-phone"/></svg></button>
+        </div>
       </div>
     </section>
 
@@ -751,6 +806,70 @@
     </div>
   </div>
 
+  <div class="modal-backdrop" id="newMessageModal">
+    <div class="modal">
+      <h3>New Message</h3>
+      <input id="newMessageSearchInput" class="modal-input" placeholder="Search users..." />
+      <button class="profile-row" id="createGroupBtn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="9" cy="8" r="3"/><circle cx="17" cy="10" r="2.5"/><path d="M3 20c0-3.5 2.7-6 6-6s6 2.5 6 6"/><path d="M14 15c2.8.3 5 2.5 5 5"/></svg>
+        <span class="row-label">Create New Group</span>
+        <span class="row-chevron">›</span>
+      </button>
+      <div id="newMessageResults" class="creator-list"></div>
+      <button class="modal-close" data-close="newMessageModal">✕</button>
+    </div>
+  </div>
+
+  <div class="modal-backdrop" id="createGroupModal">
+    <div class="modal">
+      <h3>New Group</h3>
+      <input id="groupNameInput" class="modal-input" placeholder="Group name" maxlength="60" />
+      <input id="groupMemberSearchInput" class="modal-input" placeholder="Add members by username..." />
+      <div id="groupMemberResults" class="creator-list"></div>
+      <div id="groupSelectedMembers" class="group-selected-chips"></div>
+      <button class="btn-primary" id="createGroupSubmitBtn">Create Group</button>
+      <button class="modal-close" data-close="createGroupModal">✕</button>
+    </div>
+  </div>
+
+  <div class="modal-backdrop" id="dmRowActionsModal">
+    <div class="modal">
+      <h3 id="dmRowActionsTitle">Conversation</h3>
+      <button class="profile-row" id="dmActionPinBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><use href="#ic-pin"/></svg><span class="row-label" id="dmActionPinLabel">Pin Chat</span></button>
+      <button class="profile-row" id="dmActionMuteBtn"><svg class="ic"><use href="#ic-mute"/></svg><span class="row-label" id="dmActionMuteLabel">Mute Notifications</span></button>
+      <button class="profile-row" id="dmActionHideBtn"><svg class="ic"><use href="#ic-x"/></svg><span class="row-label">Delete Chat</span></button>
+      <button class="modal-close" data-close="dmRowActionsModal">✕</button>
+    </div>
+  </div>
+
+  <div class="modal-backdrop" id="imagePreviewModal">
+    <div class="image-preview-wrap">
+      <img id="imagePreviewImg" src="" alt="" />
+      <button class="icon-btn image-preview-close" data-close="imagePreviewModal"><svg class="ic"><use href="#ic-x"/></svg></button>
+    </div>
+  </div>
+
+  <div class="modal-backdrop" id="incomingCallModal">
+    <div class="modal call-modal">
+      <div class="call-avatar-lg" id="incomingCallAvatar"></div>
+      <h3 id="incomingCallName">Someone</h3>
+      <p id="incomingCallType">Voice call...</p>
+      <div class="call-actions-row">
+        <button class="call-decline-btn" id="declineCallBtn"><svg class="ic"><use href="#ic-x"/></svg></button>
+        <button class="call-accept-btn" id="acceptCallBtn"><svg class="ic"><use href="#ic-phone"/></svg></button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-backdrop" id="groupInfoModal">
+    <div class="modal">
+      <h3 id="groupInfoName">Group</h3>
+      <div id="groupInfoMembers" class="creator-list"></div>
+      <button class="btn-ghost" id="leaveGroupBtn">Leave Group</button>
+      <button class="modal-close" data-close="groupInfoModal">✕</button>
+    </div>
+  </div>
+
   <div class="modal-backdrop" id="moreModal">
     <div class="modal">
       <h3>More</h3>
@@ -938,8 +1057,8 @@
     </div>
   </div>
 
-  <script src="vendor/supabase.js?v=51"></script>
-  <script src="vendor/livekit-client.js?v=51"></script>
-  <script src="app.js?v=51"></script>
+  <script src="vendor/supabase.js?v=52"></script>
+  <script src="vendor/livekit-client.js?v=52"></script>
+  <script src="app.js?v=52"></script>
 </body>
 </html>
