@@ -120,32 +120,7 @@ input { font: inherit; color: inherit; }
 }
 .vip-badge .crown { font-size: 12px; }
 
-.genre-tabs-v2 {
-  display: flex;
-  gap: 18px;
-  padding: 4px 16px 10px;
-  overflow-x: auto;
-}
-.gtab {
-  position: relative;
-  white-space: nowrap;
-  font-size: 13px;
-  font-weight: 700;
-  letter-spacing: 0.3px;
-  color: var(--text-dim);
-  padding-bottom: 4px;
-}
-.gtab.active { color: var(--text); font-size: 14px; }
-.gdot {
-  position: absolute;
-  top: -2px;
-  right: -8px;
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--accent);
-}
-.sub-genre-tabs { padding-top: 0; padding-bottom: 8px; }
+.sub-genre-tabs { padding-top: 4px; padding-bottom: 8px; }
 
 /* ---------- Poster grid ---------- */
 .home-scroll {

@@ -116,8 +116,7 @@ const state = {
   view: "home",
   currentDrama: null,
   currentEpIndex: 0,
-  topTab: "hot",
-  subGenre: "all",
+  feedFilter: "all",
   searchTerm: "",
   vip: false,
   gems: 0,
@@ -474,17 +473,15 @@ function renderFeed() {
   feed.innerHTML = "";
 
   let list;
-  if (state.topTab === "anime" || state.topTab === "novel") {
-    feed.innerHTML = '<div class="empty-state">More ' + state.topTab + ' titles launching soon.</div>';
-    return;
-  } else if (state.topTab === "new") {
+  if (state.feedFilter === "new") {
     list = DRAMAS.filter(d => d.badge === "New");
-  } else if (state.topTab === "ranking") {
+  } else if (state.feedFilter === "ranking") {
     list = [...DRAMAS].sort((a, b) => parseFloat(b.views) - parseFloat(a.views));
-  } else {
+  } else if (state.feedFilter === "all") {
     list = DRAMAS;
+  } else {
+    list = DRAMAS.filter(d => d.genre === state.feedFilter);
   }
-  list = list.filter(d => state.subGenre === "all" || d.genre === state.subGenre);
 
   if (state.searchTerm) {
     const q = state.searchTerm.toLowerCase();
@@ -499,7 +496,7 @@ function renderFeed() {
   list.forEach((d, i) => {
     const card = document.createElement("div");
     card.className = "poster-card";
-    const rankBadge = state.topTab === "ranking" && i < 3
+    const rankBadge = state.feedFilter === "ranking" && i < 3
       ? `<span class="poster-rank rank-${i + 1}">#${i + 1}</span>`
       : (d.badge ? `<span class="poster-badge ${d.badge.toLowerCase()}">${d.badge}</span>` : "");
     card.innerHTML = `
@@ -2154,20 +2151,11 @@ document.querySelectorAll(".nav-item").forEach(btn => {
   });
 });
 
-document.querySelectorAll("#genreTabsV2 .gtab").forEach(tab => {
-  tab.addEventListener("click", () => {
-    document.querySelectorAll("#genreTabsV2 .gtab").forEach(t => t.classList.remove("active"));
-    tab.classList.add("active");
-    state.topTab = tab.dataset.top;
-    renderFeed();
-  });
-});
-
 document.querySelectorAll("#subGenreTabs .genre-tab").forEach(tab => {
   tab.addEventListener("click", () => {
     document.querySelectorAll("#subGenreTabs .genre-tab").forEach(t => t.classList.remove("active"));
     tab.classList.add("active");
-    state.subGenre = tab.dataset.genre;
+    state.feedFilter = tab.dataset.genre;
     renderFeed();
   });
 });
