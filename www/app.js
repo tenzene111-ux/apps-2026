@@ -140,8 +140,10 @@ const state = {
   likes: {},
   view: "home",
   currentDrama: null,
+  currentReel: null,
   currentEpIndex: 0,
   feedFilter: "all",
+  feedSort: "newest",
   searchTerm: "",
   vip: false,
   gems: 0,
@@ -375,6 +377,7 @@ function notificationText(n) {
   if (n.type === "like") return `<b>${name}</b> liked your episode`;
   if (n.type === "went_live") return `<b>${name}</b> is live now`;
   if (n.type === "new_drama") return `<b>${name}</b> uploaded a new drama: ${n.data?.title || ""}`;
+  if (n.type === "referral") return `<b>${name}</b> joined using your invite code — +${n.data?.bonus || 0} coins`;
   return `<b>${name}</b> did something`;
 }
 
@@ -629,8 +632,45 @@ function renderOriginalsStrip() {
   });
 }
 
+const GENRE_TILES = [
+  { key: "romance", label: "Romance", emoji: "💕" },
+  { key: "revenge", label: "Revenge", emoji: "🗡️" },
+  { key: "fantasy", label: "Fantasy", emoji: "✨" },
+  { key: "comedy", label: "Comedy", emoji: "😂" },
+  { key: "werewolf", label: "Werewolf", emoji: "🐺" },
+  { key: "billionaire", label: "Billionaire", emoji: "💰" },
+  { key: "family", label: "Family", emoji: "👪" },
+  { key: "mystery", label: "Mystery", emoji: "🔍" },
+  { key: "historical", label: "Historical", emoji: "🏛️" },
+];
+
+function renderCategoryTiles() {
+  const grid = document.getElementById("categoryTileGrid");
+  grid.innerHTML = "";
+  GENRE_TILES.forEach((g) => {
+    const tile = document.createElement("button");
+    tile.className = "category-tile";
+    tile.innerHTML = `<span class="category-tile-emoji">${g.emoji}</span><span>${g.label}</span>`;
+    tile.addEventListener("click", () => {
+      state.feedFilter = g.key;
+      document.querySelectorAll("#subGenreTabs .genre-tab").forEach((t) => t.classList.toggle("active", t.dataset.genre === g.key));
+      renderFeed();
+    });
+    grid.appendChild(tile);
+  });
+}
+
+function applyFeedSort(list) {
+  const sort = state.feedSort || "newest";
+  if (sort === "popular") return [...list].sort((a, b) => parseFloat(b.views) - parseFloat(a.views));
+  if (sort === "az") return [...list].sort((a, b) => a.title.localeCompare(b.title));
+  return list;
+}
+
 function renderFeed() {
   const feed = document.getElementById("feed");
+  const rankingList = document.getElementById("rankingList");
+  const categoryTileGrid = document.getElementById("categoryTileGrid");
   feed.innerHTML = "";
 
   let list;
@@ -644,10 +684,23 @@ function renderFeed() {
     list = DRAMAS.filter(d => d.genre === state.feedFilter);
   }
 
+  if (state.feedFilter !== "ranking") list = applyFeedSort(list);
+
   if (state.searchTerm) {
     const q = state.searchTerm.toLowerCase();
     list = list.filter(d => d.title.toLowerCase().includes(q));
   }
+
+  categoryTileGrid.style.display = (state.feedFilter === "all" && !state.searchTerm) ? "grid" : "none";
+
+  if (state.feedFilter === "ranking" && !state.searchTerm) {
+    feed.style.display = "none";
+    rankingList.style.display = "flex";
+    renderRankingList(list.slice(0, 20));
+    return;
+  }
+  feed.style.display = "grid";
+  rankingList.style.display = "none";
 
   if (!list.length) {
     feed.innerHTML = '<div class="empty-state">No dramas found.</div>';
@@ -669,6 +722,30 @@ function renderFeed() {
       <p class="poster-genre">${d.label}</p>`;
     card.addEventListener("click", () => openDetail(d.id));
     feed.appendChild(card);
+  });
+}
+
+function renderRankingList(list) {
+  const wrap = document.getElementById("rankingList");
+  wrap.innerHTML = "";
+  if (!list.length) {
+    wrap.innerHTML = '<div class="empty-state">No dramas found.</div>';
+    return;
+  }
+  list.forEach((d, i) => {
+    const row = document.createElement("div");
+    row.className = "ranking-row";
+    row.innerHTML = `
+      <span class="ranking-number ${i < 3 ? "top3" : ""}">${i + 1}</span>
+      <div class="ranking-thumb" style="${coverStyle(d)}"></div>
+      <div class="ranking-info">
+        <h3>${d.title}</h3>
+        <p>${d.label}</p>
+      </div>
+      <span class="ranking-views"><svg class="ic"><use href="#ic-play"/></svg>${d.views}</span>
+    `;
+    row.addEventListener("click", () => openDetail(d.id));
+    wrap.appendChild(row);
   });
 }
 
@@ -925,6 +1002,27 @@ async function openAnalytics() {
 
   const { data: followRows } = await supabaseClient.from("follows").select("created_at").eq("followed_id", currentUser.id);
   renderAnalyticsChart("analyticsFollowersChart", (followRows || []).map((r) => r.created_at));
+
+  const myReelIds = REELS.filter((r) => r.creatorId === currentUser.id).map((r) => r.id);
+  document.getElementById("analyticsReelsPosted").textContent = myReelIds.length;
+
+  let reelLikeRows = [];
+  if (myReelIds.length) {
+    const { data } = await supabaseClient.from("reel_likes").select("created_at").in("reel_id", myReelIds);
+    reelLikeRows = data || [];
+  }
+  document.getElementById("analyticsReelLikes").textContent = reelLikeRows.length;
+  renderAnalyticsChart("analyticsReelLikesChart", reelLikeRows.map((r) => r.created_at));
+
+  let reelCommentCount = 0;
+  if (myReelIds.length) {
+    const { count } = await supabaseClient
+      .from("reel_comments")
+      .select("id", { count: "exact", head: true })
+      .in("reel_id", myReelIds);
+    reelCommentCount = count || 0;
+  }
+  document.getElementById("analyticsReelComments").textContent = reelCommentCount;
 }
 
 function renderAnalyticsChart(elId, timestamps) {
@@ -1293,7 +1391,7 @@ async function openDmInbox() {
 
   const { data } = await supabaseClient
     .from("dm_messages")
-    .select("sender_id, receiver_id, text, image_url, audio_url, drama_share_id, created_at, read")
+    .select("sender_id, receiver_id, text, image_url, audio_url, drama_share_id, reel_share_id, created_at, read")
     .or(`sender_id.eq.${currentUser.id},receiver_id.eq.${currentUser.id}`)
     .order("created_at", { ascending: false });
 
@@ -1773,6 +1871,7 @@ function dmPreviewText(msg) {
   if (msg.image_url) return "📷 Photo";
   if (msg.audio_url) return "🎤 Voice message";
   if (msg.drama_share_id) return "🎬 Shared a drama";
+  if (msg.reel_share_id) return "🎬 Shared a reel";
   return "";
 }
 
@@ -1805,6 +1904,20 @@ function appendDmMessage(mine, msg) {
       </div>
     `;
     card.addEventListener("click", (e) => { e.stopPropagation(); if (drama) openDetail(drama.id); });
+    row.appendChild(card);
+  }
+  if (msg.reel_share_id) {
+    const reel = REELS.find((r) => r.id === msg.reel_share_id);
+    const card = document.createElement("div");
+    card.className = "dm-msg-share-card";
+    card.innerHTML = `
+      <div class="dm-msg-share-cover" style="background:${gradientFor(msg.reel_share_id, 1)}"></div>
+      <div>
+        <div class="dm-msg-share-title">${reel ? reel.caption || "A reel" : "A reel"}</div>
+        <div class="dm-msg-share-sub">Tap to watch</div>
+      </div>
+    `;
+    card.addEventListener("click", (e) => { e.stopPropagation(); if (reel) jumpToReelInFeed(reel.id); });
     row.appendChild(card);
   }
   if (msg.image_url) {
@@ -1945,7 +2058,7 @@ async function openDmChat(partnerId, partnerName) {
 
   const { data } = await supabaseClient
     .from("dm_messages")
-    .select("id, sender_id, text, image_url, audio_url, drama_share_id, reply_to_id, created_at, read")
+    .select("id, sender_id, text, image_url, audio_url, drama_share_id, reel_share_id, reply_to_id, created_at, read")
     .or(`and(sender_id.eq.${currentUser.id},receiver_id.eq.${partnerId}),and(sender_id.eq.${partnerId},receiver_id.eq.${currentUser.id})`)
     .order("created_at", { ascending: true });
 
@@ -2193,8 +2306,9 @@ document.getElementById("dmVoiceBtn").addEventListener("pointerup", stopDmVoiceR
 document.getElementById("dmVoiceBtn").addEventListener("pointercancel", stopDmVoiceRecording);
 
 document.getElementById("copyLinkBtn").addEventListener("click", async () => {
-  if (!state.currentDrama) return;
-  const url = `${window.location.href.split("#")[0].split("?")[0]}#drama/${state.currentDrama.id}`;
+  const base = window.location.href.split("#")[0].split("?")[0];
+  const url = state.currentReel ? `${base}#reel/${state.currentReel.id}` : state.currentDrama ? `${base}#drama/${state.currentDrama.id}` : null;
+  if (!url) return;
   try {
     await navigator.clipboard.writeText(url);
     toast("Link copied!");
@@ -2206,7 +2320,7 @@ document.getElementById("copyLinkBtn").addEventListener("click", async () => {
 
 document.getElementById("shareViaMessageBtn").addEventListener("click", async () => {
   if (!currentUser) { toast("Sign in to share"); return; }
-  if (!state.currentDrama) return;
+  if (!state.currentDrama && !state.currentReel) return;
   closeModal("shareModal");
   const list = document.getElementById("shareToDmList");
   list.innerHTML = '<div class="creator-empty">Loading...</div>';
@@ -2236,11 +2350,13 @@ document.getElementById("shareViaMessageBtn").addEventListener("click", async ()
 });
 
 async function shareDramaToDm(partnerId, partnerName) {
+  const reel = state.currentReel;
   const drama = state.currentDrama;
-  if (!drama) return;
-  const { error } = await supabaseClient
-    .from("dm_messages")
-    .insert({ sender_id: currentUser.id, receiver_id: partnerId, drama_share_id: drama.id });
+  if (!reel && !drama) return;
+  const payload = reel
+    ? { sender_id: currentUser.id, receiver_id: partnerId, reel_share_id: reel.id }
+    : { sender_id: currentUser.id, receiver_id: partnerId, drama_share_id: drama.id };
+  const { error } = await supabaseClient.from("dm_messages").insert(payload);
   closeModal("shareToDmModal");
   if (error) { toast("Couldn't share"); return; }
   toast(`Shared with ${partnerName}`);
@@ -2985,7 +3101,7 @@ async function fetchRealReels() {
   if (!supabaseClient) return;
   const { data: reelRows, error: reelError } = await supabaseClient
     .from("reels")
-    .select("id, creator_id, video_path, caption, created_at")
+    .select("id, creator_id, video_path, caption, release_at, created_at")
     .order("created_at", { ascending: false });
   if (reelError) { console.error("fetchRealReels: reels query failed", reelError); return; }
   if (!reelRows) return;
@@ -3019,6 +3135,7 @@ async function fetchRealReels() {
       creatorName: creatorNameById[row.creator_id] || "Creator",
       caption: row.caption || "",
       videoUrl: `${SUPABASE_URL}/storage/v1/object/public/reel-videos/${row.video_path}`,
+      releaseAt: row.release_at,
       createdAt: row.created_at,
     });
   });
@@ -3031,6 +3148,7 @@ function buildReelCard(reel) {
   const liked = myLikedReels.has(reel.id);
   const likeCount = reelLikeCounts[reel.id] || 0;
   const followingCreator = followingIds.has(reel.creatorId);
+  const isScheduled = reel.releaseAt && new Date(reel.releaseAt) > new Date() && reel.creatorId === currentUser?.id;
 
   card.innerHTML = `
     <div class="player-bg" style="background:${gradientFor(reel.id, 1)}"></div>
@@ -3042,7 +3160,7 @@ function buildReelCard(reel) {
         <button class="fyu-explore-btn">Explore</button>
       </div>
       <div class="fyu-topbar-right">
-        <span class="mutual-badge">Reel</span>
+        <span class="mutual-badge">${isScheduled ? `Scheduled · ${new Date(reel.releaseAt).toLocaleString()}` : "Reel"}</span>
         <button class="fyu-mute-btn">${muteIconHTML(state.foryouMuted)}</button>
       </div>
     </div>
@@ -3082,7 +3200,11 @@ function buildReelCard(reel) {
     }
   });
   card.querySelector(".comment-btn").addEventListener("click", () => openReelComments(reel));
-  card.querySelector(".share-btn2").addEventListener("click", () => toast("Sharing reels is coming soon"));
+  card.querySelector(".share-btn2").addEventListener("click", () => {
+    state.currentDrama = null;
+    state.currentReel = reel;
+    openModal("shareModal");
+  });
   card.querySelector(".fyu-explore-btn").addEventListener("click", (e) => { e.stopPropagation(); openExplore(); });
   card.querySelector(".fyu-mute-btn").addEventListener("click", (e) => { e.stopPropagation(); toggleForYouMute(); });
   card.querySelectorAll("[data-follow-creator]").forEach((btn) => {
@@ -3097,7 +3219,11 @@ function buildReelCard(reel) {
       }
     });
   });
-  card.querySelector(".more-btn").addEventListener("click", () => toast("More options coming soon"));
+  card.querySelector(".more-btn").addEventListener("click", () => {
+    moreModalTarget = reel;
+    moreModalTargetType = "reel";
+    openModal("moreModal");
+  });
 
   let lastTap = 0;
   let singleTapTimer = null;
@@ -3129,6 +3255,7 @@ function openUploadReelModal() {
   reelPickedFile = null;
   document.getElementById("reelVideoInput").value = "";
   document.getElementById("reelCaptionInput").value = "";
+  document.getElementById("reelReleaseAtInput").value = "";
   document.getElementById("reelUploadProgressText").textContent = "";
   document.getElementById("reelUploadPicker").style.display = "";
   document.getElementById("reelUploadPreviewWrap").style.display = "none";
@@ -3180,13 +3307,15 @@ document.getElementById("reelPostBtn").addEventListener("click", async () => {
     toast("Upload failed: " + uploadError.message);
     return;
   }
+  const releaseInput = document.getElementById("reelReleaseAtInput");
+  const releaseAt = releaseInput.value ? new Date(releaseInput.value).toISOString() : null;
   const { error: insertError } = await supabaseClient
     .from("reels")
-    .insert({ creator_id: currentUser.id, video_path: path, caption });
+    .insert({ creator_id: currentUser.id, video_path: path, caption, release_at: releaseAt });
   btn.disabled = false;
   progress.textContent = "";
   if (insertError) { toast("Couldn't post reel: " + insertError.message); return; }
-  toast("Reel posted!");
+  toast(releaseAt ? "Reel scheduled!" : "Reel posted!");
   closeModal("uploadReelModal");
   await fetchRealReels();
   if (state.view === "foryou") renderForYouFeed();
@@ -3298,6 +3427,7 @@ document.getElementById("recordUseVideoBtn").addEventListener("click", () => {
 function openDetail(dramaId) {
   const d = DRAMAS.find(x => x.id === dramaId);
   state.currentDrama = d;
+  state.currentReel = null;
   document.getElementById("detailHero").style.cssText = coverStyle(d) + ";position:relative;";
   document.getElementById("detailTitle").textContent = d.title;
   document.getElementById("detailMeta").textContent = `${d.episodes} Episodes · ${d.label} · @${d.creatorName || "creator"}`;
@@ -3377,6 +3507,7 @@ document.getElementById("detailReportBtn").addEventListener("click", () => {
 });
 document.getElementById("detailMoreBtn").addEventListener("click", () => {
   moreModalTarget = state.currentDrama;
+  moreModalTargetType = "drama";
   openModal("moreModal");
 });
 
@@ -3384,6 +3515,7 @@ document.getElementById("detailMoreBtn").addEventListener("click", () => {
 function openPlayer(dramaId, epIndex) {
   const d = DRAMAS.find(x => x.id === dramaId);
   state.currentDrama = d;
+  state.currentReel = null;
   const feed = document.getElementById("playerFeed");
   feed.innerHTML = "";
   for (let i = 0; i < d.episodes; i++) {
@@ -3611,13 +3743,20 @@ function observePlayerCards() {
 
 /* ---------------- More action sheet (For You) ---------------- */
 let moreModalTarget = null;
+let moreModalTargetType = "drama";
 document.querySelectorAll("#moreModal .more-row").forEach((row) => {
   row.addEventListener("click", () => {
     const action = row.dataset.more;
     closeModal("moreModal");
     if (!moreModalTarget) return;
+    if (moreModalTargetType === "reel") {
+      if (action === "comment") openReelComments(moreModalTarget);
+      if (action === "share") { state.currentDrama = null; state.currentReel = moreModalTarget; openModal("shareModal"); }
+      if (action === "report") submitReelReport(moreModalTarget);
+      return;
+    }
     if (action === "comment") openComments(moreModalTarget, 1);
-    if (action === "share") openModal("shareModal");
+    if (action === "share") { state.currentReel = null; state.currentDrama = moreModalTarget; openModal("shareModal"); }
     if (action === "report") submitReport(moreModalTarget);
   });
 });
@@ -3629,6 +3768,17 @@ async function submitReport(drama) {
     drama_id: drama.id,
     episode_number: state.currentEpIndex + 1,
     reason: "user_report",
+  });
+  toast(error ? "Report failed to send" : "Report submitted — thanks for the feedback");
+}
+
+async function submitReelReport(reel) {
+  if (!currentUser) { toast("Sign in to report"); openAuthModal("signin"); return; }
+  const { error } = await supabaseClient.from("reports").insert({
+    reporter_id: currentUser.id,
+    drama_id: reel.id,
+    episode_number: null,
+    reason: "reel_report",
   });
   toast(error ? "Report failed to send" : "Report submitted — thanks for the feedback");
 }
@@ -3855,7 +4005,15 @@ document.getElementById("searchInput").addEventListener("input", (e) => {
   state.searchTerm = e.target.value.trim();
   renderFeed();
 });
-document.getElementById("filterBtn").addEventListener("click", () => toast("More filters coming soon"));
+const FEED_SORT_MODES = ["newest", "popular", "az"];
+const FEED_SORT_LABELS = { newest: "Newest First", popular: "Most Popular", az: "A–Z" };
+document.getElementById("filterBtn").addEventListener("click", () => {
+  const idx = FEED_SORT_MODES.indexOf(state.feedSort || "newest");
+  state.feedSort = FEED_SORT_MODES[(idx + 1) % FEED_SORT_MODES.length];
+  saveState();
+  toast(`Sorted by ${FEED_SORT_LABELS[state.feedSort]}`);
+  renderFeed();
+});
 document.getElementById("homeSearchBtn").addEventListener("click", () => {
   document.querySelectorAll(".nav-item").forEach((b) => b.classList.toggle("active", b.dataset.tab === "explore"));
   switchView("explore");
@@ -4094,6 +4252,7 @@ function buildForYouCard(d, epNum) {
   card.querySelector(".comment-btn").addEventListener("click", () => openComments(d, epNum));
   card.querySelector(".share-btn2").addEventListener("click", () => {
     state.currentDrama = d;
+    state.currentReel = null;
     openModal("shareModal");
   });
   card.querySelectorAll("[data-follow-creator]").forEach((btn) => {
@@ -4124,6 +4283,7 @@ function buildForYouCard(d, epNum) {
   }
   card.querySelector(".more-btn").addEventListener("click", () => {
     moreModalTarget = d;
+    moreModalTargetType = "drama";
     openModal("moreModal");
   });
   card.querySelector(".fyu-search-btn").addEventListener("click", () => {
@@ -4545,15 +4705,17 @@ function renderMyContent() {
     reelGrid.innerHTML = '<div class="empty-state">Reels you post will show up here.</div>';
   } else {
     myReels.forEach((r) => {
+      const scheduled = r.releaseAt && new Date(r.releaseAt) > new Date();
       const card = document.createElement("div");
       card.className = "poster-card";
       card.innerHTML = `
         <div class="poster-cover" style="background:${gradientFor(r.id, 1)}">
           <div class="reel-poster-play"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></div>
+          ${scheduled ? '<span class="poster-badge">Scheduled</span>' : ""}
         </div>
         <h3 class="poster-title">${r.caption || "Reel"}</h3>
-        <p class="poster-genre">${formatCount(reelLikeCounts[r.id] || 0)} likes</p>`;
-      card.addEventListener("click", () => openMyReel(r.id));
+        <p class="poster-genre">${scheduled ? `For ${new Date(r.releaseAt).toLocaleDateString()}` : `${formatCount(reelLikeCounts[r.id] || 0)} likes`}</p>`;
+      card.addEventListener("click", () => jumpToReelInFeed(r.id));
       reelGrid.appendChild(card);
     });
   }
@@ -4562,7 +4724,7 @@ function renderMyContent() {
   reelGrid.style.display = myContentTab === "reels" ? "grid" : "none";
 }
 
-function openMyReel(reelId) {
+function jumpToReelInFeed(reelId) {
   document.querySelectorAll(".nav-item").forEach((b) => b.classList.toggle("active", b.dataset.tab === "foryou"));
   switchView("foryou");
   renderForYouFeed();
@@ -4719,7 +4881,8 @@ function handleProfileMenuAction(action) {
     const modalIds = { invite: "inviteModal", feedback: "feedbackModal", language: "languageModal", setting: "settingsModal", about: "aboutModal" };
     if (action === "language") renderLanguageOptions();
     if (action === "setting") renderSettingsToggles();
-    openModal(modalIds[action]);
+    if (action === "invite") openInviteModal();
+    else openModal(modalIds[action]);
   }
 }
 
@@ -4857,15 +5020,50 @@ document.getElementById("copyUidBtn").addEventListener("click", () => {
   navigator.clipboard.writeText(uid).then(() => toast("UID copied")).catch(() => toast("UID copied"));
 });
 
-document.getElementById("applyInviteBtn").addEventListener("click", () => {
+function myReferralCode() {
+  if (!currentUser) return "";
+  return currentUser.id.replace(/-/g, "").slice(0, 8).toUpperCase();
+}
+
+function openInviteModal() {
+  document.getElementById("myInviteCodeText").textContent = myReferralCode() || "--------";
+  document.getElementById("inviteCodeInput").value = "";
+  openModal("inviteModal");
+}
+
+document.getElementById("copyInviteCodeBtn").addEventListener("click", () => {
+  const code = myReferralCode();
+  if (!code) return;
+  navigator.clipboard.writeText(code).then(() => toast("Code copied")).catch(() => toast("Code copied"));
+});
+
+document.getElementById("shareInviteCodeBtn").addEventListener("click", async () => {
+  const code = myReferralCode();
+  if (!code) return;
+  const text = `Join me on Reelflix! Use my invite code ${code} to get bonus coins: ${window.location.href.split("#")[0].split("?")[0]}`;
+  if (navigator.share) {
+    navigator.share({ text }).catch(() => {});
+  } else {
+    navigator.clipboard.writeText(text).then(() => toast("Invite message copied")).catch(() => toast("Invite message copied"));
+  }
+});
+
+document.getElementById("applyInviteBtn").addEventListener("click", async () => {
   const code = document.getElementById("inviteCodeInput").value.trim();
   if (!code) { toast("Enter a code first"); return; }
-  if (state.claimedTasks.invite) { toast("Invite bonus already claimed"); closeModal("inviteModal"); return; }
-  state.claimedTasks.invite = true;
-  recordClaim("task:invite");
-  state.coins += 50;
-  saveState();
-  updateCoinDisplays();
+  if (!currentUser) { toast("Sign in first"); openAuthModal("signin"); return; }
+  const btn = document.getElementById("applyInviteBtn");
+  btn.disabled = true;
+  const { error } = await supabaseClient.rpc("redeem_referral_code", { p_code: code });
+  btn.disabled = false;
+  if (error) {
+    if (error.message.includes("already_redeemed")) toast("You've already redeemed an invite code");
+    else if (error.message.includes("cannot_refer_self")) toast("You can't use your own code");
+    else if (error.message.includes("invalid_code")) toast("That code isn't valid");
+    else toast("Couldn't apply that code");
+    return;
+  }
+  await refreshWalletFromServer();
   toast("+50 coins — invite code applied!");
   document.getElementById("inviteCodeInput").value = "";
   closeModal("inviteModal");
@@ -5682,6 +5880,7 @@ document.getElementById("liveChatInput").addEventListener("keydown", (e) => {
 function init() {
   loadState();
   updateCoinDisplays();
+  renderCategoryTiles();
   renderFeed();
   renderHomeDashboard();
   renderForYouFeed();
@@ -5717,9 +5916,16 @@ function init() {
 }
 
 function handleSharedLinkHash() {
-  const match = location.hash.match(/^#drama\/(.+)$/);
-  if (!match) return;
-  const drama = DRAMAS.find((d) => d.id === match[1]);
-  if (drama) openDetail(drama.id);
+  const dramaMatch = location.hash.match(/^#drama\/(.+)$/);
+  if (dramaMatch) {
+    const drama = DRAMAS.find((d) => d.id === dramaMatch[1]);
+    if (drama) openDetail(drama.id);
+    return;
+  }
+  const reelMatch = location.hash.match(/^#reel\/(.+)$/);
+  if (reelMatch) {
+    const reel = REELS.find((r) => r.id === reelMatch[1]);
+    if (reel) jumpToReelInFeed(reel.id);
+  }
 }
 init();

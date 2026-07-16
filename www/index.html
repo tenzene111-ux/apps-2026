@@ -12,7 +12,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="Reelflix" />
-  <link rel="stylesheet" href="style.css?v=62" />
+  <link rel="stylesheet" href="style.css?v=63" />
 </head>
 <body>
   <svg width="0" height="0" style="position:absolute" aria-hidden="true">
@@ -293,7 +293,9 @@
         <button class="genre-tab" data-genre="historical">Historical</button>
       </nav>
       <div class="home-scroll">
+        <div class="category-tile-grid" id="categoryTileGrid"></div>
         <div class="poster-grid" id="feed"></div>
+        <div class="ranking-list" id="rankingList" style="display:none"></div>
       </div>
     </section>
 
@@ -507,6 +509,15 @@
         <div class="analytics-chart" id="analyticsViewsChart"></div>
         <h4 class="section-title">Followers gained — last 14 days</h4>
         <div class="analytics-chart" id="analyticsFollowersChart"></div>
+
+        <h4 class="section-title">Reels</h4>
+        <div class="analytics-stats-row">
+          <div class="analytics-stat"><b id="analyticsReelsPosted">0</b><span>Reels Posted</span></div>
+          <div class="analytics-stat"><b id="analyticsReelLikes">0</b><span>Reel Likes</span></div>
+          <div class="analytics-stat"><b id="analyticsReelComments">0</b><span>Reel Comments</span></div>
+        </div>
+        <h4 class="section-title">Reel likes — last 14 days</h4>
+        <div class="analytics-chart" id="analyticsReelLikesChart"></div>
       </div>
     </section>
 
@@ -1008,6 +1019,8 @@
         <video id="reelUploadPreviewVideo" muted loop playsinline autoplay></video>
         <button class="btn-ghost" id="reelUploadChangeBtn">Choose a different video</button>
         <textarea id="reelCaptionInput" class="modal-textarea" placeholder="Write a caption... #hashtags" maxlength="300"></textarea>
+        <label class="upload-cover-label" for="reelReleaseAtInput">Release date &amp; time (optional — leave blank to post right away)</label>
+        <input type="datetime-local" id="reelReleaseAtInput" class="modal-input" />
         <div id="reelUploadProgressText" class="upload-progress-text"></div>
         <button class="btn-primary" id="reelPostBtn">Post</button>
       </div>
@@ -1036,7 +1049,13 @@
   <div class="modal-backdrop" id="inviteModal">
     <div class="modal">
       <h3>Invitation Code</h3>
-      <p>Enter a friend's invite code to claim bonus coins.</p>
+      <p>Share your code — you and your friend both get bonus coins when they use it.</p>
+      <div class="my-invite-code-row">
+        <span id="myInviteCodeText">--------</span>
+        <button class="btn-ghost" id="copyInviteCodeBtn">Copy</button>
+        <button class="btn-ghost" id="shareInviteCodeBtn">Share</button>
+      </div>
+      <h4 class="section-title">Have a friend's code?</h4>
       <input id="inviteCodeInput" class="modal-input" placeholder="Enter code" />
       <button class="btn-primary" id="applyInviteBtn">Apply — +50 <svg class="ic ic-coin"><use href="#ic-coin"/></svg></button>
       <button class="modal-close" data-close="inviteModal">✕</button>
@@ -1252,8 +1271,8 @@
     </div>
   </div>
 
-  <script src="vendor/supabase.js?v=62"></script>
-  <script src="vendor/livekit-client.js?v=62"></script>
-  <script src="app.js?v=62"></script>
+  <script src="vendor/supabase.js?v=63"></script>
+  <script src="vendor/livekit-client.js?v=63"></script>
+  <script src="app.js?v=63"></script>
 </body>
 </html>
