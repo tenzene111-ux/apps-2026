@@ -12,7 +12,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="Reelflix" />
-  <link rel="stylesheet" href="style.css?v=42" />
+  <link rel="stylesheet" href="style.css?v=43" />
 </head>
 <body>
   <svg width="0" height="0" style="position:absolute" aria-hidden="true">
@@ -109,6 +109,15 @@
     <symbol id="ic-sparkle" viewBox="0 0 24 24">
       <path d="M11 3l1.7 5.3L18 10l-5.3 1.7L11 17l-1.7-5.3L4 10l5.3-1.7z" fill="currentColor"/>
       <path d="M18.5 3l0.6 1.9L21 5.5l-1.9 0.6L18.5 8l-0.6-1.9L16 5.5l1.9-0.6z" fill="currentColor"/>
+    </symbol>
+
+    <symbol id="ic-mic" viewBox="0 0 24 24">
+      <rect x="9" y="3" width="6" height="11" rx="3" fill="none" stroke="currentColor" stroke-width="1.6"/>
+      <path d="M6 11a6 6 0 0 0 12 0M12 17v4M9 21h6" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+    </symbol>
+
+    <symbol id="ic-reply" viewBox="0 0 24 24">
+      <path d="M10 8L4 13l6 5v-3.5c5.5 0 8 1.5 10 5.5-1-6.5-4-9.5-10-9.5V8z" fill="currentColor"/>
     </symbol>
 
     <symbol id="ic-x" viewBox="0 0 24 24">
@@ -360,9 +369,14 @@
       </header>
       <div class="dm-chat-scroll" id="dmChatMessages"></div>
       <div class="dm-typing-indicator" id="dmTypingIndicator" style="display:none">typing...</div>
+      <div class="dm-reply-preview" id="dmReplyPreview" style="display:none">
+        <div class="dm-reply-preview-text" id="dmReplyPreviewText"></div>
+        <button class="icon-btn" id="dmReplyCancelBtn"><svg class="ic"><use href="#ic-x"/></svg></button>
+      </div>
       <div class="dm-bottom-bar">
         <input type="file" id="dmImageInput" accept="image/*" style="display:none" />
         <button class="icon-btn dm-image-btn" id="dmImageBtn"><svg class="ic"><use href="#ic-camera"/></svg></button>
+        <button class="icon-btn dm-voice-btn" id="dmVoiceBtn"><svg class="ic"><use href="#ic-mic"/></svg></button>
         <input id="dmChatInput" class="modal-input" placeholder="Message..." />
         <button class="btn-primary dm-send-btn" id="dmChatSendBtn">Send</button>
       </div>
@@ -646,11 +660,20 @@
       <h3>Share this episode</h3>
       <div class="share-row">
         <button class="share-btn"><svg class="ic"><use href="#ic-clipboard"/></svg> Copy Link</button>
-        <button class="share-btn"><svg class="ic"><use href="#ic-comment"/></svg> Message</button>
+        <button class="share-btn" id="shareViaMessageBtn"><svg class="ic"><use href="#ic-comment"/></svg> Message</button>
         <button class="share-btn"><svg class="ic"><use href="#ic-camera"/></svg> Instagram</button>
         <button class="share-btn"><svg class="ic"><use href="#ic-x"/></svg> X</button>
       </div>
       <button class="modal-close" data-close="shareModal">✕</button>
+    </div>
+  </div>
+
+  <div class="modal-backdrop" id="shareToDmModal">
+    <div class="modal">
+      <h3>Send to...</h3>
+      <p>Share this drama in a direct message.</p>
+      <div class="creator-list" id="shareToDmList"></div>
+      <button class="modal-close" data-close="shareToDmModal">✕</button>
     </div>
   </div>
 
@@ -841,8 +864,8 @@
     </div>
   </div>
 
-  <script src="vendor/supabase.js?v=42"></script>
-  <script src="vendor/livekit-client.js?v=42"></script>
-  <script src="app.js?v=42"></script>
+  <script src="vendor/supabase.js?v=43"></script>
+  <script src="vendor/livekit-client.js?v=43"></script>
+  <script src="app.js?v=43"></script>
 </body>
 </html>

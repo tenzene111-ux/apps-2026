@@ -1115,6 +1115,90 @@ input { font: inherit; color: inherit; }
   display: none;
 }
 .online-dot.online { display: block; background: #2ecc71; }
+.dm-voice-btn { flex-shrink: 0; }
+.dm-voice-btn.recording { background: rgba(220,38,38,0.85); color: #fff; }
+
+.dm-reply-preview {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 16px 6px;
+  padding: 6px 10px;
+  background: var(--panel-2);
+  border-left: 3px solid var(--accent);
+  border-radius: 8px;
+  font-size: 12px;
+}
+.dm-reply-preview-text { flex: 1; min-width: 0; color: var(--text-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.dm-msg-reply-quote {
+  display: block;
+  font-size: 11.5px;
+  opacity: 0.75;
+  border-left: 2px solid currentColor;
+  padding-left: 6px;
+  margin-bottom: 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+.dm-msg-audio { display: block; max-width: 220px; height: 34px; }
+.dm-msg-share-card {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(0,0,0,0.15);
+  border-radius: 10px;
+  padding: 6px;
+  cursor: pointer;
+  min-width: 180px;
+}
+.dm-msg-share-cover { width: 40px; height: 56px; border-radius: 6px; flex-shrink: 0; background-size: cover; background-position: center; }
+.dm-msg-share-title { font-size: 12.5px; font-weight: 700; }
+.dm-msg-share-sub { font-size: 10.5px; opacity: 0.75; }
+
+.dm-msg-actions {
+  display: none;
+  gap: 6px;
+  margin-top: 4px;
+  align-items: center;
+}
+.dm-msg.actions-open .dm-msg-actions { display: flex; }
+.dm-msg-actions .react-btn {
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  font-size: 13px;
+  padding: 3px 7px;
+  line-height: 1;
+}
+.dm-msg-actions .reply-btn {
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-dim);
+  padding: 3px 9px;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+.dm-msg-actions .reply-btn .ic { width: 12px; height: 12px; }
+.dm-reaction-badges {
+  display: flex;
+  gap: 3px;
+  margin-top: 3px;
+}
+.dm-reaction-badge {
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  font-size: 11px;
+  padding: 1px 6px;
+}
+.dm-seen-label { align-self: flex-end; font-size: 10.5px; color: var(--text-dim); margin: -4px 4px 0 0; }
 
 /* ---------- Analytics ---------- */
 .analytics-stats-row { display: flex; gap: 10px; padding: 16px; }

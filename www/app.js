@@ -99,6 +99,14 @@ let lastSeenInterval = null;
 let dmTypingTimeout = null;
 let dmLastTypingSentAt = 0;
 let currentDmPartnerLastSeen = null;
+let dmReplyTarget = null;
+let dmMessagesById = new Map();
+let dmReactionsByMessage = new Map();
+let dmVoiceRecorder = null;
+let dmVoiceStream = null;
+let dmVoiceChunks = [];
+let dmVoiceStartedAt = 0;
+const DM_REACTION_EMOJIS = ["👍", "❤️", "😂", "😮", "😢"];
 
 const state = {
   coins: 0,
@@ -958,18 +966,57 @@ async function openDmInbox() {
   updateDmPresenceUI();
 }
 
+function dmPreviewText(msg) {
+  if (msg.text) return msg.text;
+  if (msg.image_url) return "📷 Photo";
+  if (msg.audio_url) return "🎤 Voice message";
+  if (msg.drama_share_id) return "🎬 Shared a drama";
+  return "";
+}
+
 function appendDmMessage(mine, msg) {
+  dmMessagesById.set(msg.id, msg);
   const messagesEl = document.getElementById("dmChatMessages");
   const empty = messagesEl.querySelector(".creator-empty");
   if (empty) empty.remove();
   const row = document.createElement("div");
   row.className = "dm-msg " + (mine ? "mine" : "theirs");
   row.dataset.id = msg.id;
+  if (mine) row.dataset.read = String(!!msg.read);
+
+  if (msg.reply_to_id) {
+    const original = dmMessagesById.get(msg.reply_to_id);
+    const quote = document.createElement("span");
+    quote.className = "dm-msg-reply-quote";
+    quote.textContent = original ? dmPreviewText(original) : "Original message";
+    row.appendChild(quote);
+  }
+  if (msg.drama_share_id) {
+    const drama = DRAMAS.find((d) => d.id === msg.drama_share_id);
+    const card = document.createElement("div");
+    card.className = "dm-msg-share-card";
+    card.innerHTML = `
+      <div class="dm-msg-share-cover" style="${drama ? coverStyle(drama) : `background:${gradientFor(msg.drama_share_id)}`}"></div>
+      <div>
+        <div class="dm-msg-share-title">${drama ? drama.title : "A drama"}</div>
+        <div class="dm-msg-share-sub">Tap to watch</div>
+      </div>
+    `;
+    card.addEventListener("click", (e) => { e.stopPropagation(); if (drama) openDetail(drama.id); });
+    row.appendChild(card);
+  }
   if (msg.image_url) {
     const img = document.createElement("img");
     img.className = "dm-msg-img";
     img.src = msg.image_url;
     row.appendChild(img);
+  }
+  if (msg.audio_url) {
+    const audio = document.createElement("audio");
+    audio.className = "dm-msg-audio";
+    audio.controls = true;
+    audio.src = msg.audio_url;
+    row.appendChild(audio);
   }
   if (msg.text) {
     const span = document.createElement("span");
@@ -981,10 +1028,29 @@ function appendDmMessage(mine, msg) {
     delBtn.className = "dm-msg-delete";
     delBtn.textContent = "✕";
     delBtn.title = "Unsend";
-    delBtn.addEventListener("click", () => deleteDmMessage(row.dataset.id, row));
+    delBtn.addEventListener("click", (e) => { e.stopPropagation(); deleteDmMessage(row.dataset.id, row); });
     row.appendChild(delBtn);
   }
+
+  const actions = document.createElement("div");
+  actions.className = "dm-msg-actions";
+  DM_REACTION_EMOJIS.forEach((emoji) => {
+    const btn = document.createElement("button");
+    btn.className = "react-btn";
+    btn.textContent = emoji;
+    btn.addEventListener("click", (e) => { e.stopPropagation(); reactToMessage(row.dataset.id, emoji); });
+    actions.appendChild(btn);
+  });
+  const replyBtn = document.createElement("button");
+  replyBtn.className = "reply-btn";
+  replyBtn.innerHTML = `<svg class="ic"><use href="#ic-reply"/></svg> Reply`;
+  replyBtn.addEventListener("click", (e) => { e.stopPropagation(); startReplyTo(row.dataset.id); });
+  actions.appendChild(replyBtn);
+  row.appendChild(actions);
+  row.addEventListener("click", () => row.classList.toggle("actions-open"));
+
   messagesEl.appendChild(row);
+  renderReactionBadges(msg.id);
 }
 
 async function deleteDmMessage(id, row) {
@@ -995,11 +1061,76 @@ async function deleteDmMessage(id, row) {
   row.remove();
 }
 
+function renderReactionBadges(messageId) {
+  const row = document.querySelector(`#dmChatMessages [data-id="${messageId}"]`);
+  if (!row) return;
+  let badgesEl = row.querySelector(".dm-reaction-badges");
+  const reactions = dmReactionsByMessage.get(messageId);
+  if (!reactions || !reactions.size) { if (badgesEl) badgesEl.remove(); return; }
+  if (!badgesEl) {
+    badgesEl = document.createElement("div");
+    badgesEl.className = "dm-reaction-badges";
+    row.appendChild(badgesEl);
+  }
+  const counts = {};
+  reactions.forEach((emoji) => { counts[emoji] = (counts[emoji] || 0) + 1; });
+  badgesEl.innerHTML = Object.entries(counts).map(([emoji, count]) => `<span class="dm-reaction-badge">${emoji}${count > 1 ? " " + count : ""}</span>`).join("");
+}
+
+async function reactToMessage(messageId, emoji) {
+  if (!currentUser || !messageId || messageId.startsWith("temp-")) return;
+  const existing = dmReactionsByMessage.get(messageId)?.get(currentUser.id);
+  if (existing === emoji) {
+    await supabaseClient.from("dm_message_reactions").delete().eq("message_id", messageId).eq("user_id", currentUser.id);
+    dmReactionsByMessage.get(messageId)?.delete(currentUser.id);
+  } else {
+    await supabaseClient.from("dm_message_reactions").upsert(
+      { message_id: messageId, user_id: currentUser.id, emoji },
+      { onConflict: "message_id,user_id" }
+    );
+    if (!dmReactionsByMessage.has(messageId)) dmReactionsByMessage.set(messageId, new Map());
+    dmReactionsByMessage.get(messageId).set(currentUser.id, emoji);
+  }
+  renderReactionBadges(messageId);
+}
+
+function startReplyTo(messageId) {
+  const msg = dmMessagesById.get(messageId);
+  if (!msg) return;
+  dmReplyTarget = messageId;
+  document.getElementById("dmReplyPreviewText").textContent = "Replying to: " + dmPreviewText(msg);
+  document.getElementById("dmReplyPreview").style.display = "flex";
+  document.getElementById("dmChatInput").focus();
+}
+document.getElementById("dmReplyCancelBtn").addEventListener("click", () => {
+  dmReplyTarget = null;
+  document.getElementById("dmReplyPreview").style.display = "none";
+});
+
+function updateSeenIndicator() {
+  const messagesEl = document.getElementById("dmChatMessages");
+  messagesEl.querySelectorAll(".dm-seen-label").forEach((el) => el.remove());
+  const mineRows = messagesEl.querySelectorAll(".dm-msg.mine");
+  if (!mineRows.length) return;
+  const last = mineRows[mineRows.length - 1];
+  if (last !== messagesEl.lastElementChild) return;
+  if (last.dataset.read === "true") {
+    const label = document.createElement("div");
+    label.className = "dm-seen-label";
+    label.textContent = "Seen";
+    messagesEl.appendChild(label);
+  }
+}
+
 async function openDmChat(partnerId, partnerName) {
   switchView("dm-chat");
   document.getElementById("dmChatTitle").textContent = partnerName;
   currentDmPartnerId = partnerId;
   currentDmPartnerLastSeen = null;
+  dmReplyTarget = null;
+  dmMessagesById = new Map();
+  dmReactionsByMessage = new Map();
+  document.getElementById("dmReplyPreview").style.display = "none";
   document.getElementById("dmChatStatus").textContent = "";
   document.getElementById("dmTypingIndicator").style.display = "none";
   const messagesEl = document.getElementById("dmChatMessages");
@@ -1007,13 +1138,23 @@ async function openDmChat(partnerId, partnerName) {
 
   const { data } = await supabaseClient
     .from("dm_messages")
-    .select("id, sender_id, text, image_url, created_at")
+    .select("id, sender_id, text, image_url, audio_url, drama_share_id, reply_to_id, created_at, read")
     .or(`and(sender_id.eq.${currentUser.id},receiver_id.eq.${partnerId}),and(sender_id.eq.${partnerId},receiver_id.eq.${currentUser.id})`)
     .order("created_at", { ascending: true });
+
+  const ids = (data || []).map((m) => m.id);
+  if (ids.length) {
+    const { data: reactions } = await supabaseClient.from("dm_message_reactions").select("message_id, user_id, emoji").in("message_id", ids);
+    (reactions || []).forEach((r) => {
+      if (!dmReactionsByMessage.has(r.message_id)) dmReactionsByMessage.set(r.message_id, new Map());
+      dmReactionsByMessage.get(r.message_id).set(r.user_id, r.emoji);
+    });
+  }
 
   messagesEl.innerHTML = "";
   (data || []).forEach((m) => appendDmMessage(m.sender_id === currentUser.id, m));
   messagesEl.scrollTop = messagesEl.scrollHeight;
+  updateSeenIndicator();
 
   const { data: partnerProfile } = await supabaseClient.from("profiles").select("last_seen").eq("id", partnerId).single();
   currentDmPartnerLastSeen = partnerProfile?.last_seen || null;
@@ -1038,10 +1179,34 @@ async function openDmChat(partnerId, partnerName) {
     )
     .on(
       "postgres_changes",
+      { event: "UPDATE", schema: "public", table: "dm_messages", filter: `sender_id=eq.${currentUser.id}` },
+      (payload) => {
+        if (payload.new.receiver_id !== partnerId || !payload.new.read) return;
+        const row = messagesEl.querySelector(`[data-id="${payload.new.id}"]`);
+        if (row) { row.dataset.read = "true"; updateSeenIndicator(); }
+      }
+    )
+    .on(
+      "postgres_changes",
       { event: "DELETE", schema: "public", table: "dm_messages", filter: `sender_id=eq.${partnerId}` },
       (payload) => {
         const row = messagesEl.querySelector(`[data-id="${payload.old.id}"]`);
         if (row) row.remove();
+      }
+    )
+    .on(
+      "postgres_changes",
+      { event: "*", schema: "public", table: "dm_message_reactions" },
+      (payload) => {
+        const messageId = payload.new?.message_id || payload.old?.message_id;
+        if (!messageId || !dmMessagesById.has(messageId)) return;
+        if (payload.eventType === "DELETE") {
+          dmReactionsByMessage.get(messageId)?.delete(payload.old.user_id);
+        } else {
+          if (!dmReactionsByMessage.has(messageId)) dmReactionsByMessage.set(messageId, new Map());
+          dmReactionsByMessage.get(messageId).set(payload.new.user_id, payload.new.emoji);
+        }
+        renderReactionBadges(messageId);
       }
     )
     .on("broadcast", { event: "typing" }, () => showDmTypingIndicator())
@@ -1066,23 +1231,31 @@ document.getElementById("dmChatInput").addEventListener("input", () => {
   dmChatChannel.send({ type: "broadcast", event: "typing", payload: {} });
 });
 
+function takeDmReplyTarget() {
+  const replyToId = dmReplyTarget;
+  dmReplyTarget = null;
+  document.getElementById("dmReplyPreview").style.display = "none";
+  return replyToId;
+}
+
 async function sendDmMessage() {
   const input = document.getElementById("dmChatInput");
   const text = input.value.trim();
   if (!text || !currentDmPartnerId) return;
   input.value = "";
+  const replyToId = takeDmReplyTarget();
   const tempId = "temp-" + crypto.randomUUID();
   const messagesEl = document.getElementById("dmChatMessages");
-  appendDmMessage(true, { id: tempId, text, image_url: null, created_at: new Date().toISOString() });
+  appendDmMessage(true, { id: tempId, text, image_url: null, reply_to_id: replyToId, created_at: new Date().toISOString() });
   messagesEl.scrollTop = messagesEl.scrollHeight;
   const { data, error } = await supabaseClient
     .from("dm_messages")
-    .insert({ sender_id: currentUser.id, receiver_id: currentDmPartnerId, text })
+    .insert({ sender_id: currentUser.id, receiver_id: currentDmPartnerId, text, reply_to_id: replyToId })
     .select()
     .single();
   if (error) { toast("Message couldn't be delivered"); return; }
   const row = messagesEl.querySelector(`[data-id="${tempId}"]`);
-  if (row && data) row.dataset.id = data.id;
+  if (row && data) { row.dataset.id = data.id; dmMessagesById.delete(tempId); dmMessagesById.set(data.id, data); }
 }
 
 document.getElementById("dmImageBtn").addEventListener("click", () => {
@@ -1093,6 +1266,7 @@ document.getElementById("dmImageInput").addEventListener("change", async (e) => 
   const file = e.target.files[0];
   e.target.value = "";
   if (!file || !currentDmPartnerId || !currentUser) return;
+  const replyToId = takeDmReplyTarget();
   const ext = (file.name.split(".").pop() || "jpg").toLowerCase();
   const path = `${currentUser.id}/${Date.now()}.${ext}`;
   const { error: uploadError } = await supabaseClient.storage.from("dm-media").upload(path, file);
@@ -1100,7 +1274,7 @@ document.getElementById("dmImageInput").addEventListener("change", async (e) => 
   const imageUrl = `${SUPABASE_URL}/storage/v1/object/public/dm-media/${path}`;
   const { data, error } = await supabaseClient
     .from("dm_messages")
-    .insert({ sender_id: currentUser.id, receiver_id: currentDmPartnerId, image_url: imageUrl })
+    .insert({ sender_id: currentUser.id, receiver_id: currentDmPartnerId, image_url: imageUrl, reply_to_id: replyToId })
     .select()
     .single();
   if (error) { toast("Message couldn't be delivered"); return; }
@@ -1108,9 +1282,105 @@ document.getElementById("dmImageInput").addEventListener("change", async (e) => 
   document.getElementById("dmChatMessages").scrollTop = document.getElementById("dmChatMessages").scrollHeight;
 });
 
+document.getElementById("dmVoiceBtn").addEventListener("pointerdown", async (e) => {
+  e.preventDefault();
+  if (!currentDmPartnerId) return;
+  const btn = document.getElementById("dmVoiceBtn");
+  try {
+    dmVoiceStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    dmVoiceChunks = [];
+    dmVoiceRecorder = new MediaRecorder(dmVoiceStream);
+    dmVoiceRecorder.ondataavailable = (ev) => { if (ev.data.size > 0) dmVoiceChunks.push(ev.data); };
+    dmVoiceRecorder.start();
+    dmVoiceStartedAt = Date.now();
+    btn.classList.add("recording");
+  } catch (e) {
+    toast("Microphone access denied");
+  }
+});
+async function stopDmVoiceRecording() {
+  const btn = document.getElementById("dmVoiceBtn");
+  btn.classList.remove("recording");
+  if (!dmVoiceRecorder || dmVoiceRecorder.state === "inactive") return;
+  const duration = Date.now() - dmVoiceStartedAt;
+  const recorder = dmVoiceRecorder;
+  const stream = dmVoiceStream;
+  const stopped = new Promise((resolve) => { recorder.onstop = resolve; });
+  recorder.stop();
+  stream.getTracks().forEach((t) => t.stop());
+  await stopped;
+  dmVoiceRecorder = null;
+  dmVoiceStream = null;
+  if (duration < 500) { dmVoiceChunks = []; return; }
+  const mimeType = recorder.mimeType || "audio/webm";
+  const blob = new Blob(dmVoiceChunks, { type: mimeType });
+  dmVoiceChunks = [];
+  if (!currentDmPartnerId || !currentUser) return;
+  const replyToId = takeDmReplyTarget();
+  const ext = mimeType.includes("mp4") ? "m4a" : "webm";
+  const path = `${currentUser.id}/${Date.now()}.${ext}`;
+  const { error: uploadError } = await supabaseClient.storage.from("dm-voice").upload(path, blob);
+  if (uploadError) { toast("Voice note upload failed"); return; }
+  const audioUrl = `${SUPABASE_URL}/storage/v1/object/public/dm-voice/${path}`;
+  const { data, error } = await supabaseClient
+    .from("dm_messages")
+    .insert({ sender_id: currentUser.id, receiver_id: currentDmPartnerId, audio_url: audioUrl, reply_to_id: replyToId })
+    .select()
+    .single();
+  if (error) { toast("Message couldn't be delivered"); return; }
+  appendDmMessage(true, data);
+  document.getElementById("dmChatMessages").scrollTop = document.getElementById("dmChatMessages").scrollHeight;
+}
+document.getElementById("dmVoiceBtn").addEventListener("pointerup", stopDmVoiceRecording);
+document.getElementById("dmVoiceBtn").addEventListener("pointerleave", stopDmVoiceRecording);
+
+document.getElementById("shareViaMessageBtn").addEventListener("click", async () => {
+  if (!currentUser) { toast("Sign in to share"); return; }
+  if (!state.currentDrama) return;
+  closeModal("shareModal");
+  const list = document.getElementById("shareToDmList");
+  list.innerHTML = '<div class="creator-empty">Loading...</div>';
+  openModal("shareToDmModal");
+
+  const { data } = await supabaseClient
+    .from("dm_messages")
+    .select("sender_id, receiver_id")
+    .or(`sender_id.eq.${currentUser.id},receiver_id.eq.${currentUser.id}`);
+  const partnerIds = [...new Set((data || []).map((m) => (m.sender_id === currentUser.id ? m.receiver_id : m.sender_id)))];
+  if (!partnerIds.length) {
+    list.innerHTML = '<div class="creator-empty">Message someone first to share content with them.</div>';
+    return;
+  }
+  const { data: profiles } = await supabaseClient.from("profiles").select("id, username").in("id", partnerIds);
+  list.innerHTML = "";
+  (profiles || []).forEach((p) => {
+    const row = document.createElement("div");
+    row.className = "creator-card";
+    row.innerHTML = `
+      <div class="creator-avatar" style="background:${gradientFor(p.id)}">${p.username[0].toUpperCase()}</div>
+      <div class="creator-info"><div class="creator-name">${p.username}</div></div>
+    `;
+    row.addEventListener("click", () => shareDramaToDm(p.id, p.username));
+    list.appendChild(row);
+  });
+});
+
+async function shareDramaToDm(partnerId, partnerName) {
+  const drama = state.currentDrama;
+  if (!drama) return;
+  const { error } = await supabaseClient
+    .from("dm_messages")
+    .insert({ sender_id: currentUser.id, receiver_id: partnerId, drama_share_id: drama.id });
+  closeModal("shareToDmModal");
+  if (error) { toast("Couldn't share"); return; }
+  toast(`Shared with ${partnerName}`);
+}
+
 document.getElementById("dmChatBackBtn").addEventListener("click", () => {
   if (dmChatChannel) { supabaseClient.removeChannel(dmChatChannel); dmChatChannel = null; }
   currentDmPartnerId = null;
+  dmReplyTarget = null;
+  document.getElementById("dmReplyPreview").style.display = "none";
   openDmInbox();
 });
 document.getElementById("dmInboxBackBtn").addEventListener("click", () => {
