@@ -171,10 +171,14 @@ function updateAuthUI() {
   const signedIn = !!currentUser;
   document.getElementById("signInBtn").style.display = signedIn ? "none" : "";
   document.getElementById("signOutBtn").style.display = signedIn ? "" : "none";
+  document.getElementById("editProfileBtn").style.display = signedIn ? "" : "none";
   document.getElementById("profileNameText").textContent = signedIn
     ? (currentProfile?.username || currentUser.email || "Member")
     : "Guest";
   document.getElementById("uidText").textContent = signedIn ? currentUser.id.slice(0, 10) : "1062724055";
+  const bioEl = document.getElementById("profileBioText");
+  bioEl.style.display = signedIn && currentProfile?.bio ? "block" : "none";
+  bioEl.textContent = currentProfile?.bio || "";
 }
 
 async function refreshWalletFromServer() {
@@ -2935,23 +2939,30 @@ const PROFILE_ICONS = {
   leaderboard: '<path d="M8 21h8M12 17v4"/><path d="M6 4h12v6a6 6 0 0 1-12 0V4z"/><path d="M6 6H4a2 2 0 0 0 0 4h2M18 6h2a2 2 0 0 1 0 4h-2"/>',
   messages: '<path d="M4 5h16a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H9l-4 4v-4H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z"/>',
   analytics: '<path d="M4 20V10M11 20V4M18 20v-7"/>',
+  history: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/>',
+  wallet: '<rect x="3" y="6" width="18" height="13" rx="2"/><path d="M3 10h18"/><path d="M16 14h.01"/>',
 };
 
 const PROFILE_MENU = [
+  { key: "setting", label: "My Account" },
+  { key: "history", label: "Watch History" },
+  { key: "mylist", label: "My List" },
+  { key: "earnrewards", label: "Rewards & Quests" },
+  { key: "wallet", label: "Wallet & Payments" },
+];
+
+const PROFILE_MENU_MORE = [
   { key: "golive", label: "Go Live" },
   { key: "upload", label: "Upload Drama" },
   { key: "analytics", label: "Analytics" },
   { key: "leaderboard", label: "Leaderboard" },
   { key: "messages", label: "Messages", dot: true },
-  { key: "following", label: "Following" },
-  { key: "earnrewards", label: "Earn Rewards" },
-  { key: "mylist", label: "My List" },
+  { key: "following", label: "Find Creators" },
   { key: "notifications", label: "Notifications", dot: true },
   { key: "invite", label: "Invitation Code" },
   { key: "myitems", label: "My Items" },
   { key: "feedback", label: "Feedback" },
   { key: "language", label: "Language" },
-  { key: "setting", label: "Setting" },
   { key: "about", label: "About Us", version: "V1.0.0" },
 ];
 
@@ -3020,11 +3031,11 @@ async function loadProfileStats() {
   }
 }
 
-function renderProfileMenu() {
-  const wrap = document.getElementById("profileMenu");
+function renderProfileMenuInto(wrapId, items) {
+  const wrap = document.getElementById(wrapId);
   wrap.innerHTML = "";
   const dotCountByKey = { notifications: notificationsUnreadCount, messages: dmUnreadCount };
-  PROFILE_MENU.forEach((item) => {
+  items.forEach((item) => {
     const row = document.createElement("button");
     row.className = "profile-row";
     row.dataset.action = item.key;
@@ -3039,10 +3050,12 @@ function renderProfileMenu() {
   });
 }
 
-document.getElementById("profileMenu").addEventListener("click", (e) => {
-  const row = e.target.closest(".profile-row");
-  if (!row) return;
-  const action = row.dataset.action;
+function renderProfileMenu() {
+  renderProfileMenuInto("profileMenu", PROFILE_MENU);
+  renderProfileMenuInto("profileMenuMore", PROFILE_MENU_MORE);
+}
+
+function handleProfileMenuAction(action) {
   if (action === "golive") {
     openLiveHost();
   } else if (action === "upload") {
@@ -3058,6 +3071,13 @@ document.getElementById("profileMenu").addEventListener("click", (e) => {
     document.querySelectorAll(".nav-item").forEach((b) => b.classList.toggle("active", b.dataset.tab === "mylist"));
     switchView("mylist");
     renderMyList();
+  } else if (action === "history") {
+    document.querySelectorAll(".nav-item").forEach((b) => b.classList.toggle("active", b.dataset.tab === "mylist"));
+    switchView("mylist");
+    renderMyList();
+    document.querySelector('.mltab[data-mltab="history"]').click();
+  } else if (action === "wallet") {
+    openModal("coinModal");
   } else if (action === "earnrewards") {
     document.querySelectorAll(".nav-item").forEach((b) => b.classList.toggle("active", b.dataset.tab === "rewards"));
     switchView("rewards");
@@ -3076,12 +3096,44 @@ document.getElementById("profileMenu").addEventListener("click", (e) => {
     if (action === "setting") renderSettingsToggles();
     openModal(modalIds[action]);
   }
+}
+
+["profileMenu", "profileMenuMore"].forEach((id) => {
+  document.getElementById(id).addEventListener("click", (e) => {
+    const row = e.target.closest(".profile-row");
+    if (!row) return;
+    handleProfileMenuAction(row.dataset.action);
+  });
 });
 
 document.getElementById("signInBtn").addEventListener("click", () => openAuthModal("signin"));
 document.getElementById("signOutBtn").addEventListener("click", async () => {
   if (supabaseClient) await supabaseClient.auth.signOut();
   toast("Signed out");
+});
+
+document.getElementById("editProfileBtn").addEventListener("click", () => {
+  if (!currentUser) return;
+  document.getElementById("editProfileUsernameInput").value = currentProfile?.username || "";
+  document.getElementById("editProfileBioInput").value = currentProfile?.bio || "";
+  openModal("editProfileModal");
+});
+document.getElementById("editProfileSaveBtn").addEventListener("click", async () => {
+  if (!currentUser || !supabaseClient) return;
+  const username = document.getElementById("editProfileUsernameInput").value.trim();
+  const bio = document.getElementById("editProfileBioInput").value.trim();
+  if (!username) { toast("Username can't be empty"); return; }
+  const { data, error } = await supabaseClient
+    .from("profiles")
+    .update({ username, bio })
+    .eq("id", currentUser.id)
+    .select()
+    .single();
+  if (error) { toast("Couldn't save profile: " + error.message); return; }
+  currentProfile = data;
+  updateAuthUI();
+  closeModal("editProfileModal");
+  toast("Profile updated");
 });
 document.getElementById("authSwitchBtn").addEventListener("click", () => openAuthModal(authMode === "signin" ? "signup" : "signin"));
 document.getElementById("authSubmitBtn").addEventListener("click", async () => {

@@ -12,7 +12,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="Reelflix" />
-  <link rel="stylesheet" href="style.css?v=50" />
+  <link rel="stylesheet" href="style.css?v=51" />
 </head>
 <body>
   <svg width="0" height="0" style="position:absolute" aria-hidden="true">
@@ -549,6 +549,8 @@
             <button class="signin-btn" id="signInBtn">Sign in</button>
             <button class="signin-btn" id="signOutBtn" style="display:none">Sign out</button>
           </div>
+          <p class="profile-bio" id="profileBioText" style="display:none"></p>
+          <button class="edit-profile-btn" id="editProfileBtn" style="display:none">Edit Profile</button>
         </div>
 
         <div class="profile-stats-row">
@@ -563,6 +565,8 @@
           <p>Unlock every episode, skip the coin cost, and get a daily VIP reward.</p>
           <button class="btn-go" id="premiumCardBtn" data-open="vipModal">GO</button>
         </div>
+
+        <div class="profile-menu" id="profileMenu"></div>
 
         <div class="wallet-card">
           <div class="wallet-header">My Wallet <span>›</span></div>
@@ -586,9 +590,21 @@
         <div class="section-title-row" id="profileContinueTitle" style="display:none"><h4 class="section-title">Continue Watching</h4></div>
         <div class="continue-strip" id="profileContinueStrip"></div>
 
-        <div class="profile-menu" id="profileMenu"></div>
+        <div class="section-title-row"><h4 class="section-title">More</h4></div>
+        <div class="profile-menu" id="profileMenuMore"></div>
       </div>
     </section>
+
+    <!-- EDIT PROFILE -->
+    <div class="modal-backdrop" id="editProfileModal">
+      <div class="modal">
+        <h3>Edit Profile</h3>
+        <input id="editProfileUsernameInput" class="modal-input" placeholder="Username" maxlength="30" />
+        <textarea id="editProfileBioInput" class="modal-textarea" placeholder="Bio (optional) — tell people about yourself" maxlength="160" rows="3"></textarea>
+        <button class="btn-primary" id="editProfileSaveBtn">Save</button>
+        <button class="modal-close" data-close="editProfileModal">✕</button>
+      </div>
+    </div>
 
     <!-- LIVE: HOST -->
     <section id="view-live-host" class="view">
@@ -922,8 +938,8 @@
     </div>
   </div>
 
-  <script src="vendor/supabase.js?v=50"></script>
-  <script src="vendor/livekit-client.js?v=50"></script>
-  <script src="app.js?v=50"></script>
+  <script src="vendor/supabase.js?v=51"></script>
+  <script src="vendor/livekit-client.js?v=51"></script>
+  <script src="app.js?v=51"></script>
 </body>
 </html>
