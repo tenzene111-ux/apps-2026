@@ -3014,6 +3014,10 @@ document.querySelectorAll("#arPresetRow .effect-chip").forEach((btn) => {
 
 function setupLiveRoomListeners(room, isHost) {
   room.on(LivekitClient.RoomEvent.TrackSubscribed, (track, pub, participant) => {
+    if (track.kind === "audio") {
+      track.attach();
+      return;
+    }
     if (track.kind !== "video") return;
     if (isHost) {
       if (participant.identity !== approvedGuestIdentity) return;
@@ -3031,6 +3035,10 @@ function setupLiveRoomListeners(room, isHost) {
     document.getElementById("liveGuestBg").style.display = "none";
   });
   room.on(LivekitClient.RoomEvent.TrackUnsubscribed, (track, pub, participant) => {
+    if (track.kind === "audio") {
+      track.detach().forEach((el) => el.remove());
+      return;
+    }
     if (track.kind !== "video" || !isHost) return;
     if (participant.identity !== approvedGuestIdentity) return;
     approvedGuestIdentity = null;
