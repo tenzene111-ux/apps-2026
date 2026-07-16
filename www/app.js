@@ -1661,10 +1661,18 @@ async function fetchRealDramas() {
   if (!supabaseClient) return;
   const { data: dramaRows, error: dramaError } = await supabaseClient
     .from("dramas")
-    .select("id, creator_id, title, description, genre, free_episodes, cover_path, created_at, creator:profiles(username)")
+    .select("id, creator_id, title, description, genre, free_episodes, cover_path, created_at")
     .order("created_at", { ascending: false });
   if (dramaError) { console.error("fetchRealDramas: dramas query failed", dramaError); return; }
   if (!dramaRows) return;
+
+  const creatorIds = [...new Set(dramaRows.map((r) => r.creator_id))];
+  const creatorNameById = {};
+  if (creatorIds.length) {
+    const { data: creatorRows } = await supabaseClient.from("profiles").select("id, username").in("id", creatorIds);
+    (creatorRows || []).forEach((p) => { creatorNameById[p.id] = p.username; });
+  }
+
   const { data: episodeRows, error: episodeError } = await supabaseClient.from("episodes").select("drama_id, episode_number, video_path");
   if (episodeError) console.error("fetchRealDramas: episodes query failed", episodeError);
   const episodesByDrama = {};
@@ -1707,7 +1715,7 @@ async function fetchRealDramas() {
       free: row.free_episodes,
       real: true,
       creatorId: row.creator_id,
-      creatorName: row.creator?.username || "Creator",
+      creatorName: creatorNameById[row.creator_id] || "Creator",
       videoUrls,
       coverUrl: row.cover_path ? `${SUPABASE_URL}/storage/v1/object/public/drama-covers/${row.cover_path}` : null,
     });
