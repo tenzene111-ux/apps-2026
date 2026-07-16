@@ -12,7 +12,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="Reelflix" />
-  <link rel="stylesheet" href="style.css?v=49" />
+  <link rel="stylesheet" href="style.css?v=50" />
 </head>
 <body>
   <svg width="0" height="0" style="position:absolute" aria-hidden="true">
@@ -151,6 +151,16 @@
       <path d="M21 21l-4.3-4.3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
     </symbol>
 
+    <symbol id="ic-bell" viewBox="0 0 24 24">
+      <path d="M6 10a6 6 0 0 1 12 0c0 4 1.5 5.5 2 6H4c0.5-0.5 2-2 2-6z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>
+      <path d="M10 19a2 2 0 0 0 4 0" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+    </symbol>
+
+    <symbol id="ic-play-square" viewBox="0 0 24 24">
+      <rect x="3" y="3" width="18" height="18" rx="4" fill="none" stroke="currentColor" stroke-width="1.7"/>
+      <path d="M10 8.5l6 3.5-6 3.5z" fill="currentColor"/>
+    </symbol>
+
     <symbol id="ic-bookmark" viewBox="0 0 24 24">
       <path d="M6 4h12v17l-6-4-6 4z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>
     </symbol>
@@ -207,10 +217,31 @@
 
     <!-- HOME -->
     <section id="view-home" class="view active">
+      <header class="topbar-v2 home-topbar">
+        <button class="brand-wordmark" id="brandRefreshBtn" aria-label="Refresh">Reel<span>Flix</span></button>
+        <div class="home-header-icons">
+          <button class="icon-btn-flat" id="homeSearchBtn"><svg class="ic"><use href="#ic-search"/></svg></button>
+          <button class="icon-btn-flat" id="homeNotifBtn"><svg class="ic"><use href="#ic-bell"/></svg></button>
+        </div>
+      </header>
+      <div class="home-scroll">
+        <div class="hero-carousel" id="heroCarousel"></div>
+        <div class="live-strip" id="liveStrip"></div>
+        <div class="continue-section" id="continueSection" style="display:none">
+          <div class="section-title-row"><h4 class="section-title">Continue Watching</h4><button class="see-all-btn" data-see-all-mylist="true">See All</button></div>
+          <div class="continue-strip" id="continueStrip"></div>
+        </div>
+        <div class="section-title-row" id="trendingSectionTitle" style="display:none"><h4 class="section-title">Trending Now</h4><button class="see-all-btn" data-see-all="ranking">See All</button></div>
+        <div class="trending-strip" id="trendingStrip"></div>
+        <div class="section-title-row" id="originalsSectionTitle" style="display:none"><h4 class="section-title">ReelFlix Originals</h4><button class="see-all-btn" data-see-all="new">See All</button></div>
+        <div class="originals-strip" id="originalsStrip"></div>
+      </div>
+    </section>
+
+    <!-- EXPLORE -->
+    <section id="view-explore" class="view">
       <header class="topbar-v2">
-        <button class="brand-mark" id="brandRefreshBtn" aria-label="Refresh">
-          <svg viewBox="0 0 64 64"><defs><linearGradient id="bg1" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#ff3860"/><stop offset="100%" stop-color="#ff7a45"/></linearGradient></defs><rect width="64" height="64" rx="16" fill="url(#bg1)"/><path d="M25 20 L46 32 L25 44 Z" fill="#fff"/></svg>
-        </button>
+        <h1 class="logo">Explore</h1>
         <div class="search-bar">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
           <input id="searchInput" placeholder="Search dramas..." />
@@ -235,35 +266,40 @@
         <button class="genre-tab" data-genre="historical">Historical</button>
       </nav>
       <div class="home-scroll">
-        <div class="continue-section" id="continueSection" style="display:none">
-          <h4 class="section-title">Continue Watching</h4>
-          <div class="continue-strip" id="continueStrip"></div>
-        </div>
-        <div class="live-strip" id="liveStrip"></div>
         <div class="poster-grid" id="feed"></div>
       </div>
     </section>
 
     <!-- SERIES DETAIL -->
     <section id="view-detail" class="view">
-      <header class="detail-header">
-        <button class="icon-btn" data-back="home">←</button>
-        <button class="coin-pill" data-open="coinModal">
-          <span class="coin-icon"><svg class="ic ic-coin"><use href="#ic-coin"/></svg></span><span data-coin-balance>0</span>
-        </button>
-      </header>
       <div class="detail-hero" id="detailHero">
-        <div class="detail-hero-overlay">
-          <h2 id="detailTitle"></h2>
-          <p id="detailMeta"></p>
-          <p id="detailDesc"></p>
-          <div class="detail-actions">
-            <button class="btn-primary" id="playFirstBtn"><svg class="ic"><use href="#ic-play"/></svg> Play Episode 1</button>
-            <button class="btn-ghost" id="followBtn">+ Follow</button>
-          </div>
+        <header class="detail-header">
+          <button class="icon-btn" data-back="home">←</button>
+          <button class="icon-btn" id="detailMoreBtn"><svg class="ic"><use href="#ic-more"/></svg></button>
+        </header>
+        <button class="detail-hero-play" id="playFirstBtn"><svg class="ic"><use href="#ic-play"/></svg></button>
+      </div>
+      <div class="detail-body">
+        <h2 id="detailTitle"></h2>
+        <p id="detailMeta"></p>
+        <div class="detail-badges-row" id="detailBadgesRow"></div>
+        <p id="detailDesc"></p>
+        <div class="detail-action-row">
+          <button class="detail-action-item" id="followBtn"><svg class="ic"><use href="#ic-bookmark"/></svg><span>My List</span></button>
+          <button class="detail-action-item" id="detailShareBtn"><svg class="ic"><use href="#ic-share"/></svg><span>Share</span></button>
+          <button class="detail-action-item" id="detailReportBtn"><svg class="ic"><use href="#ic-fire"/></svg><span>Report</span></button>
+        </div>
+        <div class="detail-tabs">
+          <button class="detail-tab active" data-detail-tab="episodes">Episodes</button>
+          <button class="detail-tab" data-detail-tab="more">More Like This</button>
+        </div>
+        <div class="detail-tab-panel active" id="detailPanelEpisodes">
+          <div class="episode-list" id="episodeGrid"></div>
+        </div>
+        <div class="detail-tab-panel" id="detailPanelMore">
+          <div class="more-like-grid" id="moreLikeGrid"></div>
         </div>
       </div>
-      <div class="episode-grid" id="episodeGrid"></div>
     </section>
 
     <!-- IMMERSIVE PLAYER -->
@@ -280,12 +316,16 @@
     <section id="view-mylist" class="view">
       <header class="topbar"><h1 class="logo">My List</h1></header>
       <div class="mylist-subtabs">
-        <button class="mltab active" data-mltab="dramas">Dramas</button>
+        <button class="mltab active" data-mltab="dramas">Favorites</button>
+        <button class="mltab" data-mltab="history">History</button>
         <button class="mltab" data-mltab="creators">Creators</button>
       </div>
       <div class="mylist-scroll">
         <div class="mylist-panel active" id="panel-mylist-dramas">
           <div class="feed" id="mylistFeed"></div>
+        </div>
+        <div class="mylist-panel" id="panel-mylist-history">
+          <div class="feed" id="historyFeed"></div>
         </div>
         <div class="mylist-panel" id="panel-mylist-creators">
           <input id="creatorSearchInput" class="modal-input creator-search-input" placeholder="Search creators by username..." />
@@ -487,12 +527,23 @@
     <!-- PROFILE -->
     <section id="view-mine" class="view">
       <div class="profile-scroll">
+        <header class="topbar-v2 home-topbar">
+          <h1 class="logo">Profile</h1>
+          <div class="home-header-icons">
+            <button class="icon-btn-flat" id="profileNotifBtn"><svg class="ic"><use href="#ic-bell"/></svg></button>
+            <button class="icon-btn-flat" id="profileSettingsBtn"><svg class="ic"><use href="#ic-more"/></svg></button>
+          </div>
+        </header>
+
         <div class="profile-header">
           <button class="firstlogin-badge task-btn" data-task="firstlogin" data-coins="20"><svg class="ic"><use href="#ic-gift"/></svg> Get 20 first login Coins!</button>
           <div class="profile-id-row">
             <div class="profile-avatar"><svg class="ic"><use href="#ic-person"/></svg></div>
             <div class="profile-id">
-              <div class="profile-name" id="profileNameText">Guest</div>
+              <div class="profile-name-row">
+                <span class="profile-name" id="profileNameText">Guest</span>
+                <span class="pro-badge" id="profileProBadge" style="display:none">VIP</span>
+              </div>
               <div class="profile-uid">UID: <span id="uidText">1062724055</span> <button class="uid-copy" id="copyUidBtn">⧉</button></div>
             </div>
             <button class="signin-btn" id="signInBtn">Sign in</button>
@@ -500,14 +551,17 @@
           </div>
         </div>
 
-        <div class="vip-promo-card">
-          <h3>Become a VIP – Enjoy all benefits</h3>
-          <div class="vip-promo-feats">
-            <div><span class="vip-feat-icon"><svg class="ic"><use href="#ic-tv"/></svg></span>Short Drama Viewing</div>
-            <div><span class="vip-feat-icon"><svg class="ic"><use href="#ic-gift"/></svg></span>Daily VIP Reward</div>
-            <div><span class="vip-feat-icon">1080</span>1080P</div>
-          </div>
-          <button class="btn-go" data-open="vipModal">GO</button>
+        <div class="profile-stats-row">
+          <div><b id="statFollowing">0</b><span>Following</span></div>
+          <div><b id="statFollowers">0</b><span>Followers</span></div>
+          <div><b id="statLikes">0</b><span>Likes</span></div>
+          <div><b id="statSaved">0</b><span>Saved</span></div>
+        </div>
+
+        <div class="vip-promo-card" data-open="vipModal">
+          <h3 id="premiumCardTitle">Become a VIP – Enjoy all benefits</h3>
+          <p>Unlock every episode, skip the coin cost, and get a daily VIP reward.</p>
+          <button class="btn-go" id="premiumCardBtn" data-open="vipModal">GO</button>
         </div>
 
         <div class="wallet-card">
@@ -520,6 +574,17 @@
             <button class="refill-btn" data-open="coinModal">Refill</button>
           </div>
         </div>
+
+        <div class="section-title-row"><h4 class="section-title">Watch Statistics</h4></div>
+        <div class="watch-stats-grid">
+          <div class="watch-stat-tile"><svg class="ic"><use href="#ic-play"/></svg><b id="statEpisodesWatched">0</b><span>Episodes Watched</span></div>
+          <div class="watch-stat-tile"><svg class="ic"><use href="#ic-bookmark-filled"/></svg><b id="statDramasCompleted">0</b><span>Dramas Completed</span></div>
+          <div class="watch-stat-tile"><svg class="ic"><use href="#ic-tv"/></svg><b id="statDramasUploaded">0</b><span>Dramas Uploaded</span></div>
+          <div class="watch-stat-tile"><svg class="ic"><use href="#ic-comment"/></svg><b id="statCommentsPosted">0</b><span>Comments Posted</span></div>
+        </div>
+
+        <div class="section-title-row" id="profileContinueTitle" style="display:none"><h4 class="section-title">Continue Watching</h4></div>
+        <div class="continue-strip" id="profileContinueStrip"></div>
 
         <div class="profile-menu" id="profileMenu"></div>
       </div>
@@ -590,23 +655,23 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11.5L12 4l9 7.5"/><path d="M5.5 10v9a1 1 0 0 0 1 1h11a1 1 0 0 0 1-1v-9"/><path d="M9.5 20v-6h5v6"/></svg>
         <span>Home</span>
       </button>
+      <button class="nav-item" data-tab="explore">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M15.2 8.8l-2.1 4.9-4.9 2.1 2.1-4.9z"/></svg>
+        <span>Explore</span>
+      </button>
       <button class="nav-item" data-tab="foryou">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="16" height="18" rx="3"/><path d="M10 8.5l6 3.5-6 3.5z"/></svg>
-        <span>For You</span>
+        <span>Reels</span>
       </button>
       <button class="nav-item" data-tab="mylist">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 4h12v17l-6-4-6 4z"/></svg>
         <span>My List</span>
       </button>
-      <button class="nav-item" data-tab="rewards">
+      <button class="nav-item" data-tab="profile">
         <span class="nav-icon-wrap">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="15" r="5"/><circle cx="15" cy="9" r="5"/></svg>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.5"/><path d="M5 20c1.2-4 4-6 7-6s5.8 2 7 6"/></svg>
           <span class="nav-dot" id="rewardsDot"></span>
         </span>
-        <span>Rewards</span>
-      </button>
-      <button class="nav-item" data-tab="profile">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.5"/><path d="M5 20c1.2-4 4-6 7-6s5.8 2 7 6"/></svg>
         <span>Profile</span>
       </button>
     </nav>
@@ -857,8 +922,8 @@
     </div>
   </div>
 
-  <script src="vendor/supabase.js?v=49"></script>
-  <script src="vendor/livekit-client.js?v=49"></script>
-  <script src="app.js?v=49"></script>
+  <script src="vendor/supabase.js?v=50"></script>
+  <script src="vendor/livekit-client.js?v=50"></script>
+  <script src="app.js?v=50"></script>
 </body>
 </html>

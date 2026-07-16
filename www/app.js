@@ -332,7 +332,7 @@ async function openNotifications() {
 
   const { data } = await supabaseClient
     .from("notifications")
-    .select("id, type, data, created_at, actor:profiles(username)")
+    .select("id, type, data, created_at, actor:profiles!actor_id(username)")
     .eq("user_id", currentUser.id)
     .order("created_at", { ascending: false })
     .limit(50);
@@ -434,15 +434,15 @@ function switchView(name) {
   document.getElementById("view-" + name).classList.add("active");
   state.view = name;
   document.getElementById("bottomNav").style.display = (name === "player" || name === "live-host" || name === "live-guest" || name === "dm-chat") ? "none" : "flex";
-  const tabForView = { home: "home", foryou: "foryou", mylist: "mylist", rewards: "rewards", mine: "profile" };
+  const tabForView = { home: "home", explore: "explore", foryou: "foryou", mylist: "mylist", rewards: "profile", mine: "profile" };
   if (tabForView[name]) {
     document.querySelectorAll(".nav-item").forEach(b => b.classList.toggle("active", b.dataset.tab === tabForView[name]));
   }
 }
 
-function renderContinueWatching() {
-  const section = document.getElementById("continueSection");
-  const strip = document.getElementById("continueStrip");
+function renderContinueWatching(sectionId = "continueSection", stripId = "continueStrip") {
+  const section = document.getElementById(sectionId);
+  const strip = document.getElementById(stripId);
   const entries = Object.entries(state.watchHistory)
     .map(([dramaId, progress]) => ({ drama: DRAMAS.find((d) => d.id === dramaId), ...progress }))
     .filter((e) => e.drama)
@@ -464,6 +464,113 @@ function renderContinueWatching() {
       <p class="continue-title">${drama.title}</p>
     `;
     card.addEventListener("click", () => openPlayer(drama.id, epNum - 1));
+    strip.appendChild(card);
+  });
+}
+
+function renderHomeDashboard() {
+  renderHeroCarousel();
+  renderLiveStrip();
+  renderContinueWatching();
+  renderTrendingStrip();
+  renderOriginalsStrip();
+}
+
+function renderHeroCarousel() {
+  const wrap = document.getElementById("heroCarousel");
+  wrap.innerHTML = "";
+  const top = [...DRAMAS].sort((a, b) => parseFloat(b.views) - parseFloat(a.views)).slice(0, 5);
+  if (!top.length) { wrap.style.display = "none"; return; }
+  wrap.style.display = "block";
+
+  const track = document.createElement("div");
+  track.className = "hero-track";
+  top.forEach((d) => {
+    const slide = document.createElement("div");
+    slide.className = "hero-slide";
+    slide.style.cssText = coverStyle(d, 1);
+    slide.innerHTML = `
+      <div class="hero-vignette"></div>
+      <div class="hero-info">
+        <span class="hero-eyebrow">Popular Now</span>
+        <h2>${d.title}</h2>
+        <p class="hero-meta">${d.episodes} Episodes · ${d.label}</p>
+        <div class="hero-actions">
+          <button class="hero-play-btn"><svg class="ic"><use href="#ic-play"/></svg> Play</button>
+          <button class="hero-list-btn"><svg class="ic"><use href="#ic-bookmark${state.followed[d.id] ? '-filled' : ''}"/></svg> My List</button>
+        </div>
+      </div>
+    `;
+    slide.querySelector(".hero-play-btn").addEventListener("click", (e) => { e.stopPropagation(); openPlayer(d.id, 0); });
+    slide.querySelector(".hero-list-btn").addEventListener("click", (e) => {
+      e.stopPropagation();
+      state.followed[d.id] = !state.followed[d.id];
+      saveState();
+      toast(state.followed[d.id] ? "Added to My List" : "Removed from My List");
+      renderHeroCarousel();
+    });
+    slide.addEventListener("click", () => openDetail(d.id));
+    track.appendChild(slide);
+  });
+  wrap.appendChild(track);
+
+  if (top.length > 1) {
+    const dots = document.createElement("div");
+    dots.className = "hero-dots";
+    top.forEach((_, i) => {
+      const dot = document.createElement("span");
+      dot.className = "hero-dot" + (i === 0 ? " active" : "");
+      dots.appendChild(dot);
+    });
+    wrap.appendChild(dots);
+    track.addEventListener("scroll", () => {
+      const idx = Math.round(track.scrollLeft / track.clientWidth);
+      dots.querySelectorAll(".hero-dot").forEach((d, i) => d.classList.toggle("active", i === idx));
+    });
+  }
+}
+
+function renderTrendingStrip() {
+  const strip = document.getElementById("trendingStrip");
+  const titleRow = document.getElementById("trendingSectionTitle");
+  strip.innerHTML = "";
+  const top = [...DRAMAS].sort((a, b) => parseFloat(b.views) - parseFloat(a.views)).slice(0, 10);
+  const show = top.length > 0;
+  titleRow.style.display = show ? "flex" : "none";
+  strip.style.display = show ? "flex" : "none";
+  top.forEach((d, i) => {
+    const card = document.createElement("div");
+    card.className = "trending-card";
+    card.innerHTML = `
+      <div class="trending-thumb" style="${coverStyle(d, 1)}">
+        ${i < 3 ? `<span class="rank-ribbon rank-${i + 1}">TOP ${i + 1}</span>` : ""}
+      </div>
+      <p class="trending-title">${d.title}</p>
+      <p class="trending-sub">${d.label}</p>
+    `;
+    card.addEventListener("click", () => openDetail(d.id));
+    strip.appendChild(card);
+  });
+}
+
+function renderOriginalsStrip() {
+  const strip = document.getElementById("originalsStrip");
+  const titleRow = document.getElementById("originalsSectionTitle");
+  strip.innerHTML = "";
+  const latest = DRAMAS.slice(0, 10);
+  const show = latest.length > 0;
+  titleRow.style.display = show ? "flex" : "none";
+  strip.style.display = show ? "flex" : "none";
+  latest.forEach((d) => {
+    const card = document.createElement("div");
+    card.className = "originals-card";
+    card.innerHTML = `
+      <div class="originals-thumb" style="${coverStyle(d, 1)}">
+        ${d.badge === "New" ? '<span class="new-ep-badge">NEW EPISODE</span>' : ""}
+      </div>
+      <p class="originals-title">${d.title}</p>
+    `;
+    card.addEventListener("click", () => openDetail(d.id));
     strip.appendChild(card);
   });
 }
@@ -520,6 +627,7 @@ function renderMyList() {
     return;
   }
   list.forEach(d => {
+    const progress = state.watchHistory[d.id];
     const card = document.createElement("div");
     card.className = "drama-card";
     card.innerHTML = `
@@ -529,9 +637,41 @@ function renderMyList() {
       <div class="drama-info">
         <h3>${d.title}</h3>
         <p class="desc">${d.desc}</p>
-        <div class="drama-meta"><span class="tag">${d.episodes} EP</span></div>
+        <div class="drama-meta">
+          <span class="tag">${d.episodes} EP</span>
+          ${progress ? `<span class="tag progress-tag">EP ${progress.epNum} · ${d.episodes - progress.epNum} to go</span>` : ""}
+        </div>
       </div>`;
     card.addEventListener("click", () => openDetail(d.id));
+    wrap.appendChild(card);
+  });
+}
+
+function renderHistoryList() {
+  const wrap = document.getElementById("historyFeed");
+  wrap.innerHTML = "";
+  const entries = Object.entries(state.watchHistory)
+    .map(([dramaId, progress]) => ({ drama: DRAMAS.find((d) => d.id === dramaId), ...progress }))
+    .filter((e) => e.drama)
+    .sort((a, b) => b.updatedAt - a.updatedAt);
+  if (!entries.length) {
+    wrap.innerHTML = '<div class="empty-state">Dramas you watch will show up here.</div>';
+    return;
+  }
+  entries.forEach(({ drama, epNum }) => {
+    const card = document.createElement("div");
+    card.className = "drama-card";
+    const pct = Math.round((epNum / drama.episodes) * 100);
+    card.innerHTML = `
+      <div class="drama-cover" style="${coverStyle(drama)}">
+        <span class="play-glyph"><svg class="ic"><use href="#ic-play"/></svg></span>
+      </div>
+      <div class="drama-info">
+        <h3>${drama.title}</h3>
+        <p class="desc">${drama.desc}</p>
+        <div class="drama-meta"><span class="tag progress-tag">EP ${epNum} · ${pct}% watched</span></div>
+      </div>`;
+    card.addEventListener("click", () => openPlayer(drama.id, epNum - 1));
     wrap.appendChild(card);
   });
 }
@@ -544,6 +684,7 @@ document.querySelectorAll(".mltab").forEach((tab) => {
     document.querySelectorAll(".mylist-panel").forEach((p) => p.classList.remove("active"));
     document.getElementById("panel-mylist-" + tab.dataset.mltab).classList.add("active");
     if (tab.dataset.mltab === "creators") renderFollowingList();
+    if (tab.dataset.mltab === "history") renderHistoryList();
   });
 });
 
@@ -1722,42 +1863,92 @@ async function fetchRealDramas() {
   });
   renderFeed();
   if (state.view === "foryou") renderForYouFeed();
+  if (state.view === "home") renderHomeDashboard();
 }
 
 function openDetail(dramaId) {
   const d = DRAMAS.find(x => x.id === dramaId);
   state.currentDrama = d;
-  document.getElementById("detailHero").style.cssText = coverStyle(d);
+  document.getElementById("detailHero").style.cssText = coverStyle(d) + ";position:relative;";
   document.getElementById("detailTitle").textContent = d.title;
-  document.getElementById("detailMeta").textContent = `${d.episodes} Episodes · ${d.views} views`;
+  document.getElementById("detailMeta").textContent = `${d.episodes} Episodes · ${d.label} · @${d.creatorName || "creator"}`;
   document.getElementById("detailDesc").textContent = d.desc;
 
+  const rank = [...DRAMAS].sort((a, b) => parseFloat(b.views) - parseFloat(a.views)).findIndex((x) => x.id === d.id) + 1;
+  document.getElementById("detailBadgesRow").innerHTML = rank > 0 && rank <= 10 ? `<span class="detail-rank-badge">TOP ${rank}</span>` : "";
+
   const followBtn = document.getElementById("followBtn");
-  followBtn.textContent = state.followed[d.id] ? "✓ Following" : "+ Follow";
-  followBtn.classList.toggle("following", !!state.followed[d.id]);
+  const saved = !!state.followed[d.id];
+  followBtn.querySelector("span").textContent = saved ? "Saved" : "My List";
+  followBtn.querySelector("use").setAttribute("href", saved ? "#ic-bookmark-filled" : "#ic-bookmark");
+  followBtn.classList.toggle("active", saved);
+
+  showDetailTab("episodes");
 
   const grid = document.getElementById("episodeGrid");
   grid.innerHTML = "";
   for (let n = 1; n <= d.episodes; n++) {
     const unlocked = isUnlocked(d.id, n, d.free) || isDramaFullyUnlocked(d);
-    const btn = document.createElement("button");
-    btn.className = "ep-btn " + (unlocked ? "unlocked" : "locked");
-    btn.innerHTML = `${n}<svg class="ic ep-badge-icon"><use href="#ic-${unlocked ? "play" : "lock"}"/></svg>`;
-    btn.addEventListener("click", () => openPlayer(d.id, n - 1));
-    grid.appendChild(btn);
+    const likeCount = episodeLikeCounts[d.id + ":" + n] || 0;
+    const row = document.createElement("button");
+    row.className = "episode-row " + (unlocked ? "unlocked" : "locked");
+    row.innerHTML = `
+      <div class="episode-row-thumb" style="${coverStyle(d)}"><svg class="ic"><use href="#ic-${unlocked ? "play" : "lock"}"/></svg></div>
+      <div class="episode-row-info">
+        <div class="episode-row-title">${n}. Episode ${n}</div>
+        <div class="episode-row-sub">${likeCount} likes</div>
+      </div>
+    `;
+    row.addEventListener("click", () => openPlayer(d.id, n - 1));
+    grid.appendChild(row);
   }
+
+  renderMoreLikeThis(d);
   switchView("detail");
 }
 
-document.addEventListener("click", (e) => {
-  if (e.target.id === "playFirstBtn") openPlayer(state.currentDrama.id, 0);
-  if (e.target.id === "followBtn") {
-    const d = state.currentDrama;
-    state.followed[d.id] = !state.followed[d.id];
-    saveState();
-    openDetail(d.id);
-    toast(state.followed[d.id] ? "Added to My List" : "Removed from My List");
-  }
+function renderMoreLikeThis(d) {
+  const grid = document.getElementById("moreLikeGrid");
+  grid.innerHTML = "";
+  const similar = DRAMAS.filter((x) => x.id !== d.id && x.genre === d.genre);
+  if (!similar.length) { grid.innerHTML = '<div class="empty-state">Nothing similar yet.</div>'; return; }
+  similar.forEach((s) => {
+    const card = document.createElement("div");
+    card.className = "poster-card";
+    card.innerHTML = `
+      <div class="poster-cover" style="${coverStyle(s)}"></div>
+      <h3 class="poster-title">${s.title}</h3>
+      <p class="poster-genre">${s.label}</p>
+    `;
+    card.addEventListener("click", () => openDetail(s.id));
+    grid.appendChild(card);
+  });
+}
+
+function showDetailTab(tab) {
+  document.querySelectorAll(".detail-tab").forEach((t) => t.classList.toggle("active", t.dataset.detailTab === tab));
+  document.getElementById("detailPanelEpisodes").classList.toggle("active", tab === "episodes");
+  document.getElementById("detailPanelMore").classList.toggle("active", tab === "more");
+}
+document.querySelectorAll(".detail-tab").forEach((t) => {
+  t.addEventListener("click", () => showDetailTab(t.dataset.detailTab));
+});
+
+document.getElementById("playFirstBtn").addEventListener("click", () => openPlayer(state.currentDrama.id, 0));
+document.getElementById("followBtn").addEventListener("click", () => {
+  const d = state.currentDrama;
+  state.followed[d.id] = !state.followed[d.id];
+  saveState();
+  openDetail(d.id);
+  toast(state.followed[d.id] ? "Added to My List" : "Removed from My List");
+});
+document.getElementById("detailShareBtn").addEventListener("click", () => openModal("shareModal"));
+document.getElementById("detailReportBtn").addEventListener("click", () => {
+  if (state.currentDrama) submitReport(state.currentDrama);
+});
+document.getElementById("detailMoreBtn").addEventListener("click", () => {
+  moreModalTarget = state.currentDrama;
+  openModal("moreModal");
 });
 
 /* ---------------- Player ---------------- */
@@ -2153,10 +2344,10 @@ document.querySelectorAll(".nav-item").forEach(btn => {
     document.querySelectorAll(".nav-item").forEach(b => b.classList.remove("active"));
     btn.classList.add("active");
     const tab = btn.dataset.tab;
-    if (tab === "home") { switchView("home"); renderFeed(); renderContinueWatching(); }
+    if (tab === "home") { switchView("home"); renderHomeDashboard(); }
+    if (tab === "explore") { switchView("explore"); renderFeed(); }
     if (tab === "foryou") { switchView("foryou"); renderForYouFeed(); }
     if (tab === "mylist") { switchView("mylist"); renderMyList(); }
-    if (tab === "rewards") { switchView("rewards"); renderRewards(); }
     if (tab === "profile") { switchView("mine"); renderMine(); }
   });
 });
@@ -2175,6 +2366,35 @@ document.getElementById("searchInput").addEventListener("input", (e) => {
   renderFeed();
 });
 document.getElementById("filterBtn").addEventListener("click", () => toast("More filters coming soon"));
+document.getElementById("homeSearchBtn").addEventListener("click", () => {
+  document.querySelectorAll(".nav-item").forEach((b) => b.classList.toggle("active", b.dataset.tab === "explore"));
+  switchView("explore");
+  renderFeed();
+  setTimeout(() => document.getElementById("searchInput").focus(), 150);
+});
+document.getElementById("homeNotifBtn").addEventListener("click", () => openNotifications());
+document.getElementById("profileNotifBtn").addEventListener("click", () => openNotifications());
+document.getElementById("profileSettingsBtn").addEventListener("click", () => {
+  renderSettingsToggles();
+  openModal("settingsModal");
+});
+
+document.querySelectorAll("[data-see-all]").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll(".nav-item").forEach((b) => b.classList.toggle("active", b.dataset.tab === "explore"));
+    switchView("explore");
+    state.feedFilter = btn.dataset.seeAll;
+    document.querySelectorAll("#subGenreTabs .genre-tab").forEach((t) => t.classList.toggle("active", t.dataset.genre === btn.dataset.seeAll));
+    renderFeed();
+  });
+});
+document.querySelectorAll("[data-see-all-mylist]").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll(".nav-item").forEach((b) => b.classList.toggle("active", b.dataset.tab === "mylist"));
+    switchView("mylist");
+    renderMyList();
+  });
+});
 document.getElementById("subscribeVipBtn").addEventListener("click", () => {
   state.vip = true;
   saveState();
@@ -2183,7 +2403,7 @@ document.getElementById("subscribeVipBtn").addEventListener("click", () => {
 });
 
 document.querySelectorAll('[data-back="home"]').forEach(btn => {
-  btn.addEventListener("click", () => { switchView("home"); renderContinueWatching(); });
+  btn.addEventListener("click", () => { switchView("home"); renderHomeDashboard(); });
 });
 
 /* ---------------- For You (cross-series swipe discovery) ---------------- */
@@ -2287,6 +2507,7 @@ function buildForYouCard(d, epNum) {
   const liked = !!state.likes[likeKey];
   const saved = !!state.followed[d.id];
   const claimed = !!state.claimedTasks[claimKey];
+  const followingCreator = followingIds.has(d.creatorId);
 
   const previewUrl = d.real && d.videoUrls ? d.videoUrls[epNum] : null;
 
@@ -2299,27 +2520,28 @@ function buildForYouCard(d, epNum) {
       ${d.mutual ? '<span class="mutual-badge">Mutual</span>' : ""}
       <button class="fyu-search-btn"><svg class="ic"><use href="#ic-search"/></svg></button>
     </div>
+    ${!claimed ? `
+    <button class="claim-chip" data-claim="${claimKey}">
+      <svg class="ic ic-coin"><use href="#ic-coin"/></svg> Claim +5
+    </button>` : ""}
     <div class="center-play-btn"><svg class="ic"><use href="#ic-play"/></svg></div>
-    <div class="player-rail fyu-rail">
-      ${!claimed ? `
-      <button class="rail-btn claim-btn" data-claim="${claimKey}">
-        <span class="claim-coin"><svg class="ic ic-coin"><use href="#ic-coin"/></svg></span>
-        <span class="claim-pill">Claim</span>
-      </button>` : ""}
-      <button class="rail-btn bookmark-btn ${saved ? 'saved' : ''}" data-bookmark="${d.id}"><svg class="ic"><use href="#ic-bookmark${saved ? '-filled' : ''}"/></svg><span>${formatCount(baseSaves + (saved ? 1 : 0))}</span></button>
-      <button class="rail-btn like-btn ${liked ? 'liked' : ''}" data-like="${likeKey}">${heartIconHTML(liked)}<span>${formatCount(baseLikes + (liked ? 1 : 0))}</span></button>
-      <button class="rail-btn more-btn"><svg class="ic"><use href="#ic-more"/></svg><span>More</span></button>
-    </div>
-    <div class="player-bottom player-bottom-nav-spacer fyu-bottom">
-      <div class="fyu-title-row">
-        <div class="fyu-thumb" style="${coverStyle(d)}"></div>
-        <div class="fyu-title-info">
-          <h3>${d.title} <span class="chevron">›</span></h3>
-          <span class="fyu-tag">${d.label} · EP ${epNum}</span>
-        </div>
+    <div class="reel-side-rail">
+      <div class="reel-avatar-wrap">
+        <div class="reel-avatar" style="background:${gradientFor(d.creatorId || d.id)}">${(d.creatorName || "C")[0].toUpperCase()}</div>
+        ${!followingCreator ? `<button class="reel-follow-plus" data-follow-creator="${d.creatorId}">+</button>` : ""}
       </div>
-      <p class="ep-desc">${d.desc} <span class="more-link">More</span></p>
-      <button class="btn-watch-now foryou-cta"><svg class="ic"><use href="#ic-play"/></svg> Watch Now</button>
+      <button class="reel-action-btn like-btn ${liked ? 'liked' : ''}" data-like="${likeKey}">${heartIconHTML(liked)}<span>${formatCount(baseLikes + (liked ? 1 : 0))}</span></button>
+      <button class="reel-action-btn comment-btn"><svg class="ic"><use href="#ic-comment"/></svg><span>Comment</span></button>
+      <button class="reel-action-btn share-btn2"><svg class="ic"><use href="#ic-share"/></svg><span>Share</span></button>
+      <button class="reel-action-btn bookmark-btn ${saved ? 'saved' : ''}" data-bookmark="${d.id}"><svg class="ic"><use href="#ic-bookmark${saved ? '-filled' : ''}"/></svg><span>${formatCount(baseSaves + (saved ? 1 : 0))}</span></button>
+      <button class="reel-action-btn more-btn"><svg class="ic"><use href="#ic-more"/></svg></button>
+    </div>
+    <div class="reel-bottom-info player-bottom-nav-spacer">
+      <div class="reel-creator-row">
+        <b class="reel-creator-name">@${d.creatorName || "creator"}</b>
+        ${!followingCreator ? `<button class="reel-follow-text-btn" data-follow-creator="${d.creatorId}">Follow</button>` : '<span class="reel-following-tag">Following</span>'}
+      </div>
+      <p class="reel-caption"><b>${d.title}</b> · EP ${epNum} — ${d.desc} <span class="more-link">More</span></p>
     </div>
   `;
 
@@ -2339,7 +2561,26 @@ function buildForYouCard(d, epNum) {
     btn.querySelector("span").textContent = formatCount(baseSaves + (state.followed[d.id] ? 1 : 0));
     toast(state.followed[d.id] ? "Added to My List" : "Removed from My List");
   });
-  const claimBtn = card.querySelector(".claim-btn");
+  card.querySelector(".comment-btn").addEventListener("click", () => openComments(d, epNum));
+  card.querySelector(".share-btn2").addEventListener("click", () => {
+    state.currentDrama = d;
+    openModal("shareModal");
+  });
+  card.querySelectorAll("[data-follow-creator]").forEach((btn) => {
+    btn.addEventListener("click", async (e) => {
+      e.stopPropagation();
+      if (!d.creatorId) return;
+      await toggleFollow(d.creatorId, btn);
+      const nowFollowing = followingIds.has(d.creatorId);
+      card.querySelectorAll("[data-follow-creator]").forEach((b) => {
+        if (nowFollowing) b.remove();
+      });
+      if (nowFollowing) {
+        card.querySelector(".reel-creator-row").insertAdjacentHTML("beforeend", '<span class="reel-following-tag">Following</span>');
+      }
+    });
+  });
+  const claimBtn = card.querySelector(".claim-chip");
   if (claimBtn) {
     claimBtn.addEventListener("click", () => {
       state.claimedTasks[claimKey] = true;
@@ -2362,14 +2603,13 @@ function buildForYouCard(d, epNum) {
     document.querySelector('.mltab[data-mltab="creators"]').click();
     setTimeout(() => document.getElementById("creatorSearchInput").focus(), 150);
   });
-  card.querySelector(".foryou-cta").addEventListener("click", () => openPlayer(d.id, epNum - 1));
-  card.querySelector(".fyu-title-row").addEventListener("click", () => openDetail(d.id));
-  card.querySelector(".more-link").addEventListener("click", () => openDetail(d.id));
+  card.querySelector(".reel-caption").addEventListener("click", () => openDetail(d.id));
+  card.querySelector(".more-link").addEventListener("click", (e) => { e.stopPropagation(); openDetail(d.id); });
 
   let lastTap = 0;
   let singleTapTimer = null;
   card.addEventListener("pointerup", (e) => {
-    if (e.target.closest("button, .fyu-title-row, .more-link")) return;
+    if (e.target.closest("button, .reel-bottom-info")) return;
     const now = Date.now();
     if (now - lastTap < 320) {
       clearTimeout(singleTapTimer);
@@ -2719,6 +2959,65 @@ function renderMine() {
   updateCoinDisplays();
   document.querySelector(".firstlogin-badge").classList.toggle("claimed-btn", !!state.claimedTasks.firstlogin);
   renderProfileMenu();
+  renderContinueWatching("profileContinueTitle", "profileContinueStrip");
+  renderProfileVipCard();
+  loadProfileStats();
+}
+
+function renderProfileVipCard() {
+  const badge = document.getElementById("profileProBadge");
+  const title = document.getElementById("premiumCardTitle");
+  const btn = document.getElementById("premiumCardBtn");
+  badge.style.display = state.vip ? "inline-block" : "none";
+  if (state.vip) {
+    title.textContent = "You're a ReelFlix VIP — enjoy every benefit";
+    btn.textContent = "Manage Plan";
+  } else {
+    title.textContent = "Become a VIP – Enjoy all benefits";
+    btn.textContent = "GO";
+  }
+}
+
+async function loadProfileStats() {
+  document.getElementById("statFollowing").textContent = followingIds.size;
+  document.getElementById("statSaved").textContent = Object.values(state.followed).filter(Boolean).length;
+
+  const watched = Object.entries(state.watchHistory).map(([dramaId, p]) => ({ drama: DRAMAS.find((d) => d.id === dramaId), ...p })).filter((e) => e.drama);
+  document.getElementById("statEpisodesWatched").textContent = watched.reduce((sum, e) => sum + e.epNum, 0);
+  document.getElementById("statDramasCompleted").textContent = watched.filter((e) => e.epNum >= e.drama.episodes).length;
+
+  const myDramas = DRAMAS.filter((d) => d.creatorId === currentUser?.id);
+  document.getElementById("statDramasUploaded").textContent = myDramas.length;
+
+  if (!currentUser || !supabaseClient) {
+    document.getElementById("statFollowers").textContent = 0;
+    document.getElementById("statLikes").textContent = 0;
+    document.getElementById("statCommentsPosted").textContent = 0;
+    return;
+  }
+
+  const { count: followerCount } = await supabaseClient
+    .from("follows")
+    .select("follower_id", { count: "exact", head: true })
+    .eq("followed_id", currentUser.id);
+  document.getElementById("statFollowers").textContent = followerCount || 0;
+
+  const { count: commentCount } = await supabaseClient
+    .from("comments")
+    .select("id", { count: "exact", head: true })
+    .eq("user_id", currentUser.id);
+  document.getElementById("statCommentsPosted").textContent = commentCount || 0;
+
+  const myDramaIds = myDramas.map((d) => d.id);
+  if (myDramaIds.length) {
+    const { count: likeCount } = await supabaseClient
+      .from("episode_likes")
+      .select("user_id", { count: "exact", head: true })
+      .in("drama_id", myDramaIds);
+    document.getElementById("statLikes").textContent = likeCount || 0;
+  } else {
+    document.getElementById("statLikes").textContent = 0;
+  }
 }
 
 function renderProfileMenu() {
@@ -3678,8 +3977,7 @@ function init() {
   loadState();
   updateCoinDisplays();
   renderFeed();
-  renderLiveStrip();
-  renderContinueWatching();
+  renderHomeDashboard();
   renderForYouFeed();
   switchView("foryou");
   renderCoinPackages();
