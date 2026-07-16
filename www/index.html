@@ -12,7 +12,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="Reelflix" />
-  <link rel="stylesheet" href="style.css?v=61" />
+  <link rel="stylesheet" href="style.css?v=62" />
 </head>
 <body>
   <svg width="0" height="0" style="position:absolute" aria-hidden="true">
@@ -729,6 +729,14 @@
         <div class="section-title-row" id="profileContinueTitle" style="display:none"><h4 class="section-title">Continue Watching</h4><span class="see-all-btn" id="profileContinueSeeAll">See All</span></div>
         <div class="continue-strip" id="profileContinueStrip"></div>
 
+        <div class="section-title-row" id="myContentTitle" style="display:none"><h4 class="section-title">My Content</h4></div>
+        <div class="mylist-subtabs" id="myContentTabs" style="display:none">
+          <button class="content-tab active" data-content-tab="dramas">Dramas</button>
+          <button class="content-tab" data-content-tab="reels">Reels</button>
+        </div>
+        <div class="poster-grid" id="myContentDramaGrid"></div>
+        <div class="poster-grid" id="myContentReelGrid" style="display:none"></div>
+
         <div class="section-title-row"><h4 class="section-title">More</h4></div>
         <div class="profile-menu-card">
           <div class="profile-menu" id="profileMenuMore"></div>
@@ -1244,8 +1252,8 @@
     </div>
   </div>
 
-  <script src="vendor/supabase.js?v=61"></script>
-  <script src="vendor/livekit-client.js?v=61"></script>
-  <script src="app.js?v=61"></script>
+  <script src="vendor/supabase.js?v=62"></script>
+  <script src="vendor/livekit-client.js?v=62"></script>
+  <script src="app.js?v=62"></script>
 </body>
 </html>

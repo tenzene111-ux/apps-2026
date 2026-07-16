@@ -360,6 +360,15 @@ input { font: inherit; color: inherit; }
   overflow: hidden;
   margin-bottom: 6px;
 }
+.reel-poster-play {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(255,255,255,0.85);
+}
+.reel-poster-play svg { width: 26px; height: 26px; }
 .poster-badge {
   position: absolute;
   top: 6px;
@@ -1196,6 +1205,8 @@ input { font: inherit; color: inherit; }
 }
 .mltab { padding: 8px 0 10px; font-size: 13.5px; font-weight: 700; color: var(--text-dim); border-bottom: 2px solid transparent; }
 .mltab.active { color: var(--text); border-bottom-color: var(--accent); }
+.content-tab { padding: 8px 0 10px; font-size: 13.5px; font-weight: 700; color: var(--text-dim); border-bottom: 2px solid transparent; }
+.content-tab.active { color: var(--text); border-bottom-color: var(--accent); }
 .mylist-scroll { flex: 1; overflow-y: auto; padding-bottom: 90px; }
 .mylist-panel { display: none; }
 .mylist-panel.active { display: block; }

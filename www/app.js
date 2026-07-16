@@ -3027,6 +3027,7 @@ async function fetchRealReels() {
 function buildReelCard(reel) {
   const card = document.createElement("div");
   card.className = "player-card foryou-card";
+  card.dataset.reelId = reel.id;
   const liked = myLikedReels.has(reel.id);
   const likeCount = reelLikeCounts[reel.id] || 0;
   const followingCreator = followingIds.has(reel.creatorId);
@@ -4500,7 +4501,85 @@ function renderMine() {
   renderContinueWatching("profileContinueTitle", "profileContinueStrip");
   renderProfileVipCard();
   loadProfileStats();
+  renderMyContent();
 }
+
+let myContentTab = "dramas";
+
+function renderMyContent() {
+  const title = document.getElementById("myContentTitle");
+  const tabs = document.getElementById("myContentTabs");
+  if (!currentUser) {
+    title.style.display = "none";
+    tabs.style.display = "none";
+    document.getElementById("myContentDramaGrid").style.display = "none";
+    document.getElementById("myContentReelGrid").style.display = "none";
+    return;
+  }
+  title.style.display = "";
+  tabs.style.display = "flex";
+
+  const myDramas = DRAMAS.filter((d) => d.real && d.creatorId === currentUser.id);
+  const myReels = REELS.filter((r) => r.creatorId === currentUser.id);
+
+  const dramaGrid = document.getElementById("myContentDramaGrid");
+  dramaGrid.innerHTML = "";
+  if (!myDramas.length) {
+    dramaGrid.innerHTML = '<div class="empty-state">Dramas you upload will show up here.</div>';
+  } else {
+    myDramas.forEach((d) => {
+      const card = document.createElement("div");
+      card.className = "poster-card";
+      card.innerHTML = `
+        <div class="poster-cover" style="${coverStyle(d)}"></div>
+        <h3 class="poster-title">${d.title}</h3>
+        <p class="poster-genre">${d.episodes} EP · ${d.label}</p>`;
+      card.addEventListener("click", () => openDetail(d.id));
+      dramaGrid.appendChild(card);
+    });
+  }
+
+  const reelGrid = document.getElementById("myContentReelGrid");
+  reelGrid.innerHTML = "";
+  if (!myReels.length) {
+    reelGrid.innerHTML = '<div class="empty-state">Reels you post will show up here.</div>';
+  } else {
+    myReels.forEach((r) => {
+      const card = document.createElement("div");
+      card.className = "poster-card";
+      card.innerHTML = `
+        <div class="poster-cover" style="background:${gradientFor(r.id, 1)}">
+          <div class="reel-poster-play"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></div>
+        </div>
+        <h3 class="poster-title">${r.caption || "Reel"}</h3>
+        <p class="poster-genre">${formatCount(reelLikeCounts[r.id] || 0)} likes</p>`;
+      card.addEventListener("click", () => openMyReel(r.id));
+      reelGrid.appendChild(card);
+    });
+  }
+
+  dramaGrid.style.display = myContentTab === "dramas" ? "grid" : "none";
+  reelGrid.style.display = myContentTab === "reels" ? "grid" : "none";
+}
+
+function openMyReel(reelId) {
+  document.querySelectorAll(".nav-item").forEach((b) => b.classList.toggle("active", b.dataset.tab === "foryou"));
+  switchView("foryou");
+  renderForYouFeed();
+  requestAnimationFrame(() => {
+    const card = document.getElementById("forYouFeed").querySelector(`[data-reel-id="${reelId}"]`);
+    if (card) card.scrollIntoView();
+  });
+}
+
+document.getElementById("myContentTabs").addEventListener("click", (e) => {
+  const btn = e.target.closest(".content-tab");
+  if (!btn) return;
+  myContentTab = btn.dataset.contentTab;
+  document.querySelectorAll("#myContentTabs .content-tab").forEach((t) => t.classList.toggle("active", t === btn));
+  document.getElementById("myContentDramaGrid").style.display = myContentTab === "dramas" ? "grid" : "none";
+  document.getElementById("myContentReelGrid").style.display = myContentTab === "reels" ? "grid" : "none";
+});
 
 function renderProfileVipCard() {
   const badge = document.getElementById("profileProBadge");
