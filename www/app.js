@@ -2732,6 +2732,286 @@ function leavePresence() {
   presenceChannel = null;
 }
 
+/* ---------------- Live effects (filters + AR face overlays, applied via canvas before publish) ---------------- */
+const FILTER_PRESETS = {
+  none: "none",
+  warm: "saturate(1.25) sepia(0.18) brightness(1.05)",
+  cool: "saturate(1.1) hue-rotate(-8deg) brightness(1.02) contrast(1.05)",
+  bw: "grayscale(1) contrast(1.1)",
+  vintage: "sepia(0.35) saturate(0.8) contrast(0.9) brightness(1.05)",
+  beauty: "brightness(1.06) contrast(0.95) saturate(1.08) blur(0.6px)",
+};
+
+let liveMediaCtrl = null;
+let faceApiScriptPromise = null;
+let faceApiModelsPromise = null;
+
+function loadFaceApiScript() {
+  if (window.faceapi) return Promise.resolve();
+  if (faceApiScriptPromise) return faceApiScriptPromise;
+  faceApiScriptPromise = new Promise((resolve, reject) => {
+    const s = document.createElement("script");
+    s.src = "vendor/face-api.min.js?v=41";
+    s.onload = () => resolve();
+    s.onerror = () => { faceApiScriptPromise = null; reject(new Error("load failed")); };
+    document.head.appendChild(s);
+  });
+  return faceApiScriptPromise;
+}
+
+async function ensureFaceModelsLoaded() {
+  await loadFaceApiScript();
+  if (!faceApiModelsPromise) {
+    faceApiModelsPromise = Promise.all([
+      faceapi.nets.tinyFaceDetector.loadFromUri("models"),
+      faceapi.nets.faceLandmark68TinyNet.loadFromUri("models"),
+    ]).catch((e) => { faceApiModelsPromise = null; throw e; });
+  }
+  return faceApiModelsPromise;
+}
+
+function avgPoint(pts) {
+  return { x: pts.reduce((s, p) => s + p.x, 0) / pts.length, y: pts.reduce((s, p) => s + p.y, 0) / pts.length };
+}
+function ptDist(a, b) { return Math.hypot(a.x - b.x, a.y - b.y); }
+
+function drawDogEars(ctx, cx, cy, spread, faceWidth) {
+  const earH = faceWidth * 0.55, earW = faceWidth * 0.4;
+  [-1, 1].forEach((side) => {
+    ctx.save();
+    ctx.translate(cx + side * spread, cy);
+    ctx.rotate(side * 0.3);
+    ctx.fillStyle = "#7a4a2b";
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.quadraticCurveTo(side * earW, -earH * 0.6, 0, -earH);
+    ctx.quadraticCurveTo(side * earW * 0.25, -earH * 0.5, 0, 0);
+    ctx.fill();
+    ctx.restore();
+  });
+}
+function drawBunnyEars(ctx, cx, cy, spread, faceWidth) {
+  const earW = faceWidth * 0.22, earH = faceWidth * 0.85;
+  [-1, 1].forEach((side) => {
+    ctx.save();
+    ctx.translate(cx + side * spread * 0.65, cy - earH * 0.35);
+    ctx.rotate(side * 0.1);
+    ctx.fillStyle = "#fff";
+    ctx.beginPath();
+    ctx.ellipse(0, 0, earW, earH, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "#f7a8c4";
+    ctx.beginPath();
+    ctx.ellipse(0, earH * 0.08, earW * 0.5, earH * 0.65, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  });
+}
+function drawGlasses(ctx, leftEye, rightEye, eyeDist) {
+  const r = eyeDist * 0.4;
+  ctx.strokeStyle = "#1a1a1a";
+  ctx.lineWidth = Math.max(2, eyeDist * 0.06);
+  [leftEye, rightEye].forEach((eye) => {
+    ctx.beginPath();
+    ctx.arc(eye.x, eye.y, r, 0, Math.PI * 2);
+    ctx.stroke();
+  });
+  ctx.beginPath();
+  ctx.moveTo(leftEye.x + r * (leftEye.x < rightEye.x ? 1 : -1), leftEye.y);
+  ctx.lineTo(rightEye.x + r * (rightEye.x < leftEye.x ? 1 : -1), rightEye.y);
+  ctx.stroke();
+}
+function drawBlush(ctx, leftEye, rightEye, eyeDist) {
+  ctx.fillStyle = "rgba(255,105,135,0.45)";
+  [leftEye, rightEye].forEach((eye, i) => {
+    const dir = i === 0 ? -1 : 1;
+    ctx.beginPath();
+    ctx.ellipse(eye.x + dir * eyeDist * 0.2, eye.y + eyeDist * 0.8, eyeDist * 0.32, eyeDist * 0.22, 0, 0, Math.PI * 2);
+    ctx.fill();
+  });
+}
+
+function drawArOverlay(ctx, faceResult, arPreset) {
+  const landmarks = faceResult.landmarks;
+  const leftEye = avgPoint(landmarks.getLeftEye());
+  const rightEye = avgPoint(landmarks.getRightEye());
+  const jaw = landmarks.getJawOutline();
+  const faceWidth = ptDist(jaw[0], jaw[jaw.length - 1]);
+  const eyeDist = ptDist(leftEye, rightEye);
+  const cx = (leftEye.x + rightEye.x) / 2;
+  const cy = Math.min(leftEye.y, rightEye.y) - faceWidth * 0.5;
+  const spread = faceWidth * 0.62;
+
+  ctx.save();
+  if (arPreset === "dog") {
+    drawDogEars(ctx, cx, cy, spread, faceWidth);
+    const nose = landmarks.getNose();
+    const tip = nose[nose.length - 1];
+    ctx.fillStyle = "#2b2b2b";
+    ctx.beginPath();
+    ctx.ellipse(tip.x, tip.y, faceWidth * 0.09, faceWidth * 0.07, 0, 0, Math.PI * 2);
+    ctx.fill();
+  } else if (arPreset === "bunny") {
+    drawBunnyEars(ctx, cx, cy, spread, faceWidth);
+  } else if (arPreset === "glasses") {
+    drawGlasses(ctx, leftEye, rightEye, eyeDist);
+  } else if (arPreset === "blush") {
+    drawBlush(ctx, leftEye, rightEye, eyeDist);
+  }
+  ctx.restore();
+}
+
+class LiveEffectsPipeline {
+  constructor(rawStream, effects) {
+    this.rawStream = rawStream;
+    this.effects = effects;
+    this.video = document.createElement("video");
+    this.video.srcObject = rawStream;
+    this.video.muted = true;
+    this.video.playsInline = true;
+    // Some browsers pause frame decoding for video elements that are never
+    // attached to the document, which would freeze the canvas. Keep it in
+    // the DOM but fully hidden off-screen.
+    this.video.style.cssText = "position:fixed;width:2px;height:2px;opacity:0;pointer-events:none;left:-9999px;top:-9999px";
+    document.body.appendChild(this.video);
+    this.canvas = document.createElement("canvas");
+    this.ctx = this.canvas.getContext("2d");
+    this.running = false;
+    this.faceResult = null;
+  }
+
+  async start() {
+    await this.video.play();
+    this.canvas.width = this.video.videoWidth || 480;
+    this.canvas.height = this.video.videoHeight || 854;
+    this.running = true;
+    this._renderLoop();
+    this._detectLoop();
+    const outStream = this.canvas.captureStream(30);
+    const audioTrack = this.rawStream.getAudioTracks()[0];
+    if (audioTrack) outStream.addTrack(audioTrack);
+    return outStream;
+  }
+
+  _renderLoop() {
+    if (!this.running) return;
+    const ctx = this.ctx;
+    ctx.save();
+    ctx.filter = FILTER_PRESETS[this.effects.filter] || "none";
+    ctx.drawImage(this.video, 0, 0, this.canvas.width, this.canvas.height);
+    ctx.restore();
+    if (this.effects.ar !== "none" && this.faceResult) {
+      drawArOverlay(ctx, this.faceResult, this.effects.ar);
+    }
+    requestAnimationFrame(() => this._renderLoop());
+  }
+
+  async _detectLoop() {
+    while (this.running) {
+      if (this.effects.ar !== "none" && window.faceapi && faceApiModelsPromise) {
+        try {
+          const result = await faceapi
+            .detectSingleFace(this.video, new faceapi.TinyFaceDetectorOptions({ inputSize: 224 }))
+            .withFaceLandmarks(true);
+          this.faceResult = result || null;
+        } catch (e) {
+          this.faceResult = null;
+        }
+      } else {
+        this.faceResult = null;
+      }
+      await new Promise((r) => setTimeout(r, 120));
+    }
+  }
+
+  stop() {
+    this.running = false;
+    this.rawStream.getTracks().forEach((t) => t.stop());
+    this.video.remove();
+  }
+}
+
+class LiveMediaController {
+  constructor() {
+    this.effects = { filter: "none", ar: "none" };
+    this.pipeline = null;
+    this.videoTrack = null;
+    this.audioTrack = null;
+    this.room = null;
+  }
+
+  async publish(room, previewEl) {
+    this.room = room;
+    const rawStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" }, audio: true });
+    try {
+      this.pipeline = new LiveEffectsPipeline(rawStream, this.effects);
+      const outStream = await this.pipeline.start();
+      this.videoTrack = outStream.getVideoTracks()[0];
+      this.audioTrack = outStream.getAudioTracks()[0];
+    } catch (e) {
+      this.pipeline = null;
+      this.videoTrack = rawStream.getVideoTracks()[0];
+      this.audioTrack = rawStream.getAudioTracks()[0];
+    }
+    await room.localParticipant.publishTrack(this.videoTrack, { source: LivekitClient.Track.Source.Camera });
+    await room.localParticipant.publishTrack(this.audioTrack, { source: LivekitClient.Track.Source.Microphone });
+    if (previewEl) {
+      previewEl.srcObject = new MediaStream([this.videoTrack]);
+      previewEl.style.display = "block";
+    }
+  }
+
+  setFilter(name) { this.effects.filter = name; }
+  setAr(name) { this.effects.ar = name; }
+
+  stop() {
+    if (this.room) {
+      try {
+        if (this.videoTrack) this.room.localParticipant.unpublishTrack(this.videoTrack);
+        if (this.audioTrack) this.room.localParticipant.unpublishTrack(this.audioTrack);
+      } catch (e) { /* room may already be disconnected */ }
+    }
+    if (this.pipeline) this.pipeline.stop();
+    else {
+      if (this.videoTrack) this.videoTrack.stop();
+      if (this.audioTrack) this.audioTrack.stop();
+    }
+    this.pipeline = null;
+    this.videoTrack = null;
+    this.audioTrack = null;
+    this.room = null;
+  }
+}
+
+function resetEffectsUI() {
+  document.querySelectorAll("#filterPresetRow .effect-chip").forEach((b) => b.classList.toggle("active", b.dataset.filter === "none"));
+  document.querySelectorAll("#arPresetRow .effect-chip").forEach((b) => b.classList.toggle("active", b.dataset.ar === "none"));
+}
+
+document.querySelectorAll("#filterPresetRow .effect-chip").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll("#filterPresetRow .effect-chip").forEach((b) => b.classList.remove("active"));
+    btn.classList.add("active");
+    if (liveMediaCtrl) liveMediaCtrl.setFilter(btn.dataset.filter);
+  });
+});
+document.querySelectorAll("#arPresetRow .effect-chip").forEach((btn) => {
+  btn.addEventListener("click", async () => {
+    const name = btn.dataset.ar;
+    if (name !== "none") {
+      try {
+        await ensureFaceModelsLoaded();
+      } catch (e) {
+        toast("Couldn't load face effects");
+        return;
+      }
+    }
+    document.querySelectorAll("#arPresetRow .effect-chip").forEach((b) => b.classList.remove("active"));
+    btn.classList.add("active");
+    if (liveMediaCtrl) liveMediaCtrl.setAr(name);
+  });
+});
+
 function setupLiveRoomListeners(room, isHost) {
   room.on(LivekitClient.RoomEvent.TrackSubscribed, (track, pub, participant) => {
     if (track.kind !== "video") return;
@@ -2811,15 +3091,15 @@ async function enableGuestPublishing() {
   const pip = document.getElementById("guestCamPip");
   const hostVideo = document.getElementById("guestHostVideo");
   try {
-    const pub = await currentLiveRoom.localParticipant.setCameraEnabled(true);
-    await currentLiveRoom.localParticipant.setMicrophoneEnabled(true);
-    if (pub?.track) pub.track.attach(pip);
-    pip.style.display = "block";
+    resetEffectsUI();
+    liveMediaCtrl = new LiveMediaController();
+    await liveMediaCtrl.publish(currentLiveRoom, pip);
     pip.classList.add("split-right");
     hostVideo.classList.add("split-left");
     btn.classList.remove("pending");
     btn.classList.add("joined");
     btn.textContent = "Leave";
+    document.getElementById("guestEffectsBtn").style.display = "flex";
     addLiveChatMessage("guestChatFeed", "You", "joined as a guest!", false);
   } catch (e) {
     toast("Camera access denied");
@@ -2830,13 +3110,11 @@ async function enableGuestPublishing() {
 async function disableGuestPublishing() {
   const pip = document.getElementById("guestCamPip");
   const hostVideo = document.getElementById("guestHostVideo");
-  if (currentLiveRoom) {
-    await currentLiveRoom.localParticipant.setCameraEnabled(false);
-    await currentLiveRoom.localParticipant.setMicrophoneEnabled(false);
-  }
+  if (liveMediaCtrl) { liveMediaCtrl.stop(); liveMediaCtrl = null; }
   pip.style.display = "none";
   pip.classList.remove("split-right");
   hostVideo.classList.remove("split-left");
+  document.getElementById("guestEffectsBtn").style.display = "none";
   resetJoinGuestBtn();
 }
 
@@ -2872,6 +3150,7 @@ async function openLiveHost() {
   const video = document.getElementById("hostCamPreview");
   const fallback = document.getElementById("hostFallbackBg");
   fallback.style.background = gradientFor("host-live");
+  resetEffectsUI();
 
   try {
     const { token, url } = await getLiveKitToken(roomName);
@@ -2879,16 +3158,9 @@ async function openLiveHost() {
     setupLiveRoomListeners(room, true);
     await room.connect(url, token);
     currentLiveRoom = room;
-    const pub = await room.localParticipant.setCameraEnabled(true);
-    await room.localParticipant.setMicrophoneEnabled(true);
-    if (pub?.track) {
-      pub.track.attach(video);
-      video.style.display = "block";
-      fallback.style.display = "none";
-    } else {
-      video.style.display = "none";
-      fallback.style.display = "block";
-    }
+    liveMediaCtrl = new LiveMediaController();
+    await liveMediaCtrl.publish(room, video);
+    fallback.style.display = "none";
   } catch (e) {
     toast("Camera/mic access needed to go live");
     video.style.display = "none";
@@ -2900,6 +3172,7 @@ async function openLiveHost() {
 
 async function closeLiveHost() {
   leavePresence();
+  if (liveMediaCtrl) { liveMediaCtrl.stop(); liveMediaCtrl = null; }
   if (currentLiveRoom) { currentLiveRoom.disconnect(); currentLiveRoom = null; }
   if (currentLiveRoomName && currentUser) {
     await supabaseClient.from("live_sessions").update({ ended_at: new Date().toISOString() }).eq("room_name", currentLiveRoomName).eq("host_id", currentUser.id);
@@ -2967,6 +3240,7 @@ async function openLiveGuest(host) {
   const pip = document.getElementById("guestCamPip");
   pip.style.display = "none";
   pip.classList.remove("split-right");
+  document.getElementById("guestEffectsBtn").style.display = "none";
 
   currentLiveRoomName = host.room;
   currentLiveHostId = host.hostId;
@@ -2990,12 +3264,14 @@ async function openLiveGuest(host) {
 
 function closeLiveGuest() {
   leavePresence();
+  if (liveMediaCtrl) { liveMediaCtrl.stop(); liveMediaCtrl = null; }
   if (currentLiveRoom) { currentLiveRoom.disconnect(); currentLiveRoom = null; }
   currentLiveRoomName = null;
   currentLiveHostId = null;
   resetJoinGuestBtn();
   document.getElementById("guestCamPip").classList.remove("split-right");
   document.getElementById("guestHostVideo").classList.remove("split-left");
+  document.getElementById("guestEffectsBtn").style.display = "none";
   switchView("home");
 }
 document.getElementById("guestExitBtn").addEventListener("click", closeLiveGuest);

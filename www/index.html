@@ -12,7 +12,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="Reelflix" />
-  <link rel="stylesheet" href="style.css?v=40" />
+  <link rel="stylesheet" href="style.css?v=41" />
 </head>
 <body>
   <svg width="0" height="0" style="position:absolute" aria-hidden="true">
@@ -104,6 +104,11 @@
       <rect x="3" y="7" width="18" height="13" rx="2" fill="none" stroke="currentColor" stroke-width="1.6"/>
       <circle cx="12" cy="13.5" r="4" fill="none" stroke="currentColor" stroke-width="1.6"/>
       <path d="M8 7l1.5-2h5L16 7" fill="none" stroke="currentColor" stroke-width="1.6"/>
+    </symbol>
+
+    <symbol id="ic-sparkle" viewBox="0 0 24 24">
+      <path d="M11 3l1.7 5.3L18 10l-5.3 1.7L11 17l-1.7-5.3L4 10l5.3-1.7z" fill="currentColor"/>
+      <path d="M18.5 3l0.6 1.9L21 5.5l-1.9 0.6L18.5 8l-0.6-1.9L16 5.5l1.9-0.6z" fill="currentColor"/>
     </symbol>
 
     <symbol id="ic-x" viewBox="0 0 24 24">
@@ -534,6 +539,7 @@
         <button class="remove-guest-btn" id="removeGuestBtn" style="display:none">Remove Guest</button>
         <div class="live-chat" id="hostChatFeed"></div>
         <div class="live-bottom-bar">
+          <button class="icon-btn live-effects-btn" id="hostEffectsBtn" data-open="effectsModal"><svg class="ic"><use href="#ic-sparkle"/></svg></button>
           <button class="end-live-btn" id="endLiveBtn">End Live</button>
         </div>
       </div>
@@ -562,6 +568,7 @@
         </div>
         <div class="live-chat" id="guestChatFeed"></div>
         <div class="live-bottom-bar">
+          <button class="icon-btn live-effects-btn" id="guestEffectsBtn" data-open="effectsModal" style="display:none"><svg class="ic"><use href="#ic-sparkle"/></svg></button>
           <input id="liveChatInput" placeholder="Say something..." />
           <button class="live-gift-btn" id="liveGiftBtn"><svg class="ic"><use href="#ic-gift-outline"/></svg></button>
         </div>
@@ -809,8 +816,33 @@
     </div>
   </div>
 
-  <script src="vendor/supabase.js?v=40"></script>
-  <script src="vendor/livekit-client.js?v=40"></script>
-  <script src="app.js?v=40"></script>
+  <div class="modal-backdrop" id="effectsModal">
+    <div class="modal">
+      <h3>Effects</h3>
+      <p>Applied live to your camera while you're on.</p>
+      <div class="effects-section-label">Filter</div>
+      <div class="effects-row" id="filterPresetRow">
+        <button class="effect-chip active" data-filter="none">None</button>
+        <button class="effect-chip" data-filter="warm">Warm</button>
+        <button class="effect-chip" data-filter="cool">Cool</button>
+        <button class="effect-chip" data-filter="bw">B&amp;W</button>
+        <button class="effect-chip" data-filter="vintage">Vintage</button>
+        <button class="effect-chip" data-filter="beauty">Beauty</button>
+      </div>
+      <div class="effects-section-label">Face effect</div>
+      <div class="effects-row" id="arPresetRow">
+        <button class="effect-chip active" data-ar="none">None</button>
+        <button class="effect-chip" data-ar="dog">🐶 Dog</button>
+        <button class="effect-chip" data-ar="bunny">🐰 Bunny</button>
+        <button class="effect-chip" data-ar="glasses">🕶️ Glasses</button>
+        <button class="effect-chip" data-ar="blush">😊 Blush</button>
+      </div>
+      <button class="modal-close" data-close="effectsModal">✕</button>
+    </div>
+  </div>
+
+  <script src="vendor/supabase.js?v=41"></script>
+  <script src="vendor/livekit-client.js?v=41"></script>
+  <script src="app.js?v=41"></script>
 </body>
 </html>
