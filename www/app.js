@@ -956,6 +956,180 @@ document.getElementById("analyticsBackBtn").addEventListener("click", () => {
   renderMine();
 });
 
+/* ---------------- Wallet & Payments (real coins/gems, convert, withdrawals) ---------------- */
+const COIN_TO_CURRENCY_RATE = 0.10; // 1 coin = Nu. 0.10 payout rate
+const COINS_PER_GEM = 10;
+
+function formatCurrency(amount) {
+  return `Nu. ${amount.toFixed(2)}`;
+}
+
+async function openWalletView() {
+  if (!currentUser) { toast("Sign in to see your wallet"); openAuthModal("signin"); return; }
+  switchView("wallet");
+  updateCoinDisplays();
+  await Promise.all([loadWalletEarnings(), renderWithdrawalHistory()]);
+}
+
+document.getElementById("walletBackBtn").addEventListener("click", () => {
+  document.querySelectorAll(".nav-item").forEach((b) => b.classList.toggle("active", b.dataset.tab === "profile"));
+  switchView("mine");
+  renderMine();
+});
+
+async function getAvailableWithdrawalCoins() {
+  const { data: giftRows } = await supabaseClient.from("gifts").select("amount").eq("receiver_id", currentUser.id);
+  const earned = (giftRows || []).reduce((sum, g) => sum + g.amount, 0);
+
+  const { data: withdrawalRows } = await supabaseClient
+    .from("withdrawals")
+    .select("coins_amount, status")
+    .eq("user_id", currentUser.id)
+    .neq("status", "rejected");
+  const reserved = (withdrawalRows || []).reduce((sum, w) => sum + w.coins_amount, 0);
+
+  return Math.max(0, earned - reserved);
+}
+
+async function loadWalletEarnings() {
+  const available = await getAvailableWithdrawalCoins();
+  document.getElementById("walletAvailableCoins").textContent = available;
+  document.getElementById("walletAvailableCurrency").textContent = `≈ ${formatCurrency(available * COIN_TO_CURRENCY_RATE)}`;
+}
+
+async function renderWithdrawalHistory() {
+  const list = document.getElementById("withdrawalHistoryList");
+  list.innerHTML = '<div class="creator-empty">Loading...</div>';
+  const { data } = await supabaseClient
+    .from("withdrawals")
+    .select("coins_amount, currency_amount, payout_method, status, created_at")
+    .eq("user_id", currentUser.id)
+    .order("created_at", { ascending: false });
+  list.innerHTML = "";
+  if (!data || !data.length) {
+    list.innerHTML = '<div class="creator-empty">No withdrawal requests yet.</div>';
+    return;
+  }
+  data.forEach((w) => {
+    const row = document.createElement("div");
+    row.className = "creator-card";
+    const methodLabel = w.payout_method === "mobile_wallet" ? "Mobile Wallet" : "Bank Transfer";
+    row.innerHTML = `
+      <div class="creator-info">
+        <div class="creator-name">${w.coins_amount} coins · ${formatCurrency(w.currency_amount)}</div>
+        <div class="creator-status">${methodLabel} · ${new Date(w.created_at).toLocaleDateString()}</div>
+      </div>
+      <span class="withdrawal-row-status ${w.status}">${w.status}</span>
+    `;
+    list.appendChild(row);
+  });
+}
+
+document.getElementById("walletWithdrawBtn").addEventListener("click", async () => {
+  const available = await getAvailableWithdrawalCoins();
+  document.getElementById("withdrawAvailableText").textContent =
+    `Available: ${available} coins (≈ ${formatCurrency(available * COIN_TO_CURRENCY_RATE)})`;
+  document.getElementById("withdrawCoinsInput").value = "";
+  document.getElementById("withdrawPreviewText").textContent = "";
+  document.getElementById("withdrawMethodSelect").value = "bank_transfer";
+  document.getElementById("withdrawDetailsInput").value = "";
+  document.getElementById("withdrawRequestModal").dataset.available = available;
+  openModal("withdrawRequestModal");
+});
+
+document.getElementById("withdrawCoinsInput").addEventListener("input", (e) => {
+  const coins = parseInt(e.target.value, 10) || 0;
+  document.getElementById("withdrawPreviewText").textContent = coins > 0 ? `You'll receive ${formatCurrency(coins * COIN_TO_CURRENCY_RATE)}` : "";
+});
+
+document.getElementById("withdrawSubmitBtn").addEventListener("click", async () => {
+  const available = parseInt(document.getElementById("withdrawRequestModal").dataset.available || "0", 10);
+  const coins = parseInt(document.getElementById("withdrawCoinsInput").value, 10) || 0;
+  const details = document.getElementById("withdrawDetailsInput").value.trim();
+  if (coins <= 0) { toast("Enter how many coins to withdraw"); return; }
+  if (coins > available) { toast("You don't have that many coins available"); return; }
+  if (!details) { toast("Add your payout account details"); return; }
+  const method = document.getElementById("withdrawMethodSelect").value;
+  const currencyAmount = Math.round(coins * COIN_TO_CURRENCY_RATE * 100) / 100;
+  const btn = document.getElementById("withdrawSubmitBtn");
+  btn.disabled = true;
+  const { error } = await supabaseClient.from("withdrawals").insert({
+    user_id: currentUser.id,
+    coins_amount: coins,
+    currency_amount: currencyAmount,
+    payout_method: method,
+    payout_details: details,
+  });
+  btn.disabled = false;
+  if (error) { toast("Couldn't submit request: " + error.message); return; }
+  toast("Withdrawal requested — we'll process it and pay you out manually for now");
+  closeModal("withdrawRequestModal");
+  await Promise.all([loadWalletEarnings(), renderWithdrawalHistory()]);
+});
+
+let convertDirection = "coinsToGems";
+
+document.getElementById("walletConvertBtn").addEventListener("click", () => {
+  convertDirection = "coinsToGems";
+  updateConvertDirectionUI();
+  document.getElementById("convertAmountInput").value = "";
+  document.getElementById("convertPreviewText").textContent = "";
+  openModal("convertModal");
+});
+
+function updateConvertDirectionUI() {
+  document.getElementById("convertDirCoinsToGems").classList.toggle("active", convertDirection === "coinsToGems");
+  document.getElementById("convertDirGemsToCoins").classList.toggle("active", convertDirection === "gemsToCoins");
+  document.getElementById("convertRateText").textContent =
+    convertDirection === "coinsToGems" ? `Rate: ${COINS_PER_GEM} Coins = 1 Gem` : `Rate: 1 Gem = ${COINS_PER_GEM} Coins`;
+  document.getElementById("convertAmountInput").placeholder = convertDirection === "coinsToGems" ? "Coins to convert" : "Gems to convert";
+  document.getElementById("convertAmountInput").value = "";
+  document.getElementById("convertPreviewText").textContent = "";
+}
+
+document.getElementById("convertDirCoinsToGems").addEventListener("click", () => { convertDirection = "coinsToGems"; updateConvertDirectionUI(); });
+document.getElementById("convertDirGemsToCoins").addEventListener("click", () => { convertDirection = "gemsToCoins"; updateConvertDirectionUI(); });
+
+document.getElementById("convertAmountInput").addEventListener("input", (e) => {
+  const amount = parseInt(e.target.value, 10) || 0;
+  const preview = document.getElementById("convertPreviewText");
+  if (amount <= 0) { preview.textContent = ""; return; }
+  if (convertDirection === "coinsToGems") {
+    const gems = Math.floor(amount / COINS_PER_GEM);
+    preview.textContent = amount % COINS_PER_GEM === 0
+      ? `You'll receive ${gems} gem${gems === 1 ? "" : "s"}`
+      : `Enter a multiple of ${COINS_PER_GEM} coins`;
+  } else {
+    preview.textContent = `You'll receive ${amount * COINS_PER_GEM} coins`;
+  }
+});
+
+document.getElementById("convertSubmitBtn").addEventListener("click", async () => {
+  const amount = parseInt(document.getElementById("convertAmountInput").value, 10) || 0;
+  if (amount <= 0) { toast("Enter an amount to convert"); return; }
+
+  if (convertDirection === "coinsToGems") {
+    if (amount % COINS_PER_GEM !== 0) { toast(`Enter a multiple of ${COINS_PER_GEM} coins`); return; }
+    if (amount > state.coins) { toast("Not enough coins"); return; }
+    const gems = amount / COINS_PER_GEM;
+    state.coins -= amount;
+    state.gems += gems;
+    toast(`Converted to ${gems} gem${gems === 1 ? "" : "s"}`);
+  } else {
+    if (amount > state.gems) { toast("Not enough gems"); return; }
+    const coins = amount * COINS_PER_GEM;
+    state.gems -= amount;
+    state.coins += coins;
+    toast(`Converted to ${coins} coins`);
+  }
+  saveState();
+  updateCoinDisplays();
+  closeModal("convertModal");
+  if (currentUser && supabaseClient) {
+    await supabaseClient.from("profiles").update({ coins: state.coins, gems: state.gems }).eq("id", currentUser.id);
+  }
+});
+
 /* ---------------- Leaderboard (real, from follows + gifts) ---------------- */
 function openLeaderboard() {
   switchView("leaderboard");
@@ -4449,7 +4623,7 @@ function handleProfileMenuAction(action) {
     renderMyList();
     document.querySelector('.mltab[data-mltab="history"]').click();
   } else if (action === "wallet") {
-    openModal("coinModal");
+    openWalletView();
   } else if (action === "earnrewards") {
     document.querySelectorAll(".nav-item").forEach((b) => b.classList.toggle("active", b.dataset.tab === "rewards"));
     switchView("rewards");

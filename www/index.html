@@ -12,7 +12,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="Reelflix" />
-  <link rel="stylesheet" href="style.css?v=60" />
+  <link rel="stylesheet" href="style.css?v=61" />
 </head>
 <body>
   <svg width="0" height="0" style="position:absolute" aria-hidden="true">
@@ -510,6 +510,75 @@
       </div>
     </section>
 
+    <!-- WALLET & PAYMENTS -->
+    <section id="view-wallet" class="view">
+      <header class="topbar">
+        <button class="icon-btn" id="walletBackBtn">←</button>
+        <h1 class="logo">Wallet &amp; Payments</h1>
+      </header>
+      <div class="mylist-scroll">
+        <div class="wallet-balances-row">
+          <div class="wallet-balance-card">
+            <div class="wallet-balance-label">Coins</div>
+            <div class="wallet-balance-amt"><svg class="ic ic-coin"><use href="#ic-coin"/></svg><b data-coin-balance>0</b></div>
+            <button class="btn-primary" data-open="coinModal">Refill</button>
+          </div>
+          <div class="wallet-balance-card">
+            <div class="wallet-balance-label">Gems</div>
+            <div class="wallet-balance-amt"><svg class="ic ic-gem"><use href="#ic-gem"/></svg><b data-gem-balance>0</b></div>
+            <button class="btn-ghost" id="walletConvertBtn">Convert</button>
+          </div>
+        </div>
+
+        <h4 class="section-title">Creator Earnings</h4>
+        <div class="wallet-earnings-card">
+          <div class="wallet-earnings-row">
+            <div>
+              <div class="wallet-earnings-label">Available to withdraw</div>
+              <div class="wallet-earnings-amt"><svg class="ic ic-coin"><use href="#ic-coin"/></svg><b id="walletAvailableCoins">0</b></div>
+              <div class="wallet-earnings-sub" id="walletAvailableCurrency">≈ Nu. 0.00</div>
+            </div>
+            <button class="btn-primary" id="walletWithdrawBtn">Request Withdrawal</button>
+          </div>
+          <p class="wallet-earnings-note">Earned from gifts received while live. Payout rate: 1 coin = Nu. 0.10. Requests are reviewed and paid out manually for now.</p>
+        </div>
+
+        <h4 class="section-title">Withdrawal History</h4>
+        <div id="withdrawalHistoryList" class="creator-list"></div>
+      </div>
+    </section>
+
+    <div class="modal-backdrop" id="convertModal">
+      <div class="modal">
+        <h3>Convert</h3>
+        <div class="convert-direction-tabs">
+          <button class="convert-dir-tab active" id="convertDirCoinsToGems" data-dir="coinsToGems">Coins → Gems</button>
+          <button class="convert-dir-tab" id="convertDirGemsToCoins" data-dir="gemsToCoins">Gems → Coins</button>
+        </div>
+        <p id="convertRateText">Rate: 10 Coins = 1 Gem</p>
+        <input type="number" id="convertAmountInput" class="modal-input" placeholder="Amount" min="1" />
+        <p id="convertPreviewText"></p>
+        <button class="btn-primary" id="convertSubmitBtn">Convert</button>
+        <button class="modal-close" data-close="convertModal">✕</button>
+      </div>
+    </div>
+
+    <div class="modal-backdrop" id="withdrawRequestModal">
+      <div class="modal">
+        <h3>Request Withdrawal</h3>
+        <p id="withdrawAvailableText">Available: 0 coins (≈ Nu. 0.00)</p>
+        <input type="number" id="withdrawCoinsInput" class="modal-input" placeholder="Coins to withdraw" min="1" />
+        <p id="withdrawPreviewText"></p>
+        <select id="withdrawMethodSelect" class="modal-input">
+          <option value="bank_transfer">Bank Transfer</option>
+          <option value="mobile_wallet">Mobile Wallet</option>
+        </select>
+        <textarea id="withdrawDetailsInput" class="modal-textarea" placeholder="Account number / mobile wallet number / recipient name"></textarea>
+        <button class="btn-primary" id="withdrawSubmitBtn">Submit Request</button>
+        <button class="modal-close" data-close="withdrawRequestModal">✕</button>
+      </div>
+    </div>
+
     <!-- REWARDS -->
     <section id="view-rewards" class="view">
       <header class="rewards-toptabs" id="rewardsToptabs">
@@ -647,17 +716,6 @@
 
         <div class="profile-menu-card">
           <div class="profile-menu" id="profileMenu"></div>
-        </div>
-
-        <div class="wallet-card">
-          <div class="wallet-header">My Wallet <span>›</span></div>
-          <div class="wallet-row">
-            <div>
-              <div class="wallet-label">Coins</div>
-              <div class="wallet-amt"><svg class="ic ic-coin"><use href="#ic-coin"/></svg> <b data-coin-balance>0</b></div>
-            </div>
-            <button class="refill-btn" data-open="coinModal">Refill</button>
-          </div>
         </div>
 
         <div class="section-title-row"><h4 class="section-title">Watch Statistics</h4></div>
@@ -1186,8 +1244,8 @@
     </div>
   </div>
 
-  <script src="vendor/supabase.js?v=60"></script>
-  <script src="vendor/livekit-client.js?v=60"></script>
-  <script src="app.js?v=60"></script>
+  <script src="vendor/supabase.js?v=61"></script>
+  <script src="vendor/livekit-client.js?v=61"></script>
+  <script src="app.js?v=61"></script>
 </body>
 </html>
