@@ -1334,6 +1334,18 @@ async function stopDmVoiceRecording() {
 document.getElementById("dmVoiceBtn").addEventListener("pointerup", stopDmVoiceRecording);
 document.getElementById("dmVoiceBtn").addEventListener("pointerleave", stopDmVoiceRecording);
 
+document.getElementById("copyLinkBtn").addEventListener("click", async () => {
+  if (!state.currentDrama) return;
+  const url = `${window.location.href.split("#")[0].split("?")[0]}#drama/${state.currentDrama.id}`;
+  try {
+    await navigator.clipboard.writeText(url);
+    toast("Link copied!");
+  } catch (e) {
+    toast("Couldn't copy link");
+  }
+  closeModal("shareModal");
+});
+
 document.getElementById("shareViaMessageBtn").addEventListener("click", async () => {
   if (!currentUser) { toast("Sign in to share"); return; }
   if (!state.currentDrama) return;
@@ -3638,7 +3650,14 @@ function init() {
     });
     fetchLiveSessions();
     subscribeLiveSessionsRealtime();
-    fetchRealDramas();
+    fetchRealDramas().then(handleSharedLinkHash);
   }
+}
+
+function handleSharedLinkHash() {
+  const match = location.hash.match(/^#drama\/(.+)$/);
+  if (!match) return;
+  const drama = DRAMAS.find((d) => d.id === match[1]);
+  if (drama) openDetail(drama.id);
 }
 init();
