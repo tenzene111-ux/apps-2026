@@ -12,7 +12,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="Reelflix" />
-  <link rel="stylesheet" href="style.css?v=64" />
+  <link rel="stylesheet" href="style.css?v=65" />
 </head>
 <body>
   <svg width="0" height="0" style="position:absolute" aria-hidden="true">
@@ -982,6 +982,7 @@
       <h3>More</h3>
       <div class="more-row" data-more="comment"><svg class="ic"><use href="#ic-comment"/></svg> Comments</div>
       <div class="more-row" data-more="share"><svg class="ic"><use href="#ic-share"/></svg> Share</div>
+      <div class="more-row" data-more="save" id="moreRowSave" style="display:none"><svg class="ic"><use href="#ic-play-square"/></svg> Save Video</div>
       <div class="more-row" data-more="report"><svg class="ic"><use href="#ic-fire"/></svg> Report</div>
       <button class="modal-close" data-close="moreModal">✕</button>
     </div>
@@ -1004,26 +1005,145 @@
   </div>
 
   <div class="modal-backdrop" id="uploadReelModal">
-    <div class="modal">
-      <h3>Create Reel</h3>
-      <div class="reel-upload-picker" id="reelUploadPicker">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M10 8.5l6 3.5-6 3.5z" fill="currentColor" stroke="none"/></svg>
-        <p>Share a short video as a Reel.</p>
-        <input type="file" id="reelVideoInput" accept="video/*" style="display:none" />
-        <div class="reel-upload-picker-actions">
-          <button class="btn-primary" id="reelPickVideoBtn">Upload Video</button>
-          <button class="btn-ghost" id="reelRecordVideoBtn">Record Video</button>
+    <div class="modal upload-modal">
+      <h3 id="reelModalTitle">Select Video</h3>
+      <div class="upload-steps-row" id="reelStepsRow">
+        <div class="upload-step" data-step-n="1"><span class="upload-step-dot">1</span><span class="upload-step-label">Select</span></div>
+        <div class="upload-step" data-step-n="2"><span class="upload-step-dot">2</span><span class="upload-step-label">Edit</span></div>
+        <div class="upload-step" data-step-n="3"><span class="upload-step-dot">3</span><span class="upload-step-label">Details</span></div>
+        <div class="upload-step" data-step-n="4"><span class="upload-step-dot">4</span><span class="upload-step-label">Preview</span></div>
+        <div class="upload-step" data-step-n="5"><span class="upload-step-dot">5</span><span class="upload-step-label">Publish</span></div>
+      </div>
+
+      <div id="reelStepSelect">
+        <div class="reel-upload-picker" id="reelUploadPicker">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M10 8.5l6 3.5-6 3.5z" fill="currentColor" stroke="none"/></svg>
+          <p>Share a short video as a Reel.</p>
+          <input type="file" id="reelVideoInput" accept="video/*" style="display:none" />
+          <div class="reel-upload-picker-actions">
+            <button class="btn-primary" id="reelPickVideoBtn">Gallery</button>
+            <button class="btn-ghost" id="reelRecordVideoBtn">Camera</button>
+          </div>
         </div>
       </div>
-      <div class="reel-upload-preview-wrap" id="reelUploadPreviewWrap" style="display:none">
-        <video id="reelUploadPreviewVideo" muted loop playsinline autoplay></video>
-        <button class="btn-ghost" id="reelUploadChangeBtn">Choose a different video</button>
+
+      <div id="reelStepEdit" style="display:none">
+        <div class="reel-edit-stage">
+          <video id="reelEditVideo" playsinline muted loop></video>
+          <div class="reel-overlay-layer" id="reelEditOverlayLayer"></div>
+        </div>
+        <label class="upload-cover-label">Trim: <span id="reelTrimLabel">0:00 - 0:00</span></label>
+        <div class="reel-trim-row">
+          <input type="range" id="reelTrimStartInput" min="0" max="100" value="0" step="0.1" />
+          <input type="range" id="reelTrimEndInput" min="0" max="100" value="100" step="0.1" />
+        </div>
+        <div class="reel-edit-toolbar">
+          <button class="reel-edit-tool-btn" data-tool="filter">🎨 Filter</button>
+          <button class="reel-edit-tool-btn" data-tool="adjust">🔆 Adjust</button>
+          <button class="reel-edit-tool-btn" data-tool="text">🔤 Text</button>
+          <button class="reel-edit-tool-btn" data-tool="sticker">😀 Sticker</button>
+        </div>
+        <div class="reel-edit-tool-panel" id="reelFilterPanel" style="display:none">
+          <div class="reel-filter-chip-row" id="reelFilterChips">
+            <button class="reel-filter-chip active" data-filter="">None</button>
+            <button class="reel-filter-chip" data-filter="saturate(1.4) contrast(1.1)">Vivid</button>
+            <button class="reel-filter-chip" data-filter="grayscale(1)">Mono</button>
+            <button class="reel-filter-chip" data-filter="sepia(0.3) saturate(1.2)">Warm</button>
+            <button class="reel-filter-chip" data-filter="hue-rotate(180deg) saturate(1.1)">Cool</button>
+            <button class="reel-filter-chip" data-filter="contrast(0.85) brightness(1.1) saturate(0.8)">Fade</button>
+          </div>
+        </div>
+        <div class="reel-edit-tool-panel" id="reelAdjustPanel" style="display:none">
+          <label class="reel-adjust-label">Brightness <input type="range" id="reelBrightnessInput" min="50" max="150" value="100" /></label>
+          <label class="reel-adjust-label">Contrast <input type="range" id="reelContrastInput" min="50" max="150" value="100" /></label>
+          <label class="reel-adjust-label">Saturation <input type="range" id="reelSaturateInput" min="0" max="200" value="100" /></label>
+        </div>
+        <div class="reel-edit-tool-panel" id="reelTextPanel" style="display:none">
+          <input class="modal-input" id="reelTextOverlayInput" placeholder="Add text..." maxlength="60" />
+          <button class="btn-ghost" id="reelAddTextBtn">Add Text</button>
+        </div>
+        <div class="reel-edit-tool-panel" id="reelStickerPanel" style="display:none">
+          <div class="reel-sticker-row" id="reelStickerRow">
+            <button class="reel-sticker-btn">😂</button>
+            <button class="reel-sticker-btn">🔥</button>
+            <button class="reel-sticker-btn">❤️</button>
+            <button class="reel-sticker-btn">😍</button>
+            <button class="reel-sticker-btn">💯</button>
+            <button class="reel-sticker-btn">👍</button>
+            <button class="reel-sticker-btn">🎉</button>
+            <button class="reel-sticker-btn">😮</button>
+          </div>
+        </div>
+        <div class="reel-overlay-chip-list" id="reelOverlayChipList"></div>
+        <button class="btn-primary" id="reelEditNextBtn">Next: Details</button>
+        <button class="btn-ghost" id="reelEditBackBtn">← Choose a different video</button>
+      </div>
+
+      <div id="reelStepDetails" style="display:none">
+        <div class="reel-details-row">
+          <div class="reel-cover-thumb" id="reelCoverThumb"></div>
+          <button class="btn-ghost" id="reelEditCoverBtn">Edit Cover</button>
+        </div>
         <textarea id="reelCaptionInput" class="modal-textarea" placeholder="Write a caption... #hashtags" maxlength="300"></textarea>
+        <div id="reelCaptionCount" class="upload-progress-text">0/300</div>
+
+        <label class="upload-cover-label" for="reelLocationInput">📍 Add Location</label>
+        <input class="modal-input" id="reelLocationInput" placeholder="Add a location (optional)" />
+
+        <label class="upload-cover-label">🏷️ Tag People</label>
+        <input class="modal-input" id="reelTagSearchInput" placeholder="Search by username..." />
+        <div class="reel-tag-results" id="reelTagResults"></div>
+        <div class="reel-tag-chip-list" id="reelTagChipList"></div>
+
+        <label class="upload-cover-label">Audience</label>
+        <div class="reel-audience-tabs" id="reelAudienceTabs">
+          <button class="reel-audience-tab active" data-visibility="public">Public</button>
+          <button class="reel-audience-tab" data-visibility="private">Only Me</button>
+        </div>
+
+        <div class="more-row" id="reelMoreOptionsRow">More Options ›</div>
+        <div id="reelMoreOptionsPanel" style="display:none">
+          <div class="setting-row"><span>Allow Comments</span><button class="toggle-switch on" id="reelAllowCommentsToggle"></button></div>
+          <div class="setting-row"><span>Allow Duet</span><button class="toggle-switch on" id="reelAllowDuetToggle"></button></div>
+          <div class="setting-row"><span>Allow Stitch</span><button class="toggle-switch on" id="reelAllowStitchToggle"></button></div>
+          <div class="setting-row"><span>Save to Device</span><button class="toggle-switch on" id="reelAllowDownloadToggle"></button></div>
+          <label class="upload-cover-label" for="reelContentDisclosureSelect">Content Disclosure</label>
+          <select id="reelContentDisclosureSelect" class="modal-input">
+            <option value="none">None</option>
+            <option value="ai_generated">AI-generated content</option>
+            <option value="paid_promotion">Paid promotion / Branded content</option>
+            <option value="both">Both</option>
+          </select>
+        </div>
+
         <label class="upload-cover-label" for="reelReleaseAtInput">Release date &amp; time (optional — leave blank to post right away)</label>
         <input type="datetime-local" id="reelReleaseAtInput" class="modal-input" />
-        <div id="reelUploadProgressText" class="upload-progress-text"></div>
-        <button class="btn-primary" id="reelPostBtn">Post</button>
+        <button class="btn-primary" id="reelDetailsNextBtn">Next: Preview</button>
+        <button class="btn-ghost" id="reelDetailsBackBtn">← Back to Edit</button>
       </div>
+
+      <div id="reelStepPreview" style="display:none">
+        <div class="reel-preview-stage">
+          <video id="reelPreviewVideo" playsinline muted loop></video>
+          <div class="reel-overlay-layer" id="reelPreviewOverlayLayer"></div>
+        </div>
+        <p class="reel-caption" id="reelPreviewCaption"></p>
+        <p class="reel-location" id="reelPreviewLocation" style="display:none"></p>
+        <div id="reelUploadProgressText" class="upload-progress-text"></div>
+        <button class="btn-primary" id="reelPostBtn">Publish</button>
+        <button class="btn-ghost" id="reelPreviewBackBtn">← Back to Details</button>
+      </div>
+
+      <div id="reelStepPublish" style="display:none">
+        <div class="upload-published-check">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M8 12.5l2.5 2.5L16 9.5"/></svg>
+        </div>
+        <h3 id="reelPublishTitle">Your reel is live!</h3>
+        <p>Congratulations, your reel has published successfully.</p>
+        <button class="btn-ghost" id="reelShareBtn">Share Reel</button>
+        <button class="btn-primary" id="reelPublishDoneBtn">Done</button>
+      </div>
+
       <button class="modal-close" data-close="uploadReelModal">✕</button>
     </div>
   </div>
@@ -1106,8 +1226,9 @@
       <div class="upload-steps-row" id="uploadStepsRow" style="display:none">
         <div class="upload-step" data-step-n="1"><span class="upload-step-dot">1</span><span class="upload-step-label">Details</span></div>
         <div class="upload-step" data-step-n="2"><span class="upload-step-dot">2</span><span class="upload-step-label">Episodes</span></div>
-        <div class="upload-step" data-step-n="3"><span class="upload-step-dot">3</span><span class="upload-step-label">Preview</span></div>
-        <div class="upload-step" data-step-n="4"><span class="upload-step-dot">4</span><span class="upload-step-label">Publish</span></div>
+        <div class="upload-step" data-step-n="3"><span class="upload-step-dot">3</span><span class="upload-step-label">Ep. Info</span></div>
+        <div class="upload-step" data-step-n="4"><span class="upload-step-dot">4</span><span class="upload-step-label">Preview</span></div>
+        <div class="upload-step" data-step-n="5"><span class="upload-step-dot">5</span><span class="upload-step-label">Publish</span></div>
       </div>
 
       <div id="uploadStepList">
@@ -1132,6 +1253,14 @@
           <option value="mystery">Mystery</option>
           <option value="historical">Historical</option>
         </select>
+        <select id="uploadLanguageSelect" class="modal-input">
+          <option value="english">English</option>
+          <option value="spanish">Spanish</option>
+          <option value="hindi">Hindi</option>
+          <option value="korean">Korean</option>
+          <option value="chinese">Chinese</option>
+          <option value="other">Other</option>
+        </select>
         <button class="btn-primary" id="uploadCreateBtn">Next</button>
         <button class="btn-ghost" id="uploadCreateBackBtn">← Back to My Dramas</button>
       </div>
@@ -1145,8 +1274,16 @@
         <div id="uploadProgressText" class="upload-progress-text"></div>
         <div id="uploadBulkList" class="upload-bulk-list"></div>
         <button class="btn-primary" id="uploadEpisodeBtn">Upload Starting at Episode <span id="uploadNextEpNum">1</span></button>
-        <button class="btn-primary" id="uploadEpisodesNextBtn">Next: Preview</button>
+        <button class="btn-primary" id="uploadEpisodesNextBtn">Next: Episode Info</button>
         <button class="btn-ghost" id="uploadDoneBtn">← Back to My Dramas</button>
+      </div>
+
+      <div id="uploadStepEpisodeInfo" style="display:none">
+        <p>Fill in details for the episodes you just added.</p>
+        <div id="episodeInfoList"></div>
+        <div class="setting-row"><span>Premium series (all episodes locked)</span><button class="toggle-switch" id="episodeInfoPremiumToggle"></button></div>
+        <button class="btn-primary" id="episodeInfoSaveBtn">Next: Preview</button>
+        <button class="btn-ghost" id="episodeInfoBackBtn">← Back to Episodes</button>
       </div>
 
       <div id="uploadStepPreview" style="display:none">
@@ -1157,6 +1294,7 @@
             <h3 id="uploadPreviewTitle"></h3>
             <p id="uploadPreviewDesc"></p>
             <div class="upload-preview-meta" id="uploadPreviewMeta"></div>
+            <div class="upload-preview-meta" id="uploadPreviewLangPremium"></div>
           </div>
         </div>
         <button class="btn-primary" id="uploadPublishBtn">Publish</button>
@@ -1193,6 +1331,15 @@
           <option value="mystery">Mystery</option>
           <option value="historical">Historical</option>
         </select>
+        <select id="editLanguageSelect" class="modal-input">
+          <option value="english">English</option>
+          <option value="spanish">Spanish</option>
+          <option value="hindi">Hindi</option>
+          <option value="korean">Korean</option>
+          <option value="chinese">Chinese</option>
+          <option value="other">Other</option>
+        </select>
+        <div class="setting-row"><span>Premium series (all episodes locked)</span><button class="toggle-switch" id="editPremiumToggle"></button></div>
         <button class="btn-primary" id="editSaveBtn">Save Changes</button>
         <h4 class="section-title">Episodes</h4>
         <div id="editEpisodeList" class="creator-list"></div>
@@ -1281,8 +1428,8 @@
     </div>
   </div>
 
-  <script src="vendor/supabase.js?v=64"></script>
-  <script src="vendor/livekit-client.js?v=64"></script>
-  <script src="app.js?v=64"></script>
+  <script src="vendor/supabase.js?v=65"></script>
+  <script src="vendor/livekit-client.js?v=65"></script>
+  <script src="app.js?v=65"></script>
 </body>
 </html>

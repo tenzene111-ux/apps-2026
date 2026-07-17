@@ -2628,6 +2628,8 @@ document.getElementById("callVideoToggleBtn").addEventListener("click", () => {
 /* ---------------- Content upload (real user-generated dramas) ---------------- */
 let uploadDramaId = null;
 let uploadNextEpisodeNumber = 1;
+let uploadBatchEpisodeNumbers = [];
+let uploadBatchDurations = {};
 let episodeLikeCounts = {};
 let myLikedEpisodes = new Set();
 let episodeCommentCounts = {};
@@ -2644,13 +2646,14 @@ function showUploadStep(step) {
   document.getElementById("uploadStepList").style.display = step === "list" ? "" : "none";
   document.getElementById("uploadStepCreate").style.display = step === "create" ? "" : "none";
   document.getElementById("uploadStepEpisodes").style.display = step === "episodes" ? "" : "none";
+  document.getElementById("uploadStepEpisodeInfo").style.display = step === "episodeInfo" ? "" : "none";
   document.getElementById("uploadStepPreview").style.display = step === "preview" ? "" : "none";
   document.getElementById("uploadStepPublished").style.display = step === "published" ? "" : "none";
   document.getElementById("uploadStepEdit").style.display = step === "edit" ? "" : "none";
-  const titles = { list: "My Dramas", create: "New Drama", episodes: "Add Episodes", preview: "Preview Drama", published: "Published", edit: "Edit Drama" };
+  const titles = { list: "My Dramas", create: "Drama Details", episodes: "Upload Episodes", episodeInfo: "Episode Info", preview: "Preview Drama", published: "Published", edit: "Edit Drama" };
   document.getElementById("uploadModalTitle").textContent = titles[step];
 
-  const stepNByStep = { create: 1, episodes: 2, preview: 3, published: 4 };
+  const stepNByStep = { create: 1, episodes: 2, episodeInfo: 3, preview: 4, published: 5 };
   const n = stepNByStep[step];
   document.getElementById("uploadStepsRow").style.display = n ? "flex" : "none";
   if (n) {
@@ -2708,6 +2711,8 @@ async function renderUploadDramaList() {
     card.querySelector(".add-episode-btn").addEventListener("click", () => {
       uploadDramaId = row.id;
       uploadNextEpisodeNumber = epCount + 1;
+      uploadBatchEpisodeNumbers = [];
+      uploadBatchDurations = {};
       document.getElementById("uploadEpisodesForText").textContent = `Add episodes to "${row.title}" — select video files or record one now.`;
       document.getElementById("uploadNextEpNum").textContent = uploadNextEpisodeNumber;
       document.getElementById("uploadRecordEpNum").textContent = uploadNextEpisodeNumber;
@@ -2724,7 +2729,7 @@ async function openPreviewDrama(dramaId) {
   showUploadStep("preview");
   const { data: row } = await supabaseClient
     .from("dramas")
-    .select("title, description, genre, cover_path, is_draft")
+    .select("title, description, genre, language, is_premium, cover_path, is_draft")
     .eq("id", dramaId)
     .single();
   const { count: epCount } = await supabaseClient
@@ -2737,6 +2742,8 @@ async function openPreviewDrama(dramaId) {
     ? `background-image:url('${coverUrl}')`
     : `background:${gradientFor(dramaId)}`;
   document.getElementById("uploadPreviewGenre").textContent = row.genre;
+  document.getElementById("uploadPreviewLangPremium").textContent =
+    (row.language ? row.language[0].toUpperCase() + row.language.slice(1) : "English") + (row.is_premium ? " · Premium series" : "");
   document.getElementById("uploadPreviewTitle").textContent = row.title;
   document.getElementById("uploadPreviewDesc").textContent = row.description || "";
   document.getElementById("uploadPreviewMeta").textContent = `${epCount || 0} Episode${epCount === 1 ? "" : "s"}`;
@@ -2750,15 +2757,21 @@ async function openEditDrama(dramaId) {
   document.getElementById("editCoverInput").value = "";
   showUploadStep("edit");
 
-  const { data: row } = await supabaseClient.from("dramas").select("title, description, genre, is_draft").eq("id", dramaId).single();
+  const { data: row } = await supabaseClient.from("dramas").select("title, description, genre, language, is_premium, is_draft").eq("id", dramaId).single();
   if (row) {
     document.getElementById("editTitleInput").value = row.title;
     document.getElementById("editDescInput").value = row.description || "";
     document.getElementById("editGenreSelect").value = row.genre;
+    document.getElementById("editLanguageSelect").value = row.language || "english";
+    document.getElementById("editPremiumToggle").classList.toggle("on", !!row.is_premium);
     updateEditStatusUI(row.is_draft);
   }
   renderEditEpisodeList(dramaId);
 }
+
+document.getElementById("editPremiumToggle").addEventListener("click", (e) => {
+  e.currentTarget.classList.toggle("on");
+});
 
 function updateEditStatusUI(isDraft) {
   const badge = document.getElementById("editStatusBadge");
@@ -2822,6 +2835,8 @@ document.getElementById("editSaveBtn").addEventListener("click", async () => {
   const title = document.getElementById("editTitleInput").value.trim();
   const description = document.getElementById("editDescInput").value.trim();
   const genre = document.getElementById("editGenreSelect").value;
+  const language = document.getElementById("editLanguageSelect").value;
+  const isPremium = document.getElementById("editPremiumToggle").classList.contains("on");
   if (!title) { toast("Give your drama a title"); return; }
   const btn = document.getElementById("editSaveBtn");
   btn.disabled = true;
@@ -2834,7 +2849,7 @@ document.getElementById("editSaveBtn").addEventListener("click", async () => {
     if (!coverError) await supabaseClient.from("dramas").update({ cover_path: coverPath }).eq("id", editDramaId);
   }
 
-  const { error } = await supabaseClient.from("dramas").update({ title, description, genre }).eq("id", editDramaId);
+  const { error } = await supabaseClient.from("dramas").update({ title, description, genre, language, is_premium: isPremium }).eq("id", editDramaId);
   btn.disabled = false;
   if (error) { toast("Couldn't save changes: " + error.message); return; }
   toast("Drama updated!");
@@ -2865,6 +2880,7 @@ document.getElementById("uploadNewDramaBtn").addEventListener("click", () => {
   document.getElementById("uploadTitleInput").value = "";
   document.getElementById("uploadDescInput").value = "";
   document.getElementById("uploadGenreSelect").value = "romance";
+  document.getElementById("uploadLanguageSelect").value = "english";
   document.getElementById("uploadCoverInput").value = "";
   showUploadStep("create");
 });
@@ -2878,18 +2894,21 @@ document.getElementById("uploadCreateBtn").addEventListener("click", async () =>
   const title = document.getElementById("uploadTitleInput").value.trim();
   const description = document.getElementById("uploadDescInput").value.trim();
   const genre = document.getElementById("uploadGenreSelect").value;
+  const language = document.getElementById("uploadLanguageSelect").value;
   if (!title) { toast("Give your drama a title"); return; }
   const btn = document.getElementById("uploadCreateBtn");
   btn.disabled = true;
   const { data, error } = await supabaseClient
     .from("dramas")
-    .insert({ creator_id: currentUser.id, title, description, genre, free_episodes: 3, is_draft: true })
+    .insert({ creator_id: currentUser.id, title, description, genre, language, free_episodes: 3, is_draft: true })
     .select()
     .single();
   btn.disabled = false;
   if (error) { toast("Couldn't create drama: " + error.message); return; }
   uploadDramaId = data.id;
   uploadNextEpisodeNumber = 1;
+  uploadBatchEpisodeNumbers = [];
+  uploadBatchDurations = {};
 
   const coverFile = document.getElementById("uploadCoverInput").files[0];
   if (coverFile) {
@@ -2915,6 +2934,27 @@ function currentReleaseAtValue() {
   return releaseInput.value ? new Date(releaseInput.value).toISOString() : null;
 }
 
+function getMediaDuration(fileOrBlob) {
+  return new Promise((resolve) => {
+    const video = document.createElement("video");
+    video.preload = "metadata";
+    const url = URL.createObjectURL(fileOrBlob);
+    video.src = url;
+    video.onloadedmetadata = () => {
+      URL.revokeObjectURL(url);
+      resolve(isFinite(video.duration) ? video.duration : 0);
+    };
+    video.onerror = () => { URL.revokeObjectURL(url); resolve(0); };
+  });
+}
+
+function formatDuration(seconds) {
+  if (!seconds) return "—";
+  const m = Math.floor(seconds / 60);
+  const s = Math.round(seconds % 60);
+  return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+}
+
 async function uploadOneEpisode(fileOrBlob, releaseAt) {
   const epNum = uploadNextEpisodeNumber;
   const ext = fileExt(fileOrBlob);
@@ -2925,6 +2965,8 @@ async function uploadOneEpisode(fileOrBlob, releaseAt) {
     .from("episodes")
     .insert({ drama_id: uploadDramaId, episode_number: epNum, video_path: path, release_at: releaseAt });
   if (insertError) return { success: false, error: insertError };
+  uploadBatchDurations[epNum] = await getMediaDuration(fileOrBlob);
+  uploadBatchEpisodeNumbers.push(epNum);
   uploadNextEpisodeNumber++;
   document.getElementById("uploadNextEpNum").textContent = uploadNextEpisodeNumber;
   document.getElementById("uploadRecordEpNum").textContent = uploadNextEpisodeNumber;
@@ -2981,8 +3023,72 @@ document.getElementById("uploadRecordEpisodeBtn").addEventListener("click", () =
   });
 });
 
-document.getElementById("uploadEpisodesNextBtn").addEventListener("click", () => openPreviewDrama(uploadDramaId));
+document.getElementById("uploadEpisodesNextBtn").addEventListener("click", () => openEpisodeInfoStep());
 document.getElementById("uploadPreviewBackBtn").addEventListener("click", () => showUploadStep("episodes"));
+
+async function openEpisodeInfoStep() {
+  if (!uploadBatchEpisodeNumbers.length) { openPreviewDrama(uploadDramaId); return; }
+  showUploadStep("episodeInfo");
+  const { data: dramaRow } = await supabaseClient.from("dramas").select("is_premium").eq("id", uploadDramaId).single();
+  document.getElementById("episodeInfoPremiumToggle").classList.toggle("on", !!dramaRow?.is_premium);
+
+  const { data: episodeRows } = await supabaseClient
+    .from("episodes")
+    .select("episode_number, title, description, release_at, allow_download")
+    .eq("drama_id", uploadDramaId)
+    .in("episode_number", uploadBatchEpisodeNumbers)
+    .order("episode_number", { ascending: true });
+
+  const list = document.getElementById("episodeInfoList");
+  list.innerHTML = "";
+  (episodeRows || []).forEach((ep) => {
+    const row = document.createElement("div");
+    row.className = "episode-info-row";
+    row.dataset.epNum = ep.episode_number;
+    const releaseVal = ep.release_at ? new Date(new Date(ep.release_at).getTime() - new Date(ep.release_at).getTimezoneOffset() * 60000).toISOString().slice(0, 16) : "";
+    row.innerHTML = `
+      <span class="episode-info-row-title">Episode ${ep.episode_number}</span>
+      <input class="modal-input ep-info-title" placeholder="Episode title" value="${ep.title || ""}" />
+      <textarea class="modal-textarea ep-info-desc" placeholder="Episode description">${ep.description || ""}</textarea>
+      <span class="episode-info-duration">Duration: ${formatDuration(uploadBatchDurations[ep.episode_number])}</span>
+      <label class="upload-cover-label">Release date &amp; time</label>
+      <input type="datetime-local" class="modal-input ep-info-release" value="${releaseVal}" />
+      <div class="setting-row"><span>Allow Download</span><button class="toggle-switch ep-info-download${ep.allow_download !== false ? " on" : ""}"></button></div>
+    `;
+    row.querySelector(".ep-info-download").addEventListener("click", (e) => e.currentTarget.classList.toggle("on"));
+    list.appendChild(row);
+  });
+}
+
+document.getElementById("episodeInfoPremiumToggle").addEventListener("click", (e) => {
+  e.currentTarget.classList.toggle("on");
+});
+
+document.getElementById("episodeInfoBackBtn").addEventListener("click", () => showUploadStep("episodes"));
+
+document.getElementById("episodeInfoSaveBtn").addEventListener("click", async () => {
+  const btn = document.getElementById("episodeInfoSaveBtn");
+  btn.disabled = true;
+  const isPremium = document.getElementById("episodeInfoPremiumToggle").classList.contains("on");
+  await supabaseClient.from("dramas").update({ is_premium: isPremium }).eq("id", uploadDramaId);
+
+  const rows = document.querySelectorAll("#episodeInfoList .episode-info-row");
+  for (const row of rows) {
+    const epNum = parseInt(row.dataset.epNum, 10);
+    const title = row.querySelector(".ep-info-title").value.trim();
+    const description = row.querySelector(".ep-info-desc").value.trim();
+    const releaseInput = row.querySelector(".ep-info-release").value;
+    const releaseAt = releaseInput ? new Date(releaseInput).toISOString() : null;
+    const allowDownload = row.querySelector(".ep-info-download").classList.contains("on");
+    await supabaseClient
+      .from("episodes")
+      .update({ title, description, release_at: releaseAt, allow_download: allowDownload })
+      .eq("drama_id", uploadDramaId)
+      .eq("episode_number", epNum);
+  }
+  btn.disabled = false;
+  await openPreviewDrama(uploadDramaId);
+});
 
 document.getElementById("uploadPublishBtn").addEventListener("click", async () => {
   const btn = document.getElementById("uploadPublishBtn");
@@ -3011,7 +3117,7 @@ async function fetchRealDramas() {
   if (!supabaseClient) return;
   const { data: dramaRows, error: dramaError } = await supabaseClient
     .from("dramas")
-    .select("id, creator_id, title, description, genre, free_episodes, cover_path, created_at")
+    .select("id, creator_id, title, description, genre, free_episodes, cover_path, is_premium, language, created_at")
     .order("created_at", { ascending: false });
   if (dramaError) { console.error("fetchRealDramas: dramas query failed", dramaError); return; }
   if (!dramaRows) return;
@@ -3069,7 +3175,9 @@ async function fetchRealDramas() {
       views: String(viewCounts[row.id] || 0),
       desc: row.description || "",
       episodes: eps.length,
-      free: row.free_episodes,
+      free: row.is_premium ? 0 : row.free_episodes,
+      isPremium: !!row.is_premium,
+      language: row.language || "english",
       real: true,
       creatorId: row.creator_id,
       creatorName: creatorNameById[row.creator_id] || "Creator",
@@ -3101,7 +3209,7 @@ async function fetchRealReels() {
   if (!supabaseClient) return;
   const { data: reelRows, error: reelError } = await supabaseClient
     .from("reels")
-    .select("id, creator_id, video_path, caption, release_at, created_at")
+    .select("id, creator_id, video_path, caption, release_at, created_at, cover_path, location, visibility, allow_comments, allow_duet, allow_stitch, allow_download, content_disclosure, trim_start, trim_end, filter_css, overlays")
     .order("created_at", { ascending: false });
   if (reelError) { console.error("fetchRealReels: reels query failed", reelError); return; }
   if (!reelRows) return;
@@ -3111,6 +3219,21 @@ async function fetchRealReels() {
   if (creatorIds.length) {
     const { data: creatorRows } = await supabaseClient.from("profiles").select("id, username").in("id", creatorIds);
     (creatorRows || []).forEach((p) => { creatorNameById[p.id] = p.username; });
+  }
+
+  const reelIds = reelRows.map((r) => r.id);
+  const tagsByReel = {};
+  if (reelIds.length) {
+    const { data: tagRows } = await supabaseClient.from("reel_tags").select("reel_id, tagged_user_id").in("reel_id", reelIds);
+    const taggedUserIds = [...new Set((tagRows || []).map((t) => t.tagged_user_id))];
+    const taggedNameById = {};
+    if (taggedUserIds.length) {
+      const { data: taggedRows } = await supabaseClient.from("profiles").select("id, username").in("id", taggedUserIds);
+      (taggedRows || []).forEach((p) => { taggedNameById[p.id] = p.username; });
+    }
+    (tagRows || []).forEach((t) => {
+      (tagsByReel[t.reel_id] ||= []).push({ id: t.tagged_user_id, username: taggedNameById[t.tagged_user_id] || "user" });
+    });
   }
 
   const { data: likeRows } = await supabaseClient.from("reel_likes").select("reel_id, user_id");
@@ -3135,8 +3258,21 @@ async function fetchRealReels() {
       creatorName: creatorNameById[row.creator_id] || "Creator",
       caption: row.caption || "",
       videoUrl: `${SUPABASE_URL}/storage/v1/object/public/reel-videos/${row.video_path}`,
+      coverUrl: row.cover_path ? `${SUPABASE_URL}/storage/v1/object/public/reel-videos/${row.cover_path}` : null,
       releaseAt: row.release_at,
       createdAt: row.created_at,
+      location: row.location || "",
+      visibility: row.visibility || "public",
+      allowComments: row.allow_comments !== false,
+      allowDuet: row.allow_duet !== false,
+      allowStitch: row.allow_stitch !== false,
+      allowDownload: row.allow_download !== false,
+      contentDisclosure: row.content_disclosure || "none",
+      trimStart: row.trim_start || 0,
+      trimEnd: row.trim_end,
+      filterCss: row.filter_css || "",
+      overlays: row.overlays || [],
+      tags: tagsByReel[row.id] || [],
     });
   });
 }
@@ -3150,9 +3286,13 @@ function buildReelCard(reel) {
   const followingCreator = followingIds.has(reel.creatorId);
   const isScheduled = reel.releaseAt && new Date(reel.releaseAt) > new Date() && reel.creatorId === currentUser?.id;
 
+  const overlays = Array.isArray(reel.overlays) ? reel.overlays : [];
+  const tagsText = (reel.tags || []).length ? " " + reel.tags.map((t) => `@${t.username}`).join(" ") : "";
+
   card.innerHTML = `
     <div class="player-bg" style="background:${gradientFor(reel.id, 1)}"></div>
-    <video class="foryou-video" muted loop playsinline preload="none" src="${reel.videoUrl}"></video>
+    <video class="foryou-video" muted loop playsinline preload="none" src="${reel.videoUrl}" style="${reel.filterCss ? `filter:${reel.filterCss}` : ""}"></video>
+    <div class="reel-overlay-layer">${overlays.map((o) => `<span class="reel-overlay-item" style="left:${o.x}%;top:${o.y}%">${o.text}</span>`).join("")}</div>
     <div class="player-vignette"></div>
     <div class="fyu-topbar">
       <div class="fyu-topbar-left">
@@ -3171,7 +3311,7 @@ function buildReelCard(reel) {
         ${!followingCreator ? `<button class="reel-follow-plus" data-follow-creator="${reel.creatorId}">+</button>` : ""}
       </div>
       <button class="reel-action-btn like-btn ${liked ? "liked" : ""}">${heartIconHTML(liked)}<span>${formatCount(likeCount)}</span></button>
-      <button class="reel-action-btn comment-btn" data-reel-comment-key="${reel.id}"><svg class="ic"><use href="#ic-comment"/></svg><span>${formatCount(reelCommentCounts[reel.id] || 0)}</span></button>
+      ${reel.allowComments === false ? "" : `<button class="reel-action-btn comment-btn" data-reel-comment-key="${reel.id}"><svg class="ic"><use href="#ic-comment"/></svg><span>${formatCount(reelCommentCounts[reel.id] || 0)}</span></button>`}
       <button class="reel-action-btn share-btn2"><svg class="ic"><use href="#ic-share"/></svg><span>Share</span></button>
       <button class="reel-action-btn more-btn"><svg class="ic"><use href="#ic-more"/></svg></button>
     </div>
@@ -3180,9 +3320,20 @@ function buildReelCard(reel) {
         <b class="reel-creator-name">@${reel.creatorName || "creator"}</b>
         ${!followingCreator ? `<button class="reel-follow-text-btn" data-follow-creator="${reel.creatorId}">Follow</button>` : '<span class="reel-following-tag">Following</span>'}
       </div>
-      <p class="reel-caption">${reel.caption || ""}</p>
+      <p class="reel-caption">${reel.caption || ""}${tagsText}</p>
+      ${reel.location ? `<p class="reel-location">📍 ${reel.location}</p>` : ""}
     </div>
   `;
+
+  const videoEl = card.querySelector(".foryou-video");
+  if (reel.trimStart || reel.trimEnd) {
+    const start = reel.trimStart || 0;
+    videoEl.addEventListener("loadedmetadata", () => { videoEl.currentTime = start; });
+    videoEl.addEventListener("timeupdate", () => {
+      if (reel.trimEnd && videoEl.currentTime >= reel.trimEnd) videoEl.currentTime = start;
+      else if (videoEl.currentTime < start) videoEl.currentTime = start;
+    });
+  }
 
   card.querySelector(".like-btn").addEventListener("click", (e) => {
     if (!currentUser) { toast("Sign in to like"); openAuthModal("signin"); return; }
@@ -3199,7 +3350,7 @@ function buildReelCard(reel) {
       supabaseClient.from("reel_likes").delete().eq("reel_id", reel.id).eq("user_id", currentUser.id);
     }
   });
-  card.querySelector(".comment-btn").addEventListener("click", () => openReelComments(reel));
+  card.querySelector(".comment-btn")?.addEventListener("click", () => openReelComments(reel));
   card.querySelector(".share-btn2").addEventListener("click", () => {
     state.currentDrama = null;
     state.currentReel = reel;
@@ -3222,6 +3373,7 @@ function buildReelCard(reel) {
   card.querySelector(".more-btn").addEventListener("click", () => {
     moreModalTarget = reel;
     moreModalTargetType = "reel";
+    document.getElementById("moreRowSave").style.display = reel.allowDownload === false ? "none" : "flex";
     openModal("moreModal");
   });
 
@@ -3250,15 +3402,76 @@ function buildReelCard(reel) {
   return card;
 }
 
+/* ---------------- Create Reel: 5-step TikTok-style wizard ---------------- */
+// Trim/filter/adjust/text/stickers are stored as metadata and applied at
+// playback time everywhere the reel plays (see buildReelCard) rather than
+// baked into the uploaded file — same visible result, no re-encoding needed.
+let reelEdit = {
+  trimStart: 0,
+  trimEnd: 0,
+  duration: 0,
+  filterPreset: "",
+  brightness: 100,
+  contrast: 100,
+  saturate: 100,
+  overlays: [],
+  coverBlob: null,
+  location: "",
+  tags: [], // { id, username }
+  visibility: "public",
+  allowComments: true,
+  allowDuet: true,
+  allowStitch: true,
+  allowDownload: true,
+  contentDisclosure: "none",
+};
+
+function reelFilterCss() {
+  const parts = [];
+  if (reelEdit.filterPreset) parts.push(reelEdit.filterPreset);
+  parts.push(`brightness(${reelEdit.brightness}%)`, `contrast(${reelEdit.contrast}%)`, `saturate(${reelEdit.saturate}%)`);
+  return parts.join(" ");
+}
+
+function showReelStep(step) {
+  document.getElementById("reelStepSelect").style.display = step === "select" ? "" : "none";
+  document.getElementById("reelStepEdit").style.display = step === "edit" ? "" : "none";
+  document.getElementById("reelStepDetails").style.display = step === "details" ? "" : "none";
+  document.getElementById("reelStepPreview").style.display = step === "preview" ? "" : "none";
+  document.getElementById("reelStepPublish").style.display = step === "publish" ? "" : "none";
+  const titles = { select: "Select Video", edit: "Edit Reel", details: "Reel Details", preview: "Preview", publish: "Publish" };
+  document.getElementById("reelModalTitle").textContent = titles[step];
+  const stepN = { select: 1, edit: 2, details: 3, preview: 4, publish: 5 }[step];
+  document.querySelectorAll("#reelStepsRow .upload-step").forEach((el) => {
+    const n = parseInt(el.dataset.stepN, 10);
+    el.classList.toggle("active", n === stepN);
+    el.classList.toggle("done", n < stepN);
+  });
+}
+
 function openUploadReelModal() {
   if (!currentUser) { toast("Sign in to upload"); openAuthModal("signin"); return; }
   reelPickedFile = null;
+  reelEdit = {
+    trimStart: 0, trimEnd: 0, duration: 0,
+    filterPreset: "", brightness: 100, contrast: 100, saturate: 100,
+    overlays: [], coverBlob: null,
+    location: "", tags: [], visibility: "public",
+    allowComments: true, allowDuet: true, allowStitch: true, allowDownload: true,
+    contentDisclosure: "none",
+  };
   document.getElementById("reelVideoInput").value = "";
   document.getElementById("reelCaptionInput").value = "";
+  document.getElementById("reelLocationInput").value = "";
+  document.getElementById("reelTagSearchInput").value = "";
+  document.getElementById("reelTagResults").innerHTML = "";
   document.getElementById("reelReleaseAtInput").value = "";
   document.getElementById("reelUploadProgressText").textContent = "";
-  document.getElementById("reelUploadPicker").style.display = "";
-  document.getElementById("reelUploadPreviewWrap").style.display = "none";
+  document.getElementById("reelMoreOptionsPanel").style.display = "none";
+  document.querySelectorAll("#reelAudienceTabs .reel-audience-tab").forEach((t) => t.classList.toggle("active", t.dataset.visibility === "public"));
+  renderReelOverlayChips();
+  renderReelTagChips();
+  showReelStep("select");
   openModal("uploadReelModal");
 }
 
@@ -3271,16 +3484,30 @@ function fileExt(fileOrBlob, fallback) {
   return fallback || "mp4";
 }
 
-function applyReelPickedFile(fileOrBlob) {
+async function applyReelPickedFile(fileOrBlob) {
   reelPickedFile = fileOrBlob;
-  const video = document.getElementById("reelUploadPreviewVideo");
-  video.src = URL.createObjectURL(fileOrBlob);
-  document.getElementById("reelUploadPicker").style.display = "none";
-  document.getElementById("reelUploadPreviewWrap").style.display = "flex";
+  const duration = await getMediaDuration(fileOrBlob);
+  reelEdit.duration = duration;
+  reelEdit.trimStart = 0;
+  reelEdit.trimEnd = duration;
+  const editVideo = document.getElementById("reelEditVideo");
+  editVideo.src = URL.createObjectURL(fileOrBlob);
+  const startInput = document.getElementById("reelTrimStartInput");
+  const endInput = document.getElementById("reelTrimEndInput");
+  startInput.max = String(duration);
+  endInput.max = String(duration);
+  startInput.value = "0";
+  endInput.value = String(duration);
+  updateReelTrimLabel();
+  showReelStep("edit");
+}
+
+function updateReelTrimLabel() {
+  document.getElementById("reelTrimLabel").textContent = `${formatDuration(reelEdit.trimStart)} - ${formatDuration(reelEdit.trimEnd)}`;
 }
 
 document.getElementById("reelPickVideoBtn").addEventListener("click", () => document.getElementById("reelVideoInput").click());
-document.getElementById("reelUploadChangeBtn").addEventListener("click", () => document.getElementById("reelVideoInput").click());
+document.getElementById("reelEditBackBtn").addEventListener("click", () => document.getElementById("reelVideoInput").click());
 document.getElementById("reelRecordVideoBtn").addEventListener("click", () => {
   openRecordVideoModal((blob) => applyReelPickedFile(blob));
 });
@@ -3290,6 +3517,185 @@ document.getElementById("reelVideoInput").addEventListener("change", (e) => {
   if (!file) return;
   applyReelPickedFile(file);
 });
+
+document.getElementById("reelTrimStartInput").addEventListener("input", (e) => {
+  const v = parseFloat(e.target.value);
+  reelEdit.trimStart = Math.min(v, reelEdit.trimEnd - 0.5);
+  e.target.value = String(reelEdit.trimStart);
+  document.getElementById("reelEditVideo").currentTime = reelEdit.trimStart;
+  updateReelTrimLabel();
+});
+document.getElementById("reelTrimEndInput").addEventListener("input", (e) => {
+  const v = parseFloat(e.target.value);
+  reelEdit.trimEnd = Math.max(v, reelEdit.trimStart + 0.5);
+  e.target.value = String(reelEdit.trimEnd);
+  updateReelTrimLabel();
+});
+
+document.querySelectorAll(".reel-edit-tool-btn").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    const tool = btn.dataset.tool;
+    const panels = { filter: "reelFilterPanel", adjust: "reelAdjustPanel", text: "reelTextPanel", sticker: "reelStickerPanel" };
+    const panelId = panels[tool];
+    const panel = document.getElementById(panelId);
+    const isOpen = panel.style.display !== "none";
+    Object.values(panels).forEach((id) => { document.getElementById(id).style.display = "none"; });
+    document.querySelectorAll(".reel-edit-tool-btn").forEach((b) => b.classList.remove("active"));
+    if (!isOpen) { panel.style.display = "flex"; btn.classList.add("active"); }
+  });
+});
+
+document.querySelectorAll("#reelFilterChips .reel-filter-chip").forEach((chip) => {
+  chip.addEventListener("click", () => {
+    reelEdit.filterPreset = chip.dataset.filter;
+    document.querySelectorAll("#reelFilterChips .reel-filter-chip").forEach((c) => c.classList.toggle("active", c === chip));
+    document.getElementById("reelEditVideo").style.filter = reelFilterCss();
+  });
+});
+
+["reelBrightnessInput", "reelContrastInput", "reelSaturateInput"].forEach((id) => {
+  document.getElementById(id).addEventListener("input", (e) => {
+    const key = { reelBrightnessInput: "brightness", reelContrastInput: "contrast", reelSaturateInput: "saturate" }[id];
+    reelEdit[key] = parseInt(e.target.value, 10);
+    document.getElementById("reelEditVideo").style.filter = reelFilterCss();
+  });
+});
+
+function renderReelOverlayChips() {
+  ["reelOverlayChipList", "reelEditOverlayLayer", "reelPreviewOverlayLayer"].forEach((id) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    if (id === "reelOverlayChipList") {
+      el.innerHTML = reelEdit.overlays.map((o, i) => `<span class="reel-overlay-chip">${o.text}<button data-i="${i}">✕</button></span>`).join("");
+      el.querySelectorAll("button").forEach((b) => b.addEventListener("click", () => {
+        reelEdit.overlays.splice(parseInt(b.dataset.i, 10), 1);
+        renderReelOverlayChips();
+      }));
+    } else {
+      el.innerHTML = reelEdit.overlays.map((o) => `<span class="reel-overlay-item" style="left:${o.x}%;top:${o.y}%">${o.text}</span>`).join("");
+    }
+  });
+}
+
+document.getElementById("reelAddTextBtn").addEventListener("click", () => {
+  const input = document.getElementById("reelTextOverlayInput");
+  const text = input.value.trim();
+  if (!text) return;
+  reelEdit.overlays.push({ type: "text", text, x: 50, y: 20 + reelEdit.overlays.length * 12 });
+  input.value = "";
+  renderReelOverlayChips();
+});
+
+document.querySelectorAll("#reelStickerRow .reel-sticker-btn").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    reelEdit.overlays.push({ type: "emoji", text: btn.textContent, x: 50, y: 30 + reelEdit.overlays.length * 12 });
+    renderReelOverlayChips();
+  });
+});
+
+document.getElementById("reelEditNextBtn").addEventListener("click", () => {
+  if (!reelPickedFile) { toast("Choose a video first"); return; }
+  const cover = document.getElementById("reelCoverThumb");
+  cover.style.backgroundImage = "";
+  document.getElementById("reelCaptionInput").value = "";
+  showReelStep("details");
+});
+
+document.getElementById("reelCaptionInput").addEventListener("input", (e) => {
+  document.getElementById("reelCaptionCount").textContent = `${e.target.value.length}/300`;
+});
+
+document.getElementById("reelLocationInput").addEventListener("input", (e) => { reelEdit.location = e.target.value; });
+
+document.getElementById("reelEditCoverBtn").addEventListener("click", () => {
+  const video = document.getElementById("reelEditVideo");
+  const canvas = document.createElement("canvas");
+  canvas.width = video.videoWidth || 360;
+  canvas.height = video.videoHeight || 640;
+  const ctx = canvas.getContext("2d");
+  ctx.filter = reelFilterCss();
+  ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+  canvas.toBlob((blob) => {
+    if (!blob) return;
+    reelEdit.coverBlob = blob;
+    document.getElementById("reelCoverThumb").style.backgroundImage = `url('${URL.createObjectURL(blob)}')`;
+  }, "image/jpeg", 0.85);
+});
+
+let reelTagSearchTimer = null;
+document.getElementById("reelTagSearchInput").addEventListener("input", (e) => {
+  clearTimeout(reelTagSearchTimer);
+  const q = e.target.value.trim();
+  const results = document.getElementById("reelTagResults");
+  if (!q) { results.innerHTML = ""; return; }
+  reelTagSearchTimer = setTimeout(async () => {
+    const { data } = await supabaseClient.from("profiles").select("id, username").ilike("username", `%${q}%`).limit(5);
+    results.innerHTML = (data || [])
+      .filter((p) => !reelEdit.tags.some((t) => t.id === p.id))
+      .map((p) => `<div class="reel-tag-result-item" data-id="${p.id}" data-username="${p.username}">@${p.username}</div>`)
+      .join("");
+    results.querySelectorAll(".reel-tag-result-item").forEach((row) => {
+      row.addEventListener("click", () => {
+        reelEdit.tags.push({ id: row.dataset.id, username: row.dataset.username });
+        renderReelTagChips();
+        results.innerHTML = "";
+        document.getElementById("reelTagSearchInput").value = "";
+      });
+    });
+  }, 300);
+});
+
+function renderReelTagChips() {
+  document.getElementById("reelTagChipList").innerHTML = reelEdit.tags
+    .map((t, i) => `<span class="reel-tag-chip">@${t.username}<button data-i="${i}">✕</button></span>`)
+    .join("");
+  document.querySelectorAll("#reelTagChipList button").forEach((b) => {
+    b.addEventListener("click", () => { reelEdit.tags.splice(parseInt(b.dataset.i, 10), 1); renderReelTagChips(); });
+  });
+}
+
+document.querySelectorAll("#reelAudienceTabs .reel-audience-tab").forEach((tab) => {
+  tab.addEventListener("click", () => {
+    reelEdit.visibility = tab.dataset.visibility;
+    document.querySelectorAll("#reelAudienceTabs .reel-audience-tab").forEach((t) => t.classList.toggle("active", t === tab));
+  });
+});
+
+document.getElementById("reelMoreOptionsRow").addEventListener("click", () => {
+  const panel = document.getElementById("reelMoreOptionsPanel");
+  panel.style.display = panel.style.display === "none" ? "block" : "none";
+});
+[
+  ["reelAllowCommentsToggle", "allowComments"],
+  ["reelAllowDuetToggle", "allowDuet"],
+  ["reelAllowStitchToggle", "allowStitch"],
+  ["reelAllowDownloadToggle", "allowDownload"],
+].forEach(([id, key]) => {
+  document.getElementById(id).addEventListener("click", (e) => {
+    reelEdit[key] = !reelEdit[key];
+    e.currentTarget.classList.toggle("on", reelEdit[key]);
+  });
+});
+document.getElementById("reelContentDisclosureSelect").addEventListener("change", (e) => { reelEdit.contentDisclosure = e.target.value; });
+
+document.getElementById("reelDetailsBackBtn").addEventListener("click", () => showReelStep("edit"));
+
+document.getElementById("reelDetailsNextBtn").addEventListener("click", () => {
+  const previewVideo = document.getElementById("reelPreviewVideo");
+  previewVideo.src = document.getElementById("reelEditVideo").src;
+  previewVideo.style.filter = reelFilterCss();
+  previewVideo.currentTime = reelEdit.trimStart;
+  document.getElementById("reelPreviewCaption").textContent = document.getElementById("reelCaptionInput").value.trim();
+  const locEl = document.getElementById("reelPreviewLocation");
+  if (reelEdit.location) { locEl.style.display = ""; locEl.textContent = "📍 " + reelEdit.location; }
+  else locEl.style.display = "none";
+  renderReelOverlayChips();
+  showReelStep("preview");
+});
+
+document.getElementById("reelPreviewBackBtn").addEventListener("click", () => showReelStep("details"));
+
+let lastPublishedReel = null;
 
 document.getElementById("reelPostBtn").addEventListener("click", async () => {
   if (!reelPickedFile || !currentUser) { toast("Choose a video first"); return; }
@@ -3307,19 +3713,59 @@ document.getElementById("reelPostBtn").addEventListener("click", async () => {
     toast("Upload failed: " + uploadError.message);
     return;
   }
+  let coverPath = null;
+  if (reelEdit.coverBlob) {
+    coverPath = `${currentUser.id}/${Date.now()}-cover.jpg`;
+    await supabaseClient.storage.from("reel-videos").upload(coverPath, reelEdit.coverBlob);
+  }
   const releaseInput = document.getElementById("reelReleaseAtInput");
   const releaseAt = releaseInput.value ? new Date(releaseInput.value).toISOString() : null;
-  const { error: insertError } = await supabaseClient
+  const { data: insertedRow, error: insertError } = await supabaseClient
     .from("reels")
-    .insert({ creator_id: currentUser.id, video_path: path, caption, release_at: releaseAt });
+    .insert({
+      creator_id: currentUser.id,
+      video_path: path,
+      caption,
+      release_at: releaseAt,
+      cover_path: coverPath,
+      location: reelEdit.location || null,
+      visibility: reelEdit.visibility,
+      allow_comments: reelEdit.allowComments,
+      allow_duet: reelEdit.allowDuet,
+      allow_stitch: reelEdit.allowStitch,
+      allow_download: reelEdit.allowDownload,
+      content_disclosure: reelEdit.contentDisclosure,
+      trim_start: reelEdit.trimStart,
+      trim_end: reelEdit.trimEnd < reelEdit.duration ? reelEdit.trimEnd : null,
+      filter_css: reelFilterCss(),
+      overlays: reelEdit.overlays,
+    })
+    .select()
+    .single();
   btn.disabled = false;
   progress.textContent = "";
   if (insertError) { toast("Couldn't post reel: " + insertError.message); return; }
-  toast(releaseAt ? "Reel scheduled!" : "Reel posted!");
-  closeModal("uploadReelModal");
+  if (reelEdit.tags.length) {
+    await supabaseClient.from("reel_tags").insert(reelEdit.tags.map((t) => ({ reel_id: insertedRow.id, tagged_user_id: t.id })));
+  }
+  lastPublishedReel = insertedRow;
+  document.getElementById("reelPublishTitle").textContent = releaseAt ? "Your reel is scheduled!" : "Your reel is live!";
+  showReelStep("publish");
   await fetchRealReels();
   if (state.view === "foryou") renderForYouFeed();
 });
+
+document.getElementById("reelShareBtn").addEventListener("click", () => {
+  if (!lastPublishedReel) return;
+  const reel = REELS.find((r) => r.id === lastPublishedReel.id);
+  if (!reel) return;
+  state.currentDrama = null;
+  state.currentReel = reel;
+  closeModal("uploadReelModal");
+  openModal("shareModal");
+});
+
+document.getElementById("reelPublishDoneBtn").addEventListener("click", () => closeModal("uploadReelModal"));
 
 /* ---------------- Shared TikTok-style camera recording ---------------- */
 // Multi-segment: each tap-to-record/tap-to-pause cycle produces its own
@@ -3591,6 +4037,7 @@ document.getElementById("detailReportBtn").addEventListener("click", () => {
 document.getElementById("detailMoreBtn").addEventListener("click", () => {
   moreModalTarget = state.currentDrama;
   moreModalTargetType = "drama";
+  document.getElementById("moreRowSave").style.display = "none";
   openModal("moreModal");
 });
 
@@ -3835,6 +4282,7 @@ document.querySelectorAll("#moreModal .more-row").forEach((row) => {
     if (moreModalTargetType === "reel") {
       if (action === "comment") openReelComments(moreModalTarget);
       if (action === "share") { state.currentDrama = null; state.currentReel = moreModalTarget; openModal("shareModal"); }
+      if (action === "save") downloadReelVideo(moreModalTarget);
       if (action === "report") submitReelReport(moreModalTarget);
       return;
     }
@@ -3864,6 +4312,24 @@ async function submitReelReport(reel) {
     reason: "reel_report",
   });
   toast(error ? "Report failed to send" : "Report submitted — thanks for the feedback");
+}
+
+async function downloadReelVideo(reel) {
+  toast("Downloading...");
+  try {
+    const res = await fetch(reel.videoUrl);
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `reel-${reel.id}.mp4`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+  } catch (e) {
+    toast("Download failed");
+  }
 }
 
 /* ---------------- Comments ---------------- */
@@ -4367,6 +4833,7 @@ function buildForYouCard(d, epNum) {
   card.querySelector(".more-btn").addEventListener("click", () => {
     moreModalTarget = d;
     moreModalTargetType = "drama";
+    document.getElementById("moreRowSave").style.display = "none";
     openModal("moreModal");
   });
   card.querySelector(".fyu-search-btn").addEventListener("click", () => {
