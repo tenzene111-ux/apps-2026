@@ -12,7 +12,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="Reelflix" />
-  <link rel="stylesheet" href="style.css?v=63" />
+  <link rel="stylesheet" href="style.css?v=64" />
 </head>
 <body>
   <svg width="0" height="0" style="position:absolute" aria-hidden="true">
@@ -1031,12 +1031,22 @@
   <div class="modal-backdrop" id="recordVideoModal">
     <div class="modal record-video-modal">
       <h3>Record Video</h3>
+      <div class="record-duration-tabs" id="recordDurationTabs">
+        <button class="record-duration-tab" data-ms="15000">15s</button>
+        <button class="record-duration-tab active" data-ms="60000">60s</button>
+      </div>
       <div class="record-video-stage">
         <video id="recordVideoPreview" autoplay playsinline muted></video>
+        <div class="record-progress-bar" id="recordProgressBar"><div class="record-progress-fill" id="recordProgressFill"></div></div>
         <div class="record-timer" id="recordTimer" style="display:none">00:00</div>
+        <button class="record-flip-btn" id="recordFlipBtn">🔄</button>
       </div>
       <div class="record-video-controls" id="recordVideoControls">
+        <button class="record-delete-segment-btn" id="recordDeleteSegmentBtn" style="display:none">↺</button>
         <button class="record-btn" id="recordStartStopBtn"><span class="record-btn-dot"></span></button>
+        <button class="record-done-btn" id="recordDoneBtn" style="display:none">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7"/></svg>
+        </button>
       </div>
       <div class="record-video-review" id="recordVideoReview" style="display:none">
         <button class="btn-ghost" id="recordRetakeBtn">Retake</button>
@@ -1271,8 +1281,8 @@
     </div>
   </div>
 
-  <script src="vendor/supabase.js?v=63"></script>
-  <script src="vendor/livekit-client.js?v=63"></script>
-  <script src="app.js?v=63"></script>
+  <script src="vendor/supabase.js?v=64"></script>
+  <script src="vendor/livekit-client.js?v=64"></script>
+  <script src="app.js?v=64"></script>
 </body>
 </html>

@@ -3322,28 +3322,51 @@ document.getElementById("reelPostBtn").addEventListener("click", async () => {
 });
 
 /* ---------------- Shared TikTok-style camera recording ---------------- */
+// Multi-segment: each tap-to-record/tap-to-pause cycle produces its own
+// MediaRecorder blob; segments are concatenated into one final clip when
+// finished, and the last segment can be dropped before finishing.
 let recordMediaStream = null;
-let recordMediaRecorder = null;
-let recordedChunks = [];
+let recordFacingMode = "user";
+let recordCurrentRecorder = null;
+let recordCurrentChunks = [];
+let recordSegments = []; // { blob, durationMs }
+let recordSegmentStartedAt = 0;
+let recordMaxDurationMs = 60000;
 let recordedBlob = null;
-let recordStartedAt = 0;
 let recordTimerInterval = null;
 let recordVideoCallback = null;
+
+function recordElapsedMs() {
+  return recordSegments.reduce((sum, s) => sum + s.durationMs, 0);
+}
+
+function updateRecordProgressUI(extraMs) {
+  const elapsed = recordElapsedMs() + (extraMs || 0);
+  const pct = Math.min(100, (elapsed / recordMaxDurationMs) * 100);
+  document.getElementById("recordProgressFill").style.width = pct + "%";
+}
 
 async function openRecordVideoModal(onRecorded) {
   recordVideoCallback = onRecorded;
   recordedBlob = null;
-  recordedChunks = [];
+  recordSegments = [];
+  recordCurrentChunks = [];
+  recordFacingMode = "user";
+  recordMaxDurationMs = 60000;
   document.getElementById("recordVideoReview").style.display = "none";
   document.getElementById("recordVideoControls").style.display = "flex";
+  document.getElementById("recordDeleteSegmentBtn").style.display = "none";
+  document.getElementById("recordDoneBtn").style.display = "none";
   document.getElementById("recordTimer").style.display = "none";
   document.getElementById("recordStartStopBtn").classList.remove("recording");
+  document.querySelectorAll("#recordDurationTabs .record-duration-tab").forEach((t) => t.classList.toggle("active", t.dataset.ms === "60000"));
+  updateRecordProgressUI();
   const preview = document.getElementById("recordVideoPreview");
   preview.src = "";
   preview.srcObject = null;
   openModal("recordVideoModal");
   try {
-    recordMediaStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" }, audio: true });
+    recordMediaStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: recordFacingMode }, audio: true });
     preview.srcObject = recordMediaStream;
     preview.muted = true;
     preview.play().catch(() => {});
@@ -3356,57 +3379,115 @@ async function openRecordVideoModal(onRecorded) {
 function stopRecordVideoModal() {
   clearInterval(recordTimerInterval);
   recordTimerInterval = null;
-  if (recordMediaRecorder && recordMediaRecorder.state !== "inactive") {
-    recordMediaRecorder.onstop = null;
-    recordMediaRecorder.stop();
+  if (recordCurrentRecorder && recordCurrentRecorder.state !== "inactive") {
+    recordCurrentRecorder.onstop = null;
+    recordCurrentRecorder.stop();
   }
-  recordMediaRecorder = null;
+  recordCurrentRecorder = null;
   if (recordMediaStream) {
     recordMediaStream.getTracks().forEach((t) => t.stop());
     recordMediaStream = null;
   }
+  recordSegments = [];
   recordVideoCallback = null;
+}
+
+document.querySelectorAll("#recordDurationTabs .record-duration-tab").forEach((tab) => {
+  tab.addEventListener("click", () => {
+    if (recordElapsedMs() > 0) return; // locked once you've recorded at least one segment
+    recordMaxDurationMs = parseInt(tab.dataset.ms, 10);
+    document.querySelectorAll("#recordDurationTabs .record-duration-tab").forEach((t) => t.classList.toggle("active", t === tab));
+  });
+});
+
+document.getElementById("recordFlipBtn").addEventListener("click", async () => {
+  if (!recordMediaStream) return;
+  recordFacingMode = recordFacingMode === "user" ? "environment" : "user";
+  try {
+    const newStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: recordFacingMode }, audio: false });
+    const newTrack = newStream.getVideoTracks()[0];
+    const oldTrack = recordMediaStream.getVideoTracks()[0];
+    recordMediaStream.removeTrack(oldTrack);
+    oldTrack.stop();
+    recordMediaStream.addTrack(newTrack);
+    document.getElementById("recordVideoPreview").srcObject = recordMediaStream;
+  } catch (e) {
+    recordFacingMode = recordFacingMode === "user" ? "environment" : "user";
+    toast("Couldn't switch camera");
+  }
+});
+
+function finalizeRecording() {
+  clearInterval(recordTimerInterval);
+  if (!recordSegments.length) return;
+  const mimeType = recordSegments[0].blob.type || "video/webm";
+  recordedBlob = new Blob(recordSegments.map((s) => s.blob), { type: mimeType });
+  const preview = document.getElementById("recordVideoPreview");
+  preview.srcObject = null;
+  preview.muted = false;
+  preview.src = URL.createObjectURL(recordedBlob);
+  preview.play().catch(() => {});
+  document.getElementById("recordVideoReview").style.display = "flex";
+  document.getElementById("recordVideoControls").style.display = "none";
+  document.getElementById("recordTimer").style.display = "none";
 }
 
 document.getElementById("recordStartStopBtn").addEventListener("click", () => {
   const btn = document.getElementById("recordStartStopBtn");
   if (!recordMediaStream) return;
-  if (!recordMediaRecorder || recordMediaRecorder.state === "inactive") {
-    recordedChunks = [];
-    recordMediaRecorder = new MediaRecorder(recordMediaStream);
-    recordMediaRecorder.ondataavailable = (e) => { if (e.data.size > 0) recordedChunks.push(e.data); };
-    recordMediaRecorder.onstop = () => {
-      recordedBlob = new Blob(recordedChunks, { type: recordMediaRecorder.mimeType || "video/webm" });
-      const preview = document.getElementById("recordVideoPreview");
-      preview.srcObject = null;
-      preview.muted = false;
-      preview.src = URL.createObjectURL(recordedBlob);
-      preview.play().catch(() => {});
-      document.getElementById("recordVideoReview").style.display = "flex";
-      document.getElementById("recordVideoControls").style.display = "none";
-      document.getElementById("recordTimer").style.display = "none";
-      clearInterval(recordTimerInterval);
+  if (!recordCurrentRecorder || recordCurrentRecorder.state === "inactive") {
+    recordCurrentChunks = [];
+    recordCurrentRecorder = new MediaRecorder(recordMediaStream);
+    recordCurrentRecorder.ondataavailable = (e) => { if (e.data.size > 0) recordCurrentChunks.push(e.data); };
+    recordCurrentRecorder.onstop = () => {
+      const blob = new Blob(recordCurrentChunks, { type: recordCurrentRecorder.mimeType || "video/webm" });
+      const durationMs = Date.now() - recordSegmentStartedAt;
+      recordSegments.push({ blob, durationMs });
+      updateRecordProgressUI();
+      document.getElementById("recordDeleteSegmentBtn").style.display = "flex";
+      document.getElementById("recordDoneBtn").style.display = "flex";
+      if (recordElapsedMs() >= recordMaxDurationMs) finalizeRecording();
     };
-    recordMediaRecorder.start();
-    recordStartedAt = Date.now();
+    recordCurrentRecorder.start();
+    recordSegmentStartedAt = Date.now();
     btn.classList.add("recording");
+    document.getElementById("recordDeleteSegmentBtn").style.display = "none";
+    document.getElementById("recordDoneBtn").style.display = "none";
     const timerEl = document.getElementById("recordTimer");
     timerEl.style.display = "block";
-    timerEl.textContent = "00:00";
     recordTimerInterval = setInterval(() => {
-      const secs = Math.floor((Date.now() - recordStartedAt) / 1000);
-      const mm = String(Math.floor(secs / 60)).padStart(2, "0");
-      const ss = String(secs % 60).padStart(2, "0");
-      timerEl.textContent = `${mm}:${ss}`;
-    }, 250);
+      const liveMs = Date.now() - recordSegmentStartedAt;
+      const elapsed = recordElapsedMs() + liveMs;
+      const secs = Math.floor(elapsed / 1000);
+      timerEl.textContent = `${String(Math.floor(secs / 60)).padStart(2, "0")}:${String(secs % 60).padStart(2, "0")}`;
+      updateRecordProgressUI(liveMs);
+      if (elapsed >= recordMaxDurationMs) {
+        recordCurrentRecorder.stop();
+        btn.classList.remove("recording");
+      }
+    }, 200);
   } else {
-    recordMediaRecorder.stop();
+    clearInterval(recordTimerInterval);
+    recordCurrentRecorder.stop();
     btn.classList.remove("recording");
   }
 });
 
+document.getElementById("recordDeleteSegmentBtn").addEventListener("click", () => {
+  recordSegments.pop();
+  updateRecordProgressUI();
+  if (!recordSegments.length) {
+    document.getElementById("recordDeleteSegmentBtn").style.display = "none";
+    document.getElementById("recordDoneBtn").style.display = "none";
+  }
+});
+
+document.getElementById("recordDoneBtn").addEventListener("click", finalizeRecording);
+
 document.getElementById("recordRetakeBtn").addEventListener("click", () => {
   recordedBlob = null;
+  recordSegments = [];
+  updateRecordProgressUI();
   const preview = document.getElementById("recordVideoPreview");
   preview.src = "";
   preview.srcObject = recordMediaStream;
@@ -3414,6 +3495,8 @@ document.getElementById("recordRetakeBtn").addEventListener("click", () => {
   preview.play().catch(() => {});
   document.getElementById("recordVideoReview").style.display = "none";
   document.getElementById("recordVideoControls").style.display = "flex";
+  document.getElementById("recordDeleteSegmentBtn").style.display = "none";
+  document.getElementById("recordDoneBtn").style.display = "none";
 });
 
 document.getElementById("recordUseVideoBtn").addEventListener("click", () => {
