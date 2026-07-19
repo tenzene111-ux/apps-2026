@@ -158,7 +158,6 @@ const state = {
   notifOn: true,
   autoplayNext: true,
   watchHistory: {},
-  foryouMuted: true,
 };
 
 function loadState() {
@@ -3291,7 +3290,7 @@ function buildReelCard(reel) {
 
   card.innerHTML = `
     <div class="player-bg" style="background:${gradientFor(reel.id, 1)}"></div>
-    <video class="foryou-video" muted loop playsinline preload="none" src="${reel.videoUrl}" style="${reel.filterCss ? `filter:${reel.filterCss}` : ""}"></video>
+    <video class="foryou-video" loop playsinline preload="none" src="${reel.videoUrl}" style="${reel.filterCss ? `filter:${reel.filterCss}` : ""}"></video>
     <div class="reel-overlay-layer">${overlays.map((o) => `<span class="reel-overlay-item" style="left:${o.x}%;top:${o.y}%">${o.text}</span>`).join("")}</div>
     <div class="player-vignette"></div>
     <div class="fyu-topbar">
@@ -3301,7 +3300,6 @@ function buildReelCard(reel) {
       </div>
       <div class="fyu-topbar-right">
         <span class="mutual-badge">${isScheduled ? `Scheduled · ${new Date(reel.releaseAt).toLocaleString()}` : "Reel"}</span>
-        <button class="fyu-mute-btn">${muteIconHTML(state.foryouMuted)}</button>
       </div>
     </div>
     <div class="center-play-btn"><svg class="ic"><use href="#ic-play"/></svg></div>
@@ -3357,7 +3355,6 @@ function buildReelCard(reel) {
     openModal("shareModal");
   });
   card.querySelector(".fyu-explore-btn").addEventListener("click", (e) => { e.stopPropagation(); openExplore(); });
-  card.querySelector(".fyu-mute-btn").addEventListener("click", (e) => { e.stopPropagation(); toggleForYouMute(); });
   card.querySelectorAll("[data-follow-creator]").forEach((btn) => {
     btn.addEventListener("click", async (e) => {
       e.stopPropagation();
@@ -4647,20 +4644,6 @@ function renderForYouFeed() {
     feed.appendChild(card);
   });
   observeForYouCards();
-  applyForYouMuteState();
-}
-
-function applyForYouMuteState() {
-  document.querySelectorAll("#forYouFeed .foryou-video").forEach((v) => { v.muted = state.foryouMuted; });
-  document.querySelectorAll("#forYouFeed .fyu-mute-btn use").forEach((use) => {
-    use.setAttribute("href", state.foryouMuted ? "#ic-mute" : "#ic-unmute");
-  });
-}
-
-function toggleForYouMute() {
-  state.foryouMuted = !state.foryouMuted;
-  saveState();
-  applyForYouMuteState();
 }
 
 function buildLockedEpisodeCard(d) {
@@ -4737,7 +4720,7 @@ function buildForYouCard(d, epNum) {
 
   card.innerHTML = `
     <div class="player-bg" style="${coverStyle(d, 1)}"></div>
-    ${previewUrl ? `<video class="foryou-video" muted loop playsinline preload="none" src="${previewUrl}"></video>` : ""}
+    ${previewUrl ? `<video class="foryou-video" loop playsinline preload="none" src="${previewUrl}"></video>` : ""}
     <div class="player-vignette"></div>
     <div class="fyu-topbar">
       <div class="fyu-topbar-left">
@@ -4746,7 +4729,6 @@ function buildForYouCard(d, epNum) {
       </div>
       <div class="fyu-topbar-right">
         ${d.mutual ? '<span class="mutual-badge">Mutual</span>' : ""}
-        ${previewUrl ? `<button class="fyu-mute-btn">${muteIconHTML(state.foryouMuted)}</button>` : ""}
         <button class="fyu-search-btn"><svg class="ic"><use href="#ic-search"/></svg></button>
       </div>
     </div>
@@ -4846,8 +4828,6 @@ function buildForYouCard(d, epNum) {
     e.stopPropagation();
     openExplore();
   });
-  const muteBtn = card.querySelector(".fyu-mute-btn");
-  if (muteBtn) muteBtn.addEventListener("click", (e) => { e.stopPropagation(); toggleForYouMute(); });
   card.querySelector(".reel-caption").addEventListener("click", () => openDetail(d.id));
   card.querySelector(".more-link").addEventListener("click", (e) => { e.stopPropagation(); openDetail(d.id); });
 
@@ -4883,7 +4863,16 @@ function observeForYouCards() {
       const video = entry.target.querySelector(".foryou-video");
       if (!video) return;
       if (entry.isIntersecting) {
-        if (!entry.target.classList.contains("paused")) video.play().catch(() => {});
+        if (!entry.target.classList.contains("paused")) {
+          video.play().catch(() => {
+            // Autoplay-with-sound can be blocked before the user has interacted
+            // with the page; fall back to a muted autoplay rather than a
+            // frozen frame, then unmute on the next play attempt (e.g. once
+            // the user has tapped anything, browsers allow audible autoplay).
+            video.muted = true;
+            video.play().catch(() => {});
+          });
+        }
       } else {
         video.pause();
         video.currentTime = 0;
@@ -4892,6 +4881,18 @@ function observeForYouCards() {
   }, { threshold: [0.6], root: document.getElementById("forYouFeed") });
   cards.forEach(c => io.observe(c));
 }
+
+// If the very first autoplay attempt happened before any user gesture,
+// browsers force it muted. The first tap anywhere is itself a user gesture,
+// so use it to unmute + resume whatever reel is currently playing.
+document.addEventListener("pointerdown", function unmuteForYouOnFirstGesture() {
+  document.querySelectorAll("#forYouFeed .foryou-video").forEach((v) => {
+    if (v.muted) {
+      v.muted = false;
+      if (!v.paused) v.play().catch(() => {});
+    }
+  });
+}, { passive: true });
 
 /* ---------------- Rewards ---------------- */
 const QUEST_TIERS = [
