@@ -2794,6 +2794,18 @@ input { font: inherit; color: inherit; }
 .live-like-btn .ic { width: 20px; height: 20px; color: #ff3860; }
 .live-like-btn:active { transform: scale(0.9); }
 
+.live-side-rail {
+  position: absolute;
+  z-index: 6;
+  right: 14px;
+  top: 45%;
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.live-side-rail .live-flip-btn, .live-side-rail .live-effects-btn { background: rgba(0,0,0,0.4); }
+
 .live-heart-fly {
   position: absolute;
   right: 18px;

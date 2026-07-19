@@ -4031,6 +4031,9 @@ document.getElementById("recordFlipBtn").addEventListener("click", async () => {
       recordPipeline.rawStream.removeTrack(oldTrack);
       oldTrack.stop();
       recordPipeline.rawStream.addTrack(newTrack);
+      // Force reattachment rather than trust an in-place stream mutation
+      // to re-render — some browsers won't pick up the new track otherwise.
+      recordPipeline.video.srcObject = null;
       recordPipeline.video.srcObject = recordPipeline.rawStream;
       await recordPipeline.video.play();
     } else {
@@ -4038,7 +4041,9 @@ document.getElementById("recordFlipBtn").addEventListener("click", async () => {
       recordMediaStream.removeTrack(oldTrack);
       oldTrack.stop();
       recordMediaStream.addTrack(newTrack);
-      document.getElementById("recordVideoPreview").srcObject = recordOutStream;
+      const preview = document.getElementById("recordVideoPreview");
+      preview.srcObject = null;
+      preview.srcObject = recordOutStream;
     }
   } catch (e) {
     recordFacingMode = recordFacingMode === "user" ? "environment" : "user";
@@ -6351,6 +6356,10 @@ class LiveMediaController {
   }
 
   async flipCamera() {
+    if (!this.pipeline && !(this.room && this.videoTrack)) {
+      toast("Camera still starting — try again in a moment");
+      return;
+    }
     const nextFacing = this.facingMode === "user" ? "environment" : "user";
     try {
       const newStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: nextFacing }, audio: false });
@@ -6362,6 +6371,10 @@ class LiveMediaController {
         this.pipeline.rawStream.removeTrack(oldTrack);
         oldTrack.stop();
         this.pipeline.rawStream.addTrack(newTrack);
+        // Some browsers won't re-render a <video> whose already-assigned
+        // MediaStream had its tracks swapped in place unless srcObject is
+        // detached and reattached — force it rather than trust in-place updates.
+        this.pipeline.video.srcObject = null;
         this.pipeline.video.srcObject = this.pipeline.rawStream;
         await this.pipeline.video.play();
       } else if (this.room && this.videoTrack) {
