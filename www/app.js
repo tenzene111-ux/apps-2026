@@ -3208,7 +3208,7 @@ async function fetchRealReels() {
   if (!supabaseClient) return;
   const { data: reelRows, error: reelError } = await supabaseClient
     .from("reels")
-    .select("id, creator_id, video_path, caption, release_at, created_at, cover_path, location, visibility, allow_comments, allow_duet, allow_stitch, allow_download, content_disclosure, trim_start, trim_end, filter_css, overlays")
+    .select("id, creator_id, video_path, caption, release_at, created_at, cover_path, location, visibility, allow_comments, allow_duet, allow_stitch, allow_download, content_disclosure, trim_start, trim_end, filter_css, overlays, sound_id")
     .order("created_at", { ascending: false });
   if (reelError) { console.error("fetchRealReels: reels query failed", reelError); return; }
   if (!reelRows) return;
@@ -3233,6 +3233,13 @@ async function fetchRealReels() {
     (tagRows || []).forEach((t) => {
       (tagsByReel[t.reel_id] ||= []).push({ id: t.tagged_user_id, username: taggedNameById[t.tagged_user_id] || "user" });
     });
+  }
+
+  const soundIds = [...new Set(reelRows.map((r) => r.sound_id).filter(Boolean))];
+  const soundTitleById = {};
+  if (soundIds.length) {
+    const { data: soundRows } = await supabaseClient.from("sounds").select("id, title").in("id", soundIds);
+    (soundRows || []).forEach((s) => { soundTitleById[s.id] = s.title; });
   }
 
   const { data: likeRows } = await supabaseClient.from("reel_likes").select("reel_id, user_id");
@@ -3272,6 +3279,7 @@ async function fetchRealReels() {
       filterCss: row.filter_css || "",
       overlays: row.overlays || [],
       tags: tagsByReel[row.id] || [],
+      soundTitle: row.sound_id ? soundTitleById[row.sound_id] || null : null,
     });
   });
 }
@@ -3322,6 +3330,7 @@ function buildReelCard(reel) {
       </div>
       <p class="reel-caption">${reel.caption || ""}${tagsText}</p>
       ${reel.location ? `<p class="reel-location">📍 ${reel.location}</p>` : ""}
+      <p class="reel-location">🎵 ${reel.soundTitle ? reel.soundTitle : `Original audio · @${reel.creatorName || "creator"}`}</p>
     </div>
   `;
 
@@ -3412,6 +3421,7 @@ function buildReelCard(reel) {
 // Trim/filter/adjust/text/stickers are stored as metadata and applied at
 // playback time everywhere the reel plays (see buildReelCard) rather than
 // baked into the uploaded file — same visible result, no re-encoding needed.
+let reelSelectedSound = null; // { id, title, audioUrl } — set via the Add Sound picker
 let reelEdit = {
   trimStart: 0,
   trimEnd: 0,
@@ -3458,6 +3468,9 @@ function showReelStep(step) {
 function openUploadReelModal() {
   if (!currentUser) { toast("Sign in to upload"); openAuthModal("signin"); return; }
   reelPickedFile = null;
+  reelSelectedSound = null;
+  document.getElementById("reelSoundChip").style.display = "none";
+  document.getElementById("reelSoundPicker").style.display = "none";
   reelEdit = {
     trimStart: 0, trimEnd: 0, duration: 0,
     filterPreset: "", brightness: 100, contrast: 100, saturate: 100,
@@ -3480,6 +3493,79 @@ function openUploadReelModal() {
   showReelStep("select");
   openModal("uploadReelModal");
 }
+
+document.getElementById("reelAddSoundBtn").addEventListener("click", () => {
+  const picker = document.getElementById("reelSoundPicker");
+  const opening = picker.style.display === "none";
+  picker.style.display = opening ? "flex" : "none";
+  if (opening) renderMySounds();
+});
+
+async function renderMySounds() {
+  const list = document.getElementById("reelMySoundsList");
+  list.innerHTML = '<div class="creator-empty">Loading...</div>';
+  const { data } = await supabaseClient
+    .from("sounds")
+    .select("id, title, audio_path")
+    .eq("uploader_id", currentUser.id)
+    .order("created_at", { ascending: false });
+  list.innerHTML = "";
+  if (!data || !data.length) {
+    list.innerHTML = '<div class="creator-empty">No sounds yet — upload an audio file to reuse it later.</div>';
+    return;
+  }
+  data.forEach((row) => {
+    const item = document.createElement("div");
+    item.className = "reel-tag-result-item";
+    item.textContent = "🎵 " + row.title;
+    item.addEventListener("click", () => {
+      selectReelSound({ id: row.id, title: row.title, audioUrl: `${SUPABASE_URL}/storage/v1/object/public/sound-audio/${row.audio_path}` });
+    });
+    list.appendChild(item);
+  });
+}
+
+function selectReelSound(sound) {
+  reelSelectedSound = sound;
+  document.getElementById("reelSoundChipText").textContent = "🎵 " + sound.title;
+  document.getElementById("reelSoundChip").style.display = "flex";
+  document.getElementById("reelSoundPicker").style.display = "none";
+}
+
+document.getElementById("reelSoundRemoveBtn").addEventListener("click", () => {
+  reelSelectedSound = null;
+  document.getElementById("reelSoundChip").style.display = "none";
+});
+
+document.getElementById("reelSoundUploadBtn").addEventListener("click", () => document.getElementById("reelSoundFileInput").click());
+document.getElementById("reelSoundFileInput").addEventListener("change", async (e) => {
+  const file = e.target.files[0];
+  e.target.value = "";
+  if (!file || !currentUser) return;
+  const btn = document.getElementById("reelSoundUploadBtn");
+  btn.disabled = true;
+  btn.textContent = "Uploading...";
+  const ext = file.name.includes(".") ? file.name.split(".").pop() : "mp3";
+  const path = `${currentUser.id}/${Date.now()}.${ext}`;
+  const { error: uploadError } = await supabaseClient.storage.from("sound-audio").upload(path, file);
+  if (uploadError) {
+    btn.disabled = false;
+    btn.textContent = "Upload Audio File";
+    toast("Couldn't upload audio: " + uploadError.message);
+    return;
+  }
+  const duration = await getMediaDuration(file);
+  const title = file.name.replace(/\.[^/.]+$/, "");
+  const { data, error } = await supabaseClient
+    .from("sounds")
+    .insert({ title, uploader_id: currentUser.id, audio_path: path, duration })
+    .select()
+    .single();
+  btn.disabled = false;
+  btn.textContent = "Upload Audio File";
+  if (error) { toast("Couldn't save sound: " + error.message); return; }
+  selectReelSound({ id: data.id, title: data.title, audioUrl: `${SUPABASE_URL}/storage/v1/object/public/sound-audio/${data.audio_path}` });
+});
 
 function fileExt(fileOrBlob, fallback) {
   if (fileOrBlob.name && fileOrBlob.name.includes(".")) return fileOrBlob.name.split(".").pop();
@@ -3515,12 +3601,17 @@ function updateReelTrimLabel() {
 document.getElementById("reelPickVideoBtn").addEventListener("click", () => document.getElementById("reelVideoInput").click());
 document.getElementById("reelEditBackBtn").addEventListener("click", () => document.getElementById("reelVideoInput").click());
 document.getElementById("reelRecordVideoBtn").addEventListener("click", () => {
-  openRecordVideoModal((blob) => applyReelPickedFile(blob));
+  openRecordVideoModal((blob) => applyReelPickedFile(blob), reelSelectedSound);
 });
 
 document.getElementById("reelVideoInput").addEventListener("change", (e) => {
   const file = e.target.files[0];
   if (!file) return;
+  if (reelSelectedSound) {
+    reelSelectedSound = null;
+    document.getElementById("reelSoundChip").style.display = "none";
+    toast("Add Sound only applies when recording with the camera");
+  }
   applyReelPickedFile(file);
 });
 
@@ -3745,6 +3836,7 @@ document.getElementById("reelPostBtn").addEventListener("click", async () => {
       trim_end: reelEdit.trimEnd < reelEdit.duration ? reelEdit.trimEnd : null,
       filter_css: reelFilterCss(),
       overlays: reelEdit.overlays,
+      sound_id: reelSelectedSound ? reelSelectedSound.id : null,
     })
     .select()
     .single();
@@ -3778,6 +3870,11 @@ document.getElementById("reelPublishDoneBtn").addEventListener("click", () => cl
 // MediaRecorder blob; segments are concatenated into one final clip when
 // finished, and the last segment can be dropped before finishing.
 let recordMediaStream = null;
+let recordPipeline = null;
+let recordOutStream = null;
+let recordEffects = { filter: "none", ar: "none" };
+let recordSound = null; // { id, title, audioUrl } — reel-only lip-sync sound
+let recordSoundEl = null;
 let recordFacingMode = "user";
 let recordCurrentRecorder = null;
 let recordCurrentChunks = [];
@@ -3798,13 +3895,17 @@ function updateRecordProgressUI(extraMs) {
   document.getElementById("recordProgressFill").style.width = pct + "%";
 }
 
-async function openRecordVideoModal(onRecorded) {
+async function openRecordVideoModal(onRecorded, sound) {
   recordVideoCallback = onRecorded;
+  recordSound = sound || null;
   recordedBlob = null;
   recordSegments = [];
   recordCurrentChunks = [];
   recordFacingMode = "user";
   recordMaxDurationMs = 60000;
+  recordEffects = { filter: "none", ar: "none" };
+  resetRecordEffectsUI();
+  document.getElementById("recordEffectsPanel").style.display = "none";
   document.getElementById("recordVideoReview").style.display = "none";
   document.getElementById("recordVideoControls").style.display = "flex";
   document.getElementById("recordDeleteSegmentBtn").style.display = "none";
@@ -3818,8 +3919,17 @@ async function openRecordVideoModal(onRecorded) {
   preview.srcObject = null;
   openModal("recordVideoModal");
   try {
-    recordMediaStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: recordFacingMode }, audio: true });
-    preview.srcObject = recordMediaStream;
+    const rawStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: recordFacingMode }, audio: true });
+    recordMediaStream = rawStream;
+    try {
+      recordPipeline = new LiveEffectsPipeline(rawStream, recordEffects);
+      recordOutStream = await recordPipeline.start();
+    } catch (e) {
+      recordPipeline = null;
+      recordOutStream = rawStream;
+    }
+    if (recordSound) await attachRecordSound();
+    preview.srcObject = recordOutStream;
     preview.muted = true;
     preview.play().catch(() => {});
   } catch (e) {
@@ -3827,6 +3937,60 @@ async function openRecordVideoModal(onRecorded) {
     closeModal("recordVideoModal");
   }
 }
+
+async function attachRecordSound() {
+  const micTrack = recordOutStream.getAudioTracks()[0];
+  if (micTrack) { recordOutStream.removeTrack(micTrack); micTrack.stop(); }
+  const audioEl = document.createElement("audio");
+  audioEl.crossOrigin = "anonymous";
+  audioEl.src = recordSound.audioUrl;
+  audioEl.loop = true;
+  audioEl.style.display = "none";
+  document.body.appendChild(audioEl);
+  try {
+    await audioEl.play();
+    const soundStream = audioEl.captureStream ? audioEl.captureStream() : audioEl.mozCaptureStream();
+    const soundTrack = soundStream.getAudioTracks()[0];
+    if (soundTrack) recordOutStream.addTrack(soundTrack);
+    recordSoundEl = audioEl;
+  } catch (e) {
+    audioEl.remove();
+    toast("Couldn't play the selected sound");
+  }
+}
+
+function resetRecordEffectsUI() {
+  document.querySelectorAll("#recordFilterRow .effect-chip").forEach((b) => b.classList.toggle("active", b.dataset.filter === "none"));
+  document.querySelectorAll("#recordArRow .effect-chip").forEach((b) => b.classList.toggle("active", b.dataset.ar === "none"));
+}
+
+document.getElementById("recordEffectsBtn").addEventListener("click", () => {
+  const panel = document.getElementById("recordEffectsPanel");
+  panel.style.display = panel.style.display === "none" ? "block" : "none";
+});
+document.querySelectorAll("#recordFilterRow .effect-chip").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll("#recordFilterRow .effect-chip").forEach((b) => b.classList.remove("active"));
+    btn.classList.add("active");
+    recordEffects.filter = btn.dataset.filter;
+  });
+});
+document.querySelectorAll("#recordArRow .effect-chip").forEach((btn) => {
+  btn.addEventListener("click", async () => {
+    const name = btn.dataset.ar;
+    if (name !== "none") {
+      try {
+        await ensureFaceModelsLoaded();
+      } catch (e) {
+        toast("Couldn't load face effects");
+        return;
+      }
+    }
+    document.querySelectorAll("#recordArRow .effect-chip").forEach((b) => b.classList.remove("active"));
+    btn.classList.add("active");
+    recordEffects.ar = name;
+  });
+});
 
 function stopRecordVideoModal() {
   clearInterval(recordTimerInterval);
@@ -3836,10 +4000,14 @@ function stopRecordVideoModal() {
     recordCurrentRecorder.stop();
   }
   recordCurrentRecorder = null;
+  if (recordSoundEl) { recordSoundEl.pause(); recordSoundEl.remove(); recordSoundEl = null; }
+  if (recordPipeline) { recordPipeline.stop(); recordPipeline = null; }
   if (recordMediaStream) {
     recordMediaStream.getTracks().forEach((t) => t.stop());
     recordMediaStream = null;
   }
+  recordOutStream = null;
+  recordSound = null;
   recordSegments = [];
   recordVideoCallback = null;
 }
@@ -3858,11 +4026,20 @@ document.getElementById("recordFlipBtn").addEventListener("click", async () => {
   try {
     const newStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: recordFacingMode }, audio: false });
     const newTrack = newStream.getVideoTracks()[0];
-    const oldTrack = recordMediaStream.getVideoTracks()[0];
-    recordMediaStream.removeTrack(oldTrack);
-    oldTrack.stop();
-    recordMediaStream.addTrack(newTrack);
-    document.getElementById("recordVideoPreview").srcObject = recordMediaStream;
+    if (recordPipeline) {
+      const oldTrack = recordPipeline.rawStream.getVideoTracks()[0];
+      recordPipeline.rawStream.removeTrack(oldTrack);
+      oldTrack.stop();
+      recordPipeline.rawStream.addTrack(newTrack);
+      recordPipeline.video.srcObject = recordPipeline.rawStream;
+      await recordPipeline.video.play();
+    } else {
+      const oldTrack = recordMediaStream.getVideoTracks()[0];
+      recordMediaStream.removeTrack(oldTrack);
+      oldTrack.stop();
+      recordMediaStream.addTrack(newTrack);
+      document.getElementById("recordVideoPreview").srcObject = recordOutStream;
+    }
   } catch (e) {
     recordFacingMode = recordFacingMode === "user" ? "environment" : "user";
     toast("Couldn't switch camera");
@@ -3889,7 +4066,7 @@ document.getElementById("recordStartStopBtn").addEventListener("click", () => {
   if (!recordMediaStream) return;
   if (!recordCurrentRecorder || recordCurrentRecorder.state === "inactive") {
     recordCurrentChunks = [];
-    recordCurrentRecorder = new MediaRecorder(recordMediaStream);
+    recordCurrentRecorder = new MediaRecorder(recordOutStream);
     recordCurrentRecorder.ondataavailable = (e) => { if (e.data.size > 0) recordCurrentChunks.push(e.data); };
     recordCurrentRecorder.onstop = () => {
       const blob = new Blob(recordCurrentChunks, { type: recordCurrentRecorder.mimeType || "video/webm" });
@@ -3942,7 +4119,7 @@ document.getElementById("recordRetakeBtn").addEventListener("click", () => {
   updateRecordProgressUI();
   const preview = document.getElementById("recordVideoPreview");
   preview.src = "";
-  preview.srcObject = recordMediaStream;
+  preview.srcObject = recordOutStream;
   preview.muted = true;
   preview.play().catch(() => {});
   document.getElementById("recordVideoReview").style.display = "none";

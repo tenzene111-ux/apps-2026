@@ -1858,6 +1858,24 @@ input { font: inherit; color: inherit; }
   font-size: 18px;
   display: flex; align-items: center; justify-content: center;
 }
+.record-effects-panel { background: var(--panel-2); border-radius: 12px; padding: 10px 12px; margin-bottom: 8px; }
+.record-effects-panel .effects-section-label { margin: 8px 0 6px; }
+.record-effects-panel .effects-section-label:first-child { margin-top: 0; }
+
+.reel-sound-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
+.reel-sound-chip {
+  background: var(--panel-2);
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.reel-sound-chip button { color: var(--text-dim); font-weight: 800; }
+.reel-sound-picker { background: var(--panel-2); border-radius: 12px; padding: 12px; margin-bottom: 8px; display: flex; flex-direction: column; gap: 8px; }
+
 .record-video-controls { display: flex; align-items: center; justify-content: center; gap: 28px; padding: 14px 0; }
 .record-btn {
   width: 68px; height: 68px;

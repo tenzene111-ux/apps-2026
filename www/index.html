@@ -12,7 +12,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="Reelflix" />
-  <link rel="stylesheet" href="style.css?v=69" />
+  <link rel="stylesheet" href="style.css?v=70" />
 </head>
 <body>
   <svg width="0" height="0" style="position:absolute" aria-hidden="true">
@@ -1021,6 +1021,18 @@
       </div>
 
       <div id="reelStepSelect">
+        <div class="reel-sound-row">
+          <button class="btn-ghost" id="reelAddSoundBtn">🎵 Add Sound</button>
+          <span class="reel-sound-chip" id="reelSoundChip" style="display:none">
+            <span id="reelSoundChipText"></span>
+            <button id="reelSoundRemoveBtn">✕</button>
+          </span>
+        </div>
+        <div class="reel-sound-picker" id="reelSoundPicker" style="display:none">
+          <input type="file" id="reelSoundFileInput" accept="audio/*" style="display:none" />
+          <button class="btn-ghost" id="reelSoundUploadBtn">Upload Audio File</button>
+          <div class="reel-tag-results" id="reelMySoundsList"></div>
+        </div>
         <div class="reel-upload-picker" id="reelUploadPicker">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M10 8.5l6 3.5-6 3.5z" fill="currentColor" stroke="none"/></svg>
           <p>Share a short video as a Reel.</p>
@@ -1164,7 +1176,27 @@
         <video id="recordVideoPreview" autoplay playsinline muted></video>
         <div class="record-progress-bar" id="recordProgressBar"><div class="record-progress-fill" id="recordProgressFill"></div></div>
         <div class="record-timer" id="recordTimer" style="display:none">00:00</div>
+        <button class="record-flip-btn" id="recordEffectsBtn" style="right:60px">✨</button>
         <button class="record-flip-btn" id="recordFlipBtn">🔄</button>
+      </div>
+      <div class="record-effects-panel" id="recordEffectsPanel" style="display:none">
+        <div class="effects-section-label">Filter</div>
+        <div class="effects-row" id="recordFilterRow">
+          <button class="effect-chip active" data-filter="none">None</button>
+          <button class="effect-chip" data-filter="warm">Warm</button>
+          <button class="effect-chip" data-filter="cool">Cool</button>
+          <button class="effect-chip" data-filter="bw">B&amp;W</button>
+          <button class="effect-chip" data-filter="vintage">Vintage</button>
+          <button class="effect-chip" data-filter="beauty">Beauty</button>
+        </div>
+        <div class="effects-section-label">Face effect</div>
+        <div class="effects-row" id="recordArRow">
+          <button class="effect-chip active" data-ar="none">None</button>
+          <button class="effect-chip" data-ar="dog">🐶 Dog</button>
+          <button class="effect-chip" data-ar="bunny">🐰 Bunny</button>
+          <button class="effect-chip" data-ar="glasses">🕶️ Glasses</button>
+          <button class="effect-chip" data-ar="blush">😊 Blush</button>
+        </div>
       </div>
       <div class="record-video-controls" id="recordVideoControls">
         <button class="record-delete-segment-btn" id="recordDeleteSegmentBtn" style="display:none">↺</button>
@@ -1439,8 +1471,8 @@
     </div>
   </div>
 
-  <script src="vendor/supabase.js?v=69"></script>
-  <script src="vendor/livekit-client.js?v=69"></script>
-  <script src="app.js?v=69"></script>
+  <script src="vendor/supabase.js?v=70"></script>
+  <script src="vendor/livekit-client.js?v=70"></script>
+  <script src="app.js?v=70"></script>
 </body>
 </html>
