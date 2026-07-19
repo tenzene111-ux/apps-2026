@@ -12,7 +12,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="Reelflix" />
-  <link rel="stylesheet" href="style.css?v=68" />
+  <link rel="stylesheet" href="style.css?v=69" />
 </head>
 <body>
   <svg width="0" height="0" style="position:absolute" aria-hidden="true">
@@ -777,6 +777,7 @@
           <button class="icon-btn" id="hostExitBtn"><svg class="ic"><use href="#ic-x"/></svg></button>
           <span class="live-badge">LIVE</span>
           <span class="live-viewers"><svg class="ic"><use href="#ic-person"/></svg> <span id="hostViewerCount">1</span></span>
+          <span class="live-viewers"><svg class="ic"><use href="#ic-heart-filled"/></svg> <span id="hostLikeCount">0</span></span>
         </div>
         <div class="live-earn-tally">
           <svg class="ic ic-coin"><use href="#ic-coin"/></svg> <span id="hostEarnedCoins">0</span> earned
@@ -789,6 +790,7 @@
         <button class="remove-guest-btn" id="removeGuestBtn" style="display:none">Remove Guest</button>
         <div class="live-chat" id="hostChatFeed"></div>
         <div class="live-bottom-bar">
+          <button class="icon-btn live-flip-btn" id="hostFlipBtn">🔄</button>
           <button class="icon-btn live-effects-btn" id="hostEffectsBtn" data-open="effectsModal"><svg class="ic"><use href="#ic-sparkle"/></svg></button>
           <button class="end-live-btn" id="endLiveBtn">End Live</button>
         </div>
@@ -806,6 +808,7 @@
           <button class="icon-btn" id="guestExitBtn"><svg class="ic"><use href="#ic-x"/></svg></button>
           <span class="live-badge">LIVE</span>
           <span class="live-viewers"><svg class="ic"><use href="#ic-person"/></svg> <span id="guestViewerCount">0</span></span>
+          <span class="live-viewers"><svg class="ic"><use href="#ic-heart-filled"/></svg> <span id="guestLikeCount">0</span></span>
         </div>
         <div class="live-host-info">
           <div class="live-host-avatar" id="liveHostAvatar"></div>
@@ -818,8 +821,10 @@
         </div>
         <div class="live-chat" id="guestChatFeed"></div>
         <div class="live-bottom-bar">
+          <button class="icon-btn live-flip-btn" id="guestFlipBtn" style="display:none">🔄</button>
           <button class="icon-btn live-effects-btn" id="guestEffectsBtn" data-open="effectsModal" style="display:none"><svg class="ic"><use href="#ic-sparkle"/></svg></button>
           <input id="liveChatInput" placeholder="Say something..." />
+          <button class="icon-btn live-like-btn" id="liveLikeBtn"><svg class="ic"><use href="#ic-heart-filled"/></svg></button>
           <button class="live-gift-btn" id="liveGiftBtn"><svg class="ic"><use href="#ic-gift-outline"/></svg></button>
         </div>
       </div>
@@ -1434,8 +1439,8 @@
     </div>
   </div>
 
-  <script src="vendor/supabase.js?v=68"></script>
-  <script src="vendor/livekit-client.js?v=68"></script>
-  <script src="app.js?v=68"></script>
+  <script src="vendor/supabase.js?v=69"></script>
+  <script src="vendor/livekit-client.js?v=69"></script>
+  <script src="app.js?v=69"></script>
 </body>
 </html>

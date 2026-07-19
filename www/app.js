@@ -5823,6 +5823,8 @@ let hostSessionEarned = 0;
 let presenceChannel = null;
 let approvedGuestIdentity = null;
 let pendingJoinRequestIdentity = null;
+let joinRequestTimeoutId = null;
+let liveLikeTotal = 0;
 
 function addLiveChatMessage(feedId, name, text, isGift) {
   const feed = document.getElementById(feedId);
@@ -5833,6 +5835,34 @@ function addLiveChatMessage(feedId, name, text, isGift) {
   feed.appendChild(row);
   feed.scrollTop = feed.scrollHeight;
   while (feed.children.length > 30) feed.removeChild(feed.firstChild);
+}
+
+function bumpLiveLikeCount(isHost, delta) {
+  liveLikeTotal += delta;
+  const el = document.getElementById(isHost ? "hostLikeCount" : "guestLikeCount");
+  if (el) el.textContent = formatCount(liveLikeTotal);
+}
+
+function spawnLiveHeart(stage) {
+  if (!stage) return;
+  const heart = document.createElement("div");
+  heart.className = "live-heart-fly";
+  heart.textContent = "❤";
+  heart.style.setProperty("--drift", (Math.random() * 120 - 60) + "px");
+  heart.style.setProperty("--rot", (Math.random() * 40 - 20) + "deg");
+  heart.style.right = (10 + Math.random() * 30) + "px";
+  stage.appendChild(heart);
+  heart.addEventListener("animationend", () => heart.remove());
+}
+
+// Free, TikTok-style tap-to-like — no coins, broadcast to everyone in the room.
+function sendLiveHeart(isHost) {
+  bumpLiveLikeCount(isHost, 1);
+  spawnLiveHeart(document.getElementById(isHost ? "liveHostStage" : "liveGuestStage"));
+  if (currentLiveRoom) {
+    const payload = new TextEncoder().encode(JSON.stringify({ type: "heart", count: 1 }));
+    currentLiveRoom.localParticipant.publishData(payload, { reliable: false });
+  }
 }
 
 async function fetchLiveSessions() {
@@ -6117,11 +6147,14 @@ class LiveMediaController {
     this.videoTrack = null;
     this.audioTrack = null;
     this.room = null;
+    this.previewEl = null;
+    this.facingMode = "user";
   }
 
   async publish(room, previewEl) {
     this.room = room;
-    const rawStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" }, audio: true });
+    this.previewEl = previewEl || null;
+    const rawStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: this.facingMode }, audio: true });
     try {
       this.pipeline = new LiveEffectsPipeline(rawStream, this.effects);
       const outStream = await this.pipeline.start();
@@ -6137,6 +6170,34 @@ class LiveMediaController {
     if (previewEl) {
       previewEl.srcObject = new MediaStream([this.videoTrack]);
       previewEl.style.display = "block";
+    }
+  }
+
+  async flipCamera() {
+    const nextFacing = this.facingMode === "user" ? "environment" : "user";
+    try {
+      const newStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: nextFacing }, audio: false });
+      const newTrack = newStream.getVideoTracks()[0];
+      if (this.pipeline) {
+        // Canvas-fed pipeline: swap what feeds the canvas, the already-published
+        // canvas-captured track keeps streaming unchanged, no republish needed.
+        const oldTrack = this.pipeline.rawStream.getVideoTracks()[0];
+        this.pipeline.rawStream.removeTrack(oldTrack);
+        oldTrack.stop();
+        this.pipeline.rawStream.addTrack(newTrack);
+        this.pipeline.video.srcObject = this.pipeline.rawStream;
+        await this.pipeline.video.play();
+      } else if (this.room && this.videoTrack) {
+        const oldTrack = this.videoTrack;
+        await this.room.localParticipant.unpublishTrack(oldTrack);
+        oldTrack.stop();
+        this.videoTrack = newTrack;
+        await this.room.localParticipant.publishTrack(this.videoTrack, { source: LivekitClient.Track.Source.Camera });
+        if (this.previewEl) this.previewEl.srcObject = new MediaStream([this.videoTrack]);
+      }
+      this.facingMode = nextFacing;
+    } catch (e) {
+      toast("Couldn't switch camera");
     }
   }
 
@@ -6244,6 +6305,9 @@ function setupLiveRoomListeners(room, isHost) {
         document.getElementById("hostEarnedCoins").textContent = hostSessionEarned;
         refreshWalletFromServer();
       }
+    } else if (msg.type === "heart") {
+      bumpLiveLikeCount(isHost, msg.count || 1);
+      for (let i = 0; i < Math.min(msg.count || 1, 6); i++) spawnLiveHeart(document.getElementById(stageId));
     } else if (msg.type === "join_request" && isHost) {
       if (approvedGuestIdentity) {
         room.localParticipant.publishData(
@@ -6252,13 +6316,23 @@ function setupLiveRoomListeners(room, isHost) {
         );
         return;
       }
+      if (pendingJoinRequestIdentity && pendingJoinRequestIdentity !== participant.identity) {
+        // Don't silently drop whoever was already waiting — tell them clearly.
+        room.localParticipant.publishData(
+          new TextEncoder().encode(JSON.stringify({ type: "join_reject", reason: "superseded" })),
+          { reliable: true, destinationIdentities: [pendingJoinRequestIdentity] }
+        );
+      }
       pendingJoinRequestIdentity = participant.identity;
       document.getElementById("joinRequestText").textContent = `${msg.name || "Someone"} wants to join`;
       document.getElementById("joinRequestBanner").style.display = "flex";
     } else if (msg.type === "join_accept" && !isHost) {
+      clearTimeout(joinRequestTimeoutId);
       enableGuestPublishing();
     } else if (msg.type === "join_reject" && !isHost) {
-      toast("Host declined your request to join");
+      clearTimeout(joinRequestTimeoutId);
+      const reasons = { occupied: "Someone else is already the guest right now", superseded: "The host is reviewing a newer request" };
+      toast(reasons[msg.reason] || "Host declined your request to join");
       resetJoinGuestBtn();
     } else if (msg.type === "kick_guest" && !isHost) {
       disableGuestPublishing();
@@ -6287,9 +6361,11 @@ async function enableGuestPublishing() {
     btn.classList.add("joined");
     btn.textContent = "Leave";
     document.getElementById("guestEffectsBtn").style.display = "flex";
+    document.getElementById("guestFlipBtn").style.display = "flex";
     addLiveChatMessage("guestChatFeed", "You", "joined as a guest!", false);
   } catch (e) {
-    toast("Camera access denied");
+    const cameraDenied = e.name === "NotAllowedError" || e.name === "NotFoundError" || e.name === "NotReadableError";
+    toast(cameraDenied ? "Camera access denied" : "Couldn't join — try again");
     resetJoinGuestBtn();
   }
 }
@@ -6302,6 +6378,7 @@ async function disableGuestPublishing() {
   pip.classList.remove("split-right");
   hostVideo.classList.remove("split-left");
   document.getElementById("guestEffectsBtn").style.display = "none";
+  document.getElementById("guestFlipBtn").style.display = "none";
   resetJoinGuestBtn();
 }
 
@@ -6312,6 +6389,8 @@ async function openLiveHost() {
   hostSessionEarned = 0;
   document.getElementById("hostEarnedCoins").textContent = "0";
   document.getElementById("hostViewerCount").textContent = "1";
+  liveLikeTotal = 0;
+  document.getElementById("hostLikeCount").textContent = "0";
   giftTargetStage = "liveHostStage";
   approvedGuestIdentity = null;
   pendingJoinRequestIdentity = null;
@@ -6377,6 +6456,7 @@ async function closeLiveHost() {
 }
 document.getElementById("hostExitBtn").addEventListener("click", closeLiveHost);
 document.getElementById("endLiveBtn").addEventListener("click", closeLiveHost);
+document.getElementById("hostFlipBtn").addEventListener("click", () => { if (liveMediaCtrl) liveMediaCtrl.flipCamera(); });
 
 document.getElementById("joinAcceptBtn").addEventListener("click", () => {
   if (!pendingJoinRequestIdentity || !currentLiveRoom) return;
@@ -6423,12 +6503,15 @@ async function openLiveGuest(host) {
   guestHostVideo.style.display = "none";
   guestHostVideo.classList.remove("split-left");
   document.getElementById("guestViewerCount").textContent = "1";
+  liveLikeTotal = 0;
+  document.getElementById("guestLikeCount").textContent = "0";
 
   resetJoinGuestBtn();
   const pip = document.getElementById("guestCamPip");
   pip.style.display = "none";
   pip.classList.remove("split-right");
   document.getElementById("guestEffectsBtn").style.display = "none";
+  document.getElementById("guestFlipBtn").style.display = "none";
 
   currentLiveRoomName = host.room;
   currentLiveHostId = host.hostId;
@@ -6492,12 +6575,30 @@ document.getElementById("joinGuestBtn").addEventListener("click", async (e) => {
     new TextEncoder().encode(JSON.stringify({ type: "join_request", name })),
     { reliable: true, destinationIdentities: currentLiveHostId ? [currentLiveHostId] : undefined }
   );
+  clearTimeout(joinRequestTimeoutId);
+  joinRequestTimeoutId = setTimeout(() => {
+    if (btn.classList.contains("pending")) {
+      toast("No response from host — try again");
+      resetJoinGuestBtn();
+    }
+  }, 20000);
 });
 
 document.getElementById("liveGiftBtn").addEventListener("click", () => {
   giftTargetStage = "liveGuestStage";
   renderGiftGrid();
   openModal("giftModal");
+});
+
+document.getElementById("guestFlipBtn").addEventListener("click", () => { if (liveMediaCtrl) liveMediaCtrl.flipCamera(); });
+document.getElementById("liveLikeBtn").addEventListener("click", () => sendLiveHeart(false));
+
+let lastGuestStageTap = 0;
+document.getElementById("liveGuestStage").addEventListener("pointerup", (e) => {
+  if (e.target.closest("button, input, .live-chat, .live-host-info")) return;
+  const now = Date.now();
+  if (now - lastGuestStageTap < 320) sendLiveHeart(false);
+  lastGuestStageTap = now;
 });
 
 document.getElementById("liveChatInput").addEventListener("keydown", (e) => {

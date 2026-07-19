@@ -2763,6 +2763,34 @@ input { font: inherit; color: inherit; }
   flex-shrink: 0;
 }
 .live-gift-btn .ic { width: 20px; height: 20px; }
+.live-flip-btn, .live-like-btn {
+  width: 42px; height: 42px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.15);
+  border: 1px solid rgba(255,255,255,0.3);
+  color: #fff;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+  font-size: 18px;
+}
+.live-like-btn .ic { width: 20px; height: 20px; color: #ff3860; }
+.live-like-btn:active { transform: scale(0.9); }
+
+.live-heart-fly {
+  position: absolute;
+  right: 18px;
+  bottom: 90px;
+  z-index: 15;
+  pointer-events: none;
+  font-size: 26px;
+  color: #ff3860;
+  animation: liveHeartFly 2.6s ease-out forwards;
+}
+@keyframes liveHeartFly {
+  0% { transform: translate(0, 0) scale(0.6) rotate(var(--rot, 0deg)); opacity: 0; }
+  10% { opacity: 1; transform: translate(0, -10px) scale(1.1) rotate(var(--rot, 0deg)); }
+  100% { transform: translate(var(--drift, 0px), -320px) scale(0.9) rotate(var(--rot, 0deg)); opacity: 0; }
+}
 
 .end-live-btn {
   width: 100%;
