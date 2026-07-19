@@ -3876,6 +3876,7 @@ let recordEffects = { filter: "none", ar: "none" };
 let recordSound = null; // { id, title, audioUrl } — reel-only lip-sync sound
 let recordSoundEl = null;
 let recordFacingMode = "user";
+let recordCurrentDeviceId = null;
 let recordCurrentRecorder = null;
 let recordCurrentChunks = [];
 let recordSegments = []; // { blob, durationMs }
@@ -3921,6 +3922,7 @@ async function openRecordVideoModal(onRecorded, sound) {
   try {
     const rawStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: recordFacingMode }, audio: true });
     recordMediaStream = rawStream;
+    recordCurrentDeviceId = rawStream.getVideoTracks()[0]?.getSettings?.().deviceId || null;
     try {
       recordPipeline = new LiveEffectsPipeline(rawStream, recordEffects);
       recordOutStream = await recordPipeline.start();
@@ -4022,10 +4024,12 @@ document.querySelectorAll("#recordDurationTabs .record-duration-tab").forEach((t
 
 document.getElementById("recordFlipBtn").addEventListener("click", async () => {
   if (!recordMediaStream) return;
-  recordFacingMode = recordFacingMode === "user" ? "environment" : "user";
   try {
-    const newStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: recordFacingMode }, audio: false });
+    const { constraint, nextFacing } = await pickNextCameraConstraint(recordCurrentDeviceId, recordFacingMode);
+    const newStream = await navigator.mediaDevices.getUserMedia({ video: constraint, audio: false });
     const newTrack = newStream.getVideoTracks()[0];
+    recordCurrentDeviceId = newTrack.getSettings?.().deviceId || null;
+    recordFacingMode = nextFacing;
     if (recordPipeline) {
       const oldTrack = recordPipeline.rawStream.getVideoTracks()[0];
       recordPipeline.rawStream.removeTrack(oldTrack);
@@ -4046,7 +4050,6 @@ document.getElementById("recordFlipBtn").addEventListener("click", async () => {
       preview.srcObject = recordOutStream;
     }
   } catch (e) {
-    recordFacingMode = recordFacingMode === "user" ? "environment" : "user";
     toast("Couldn't switch camera");
   }
 });
@@ -6322,6 +6325,26 @@ class LiveEffectsPipeline {
   }
 }
 
+// facingMode ("user"/"environment") is only a hint — plenty of real browsers
+// and devices don't honor it correctly and silently hand back the same
+// camera, which is exactly what looks like "flip does nothing". Enumerating
+// actual camera hardware and targeting a specific deviceId is far more
+// reliable, so that's tried first; facingMode is kept only as a last-resort
+// fallback for the (rare) case device enumeration isn't usable.
+async function pickNextCameraConstraint(currentDeviceId, currentFacingMode) {
+  const nextFacing = currentFacingMode === "user" ? "environment" : "user";
+  try {
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    const videoInputs = devices.filter((d) => d.kind === "videoinput" && d.deviceId);
+    if (videoInputs.length >= 2) {
+      const idx = videoInputs.findIndex((d) => d.deviceId === currentDeviceId);
+      const next = videoInputs[(idx + 1) % videoInputs.length];
+      return { constraint: { deviceId: { exact: next.deviceId } }, nextFacing, usedDeviceId: true };
+    }
+  } catch (e) { /* enumeration unsupported/blocked — fall through to facingMode */ }
+  return { constraint: { facingMode: nextFacing }, nextFacing, usedDeviceId: false };
+}
+
 class LiveMediaController {
   constructor() {
     this.effects = { filter: "none", ar: "none" };
@@ -6331,12 +6354,14 @@ class LiveMediaController {
     this.room = null;
     this.previewEl = null;
     this.facingMode = "user";
+    this.currentDeviceId = null;
   }
 
   async publish(room, previewEl) {
     this.room = room;
     this.previewEl = previewEl || null;
     const rawStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: this.facingMode }, audio: true });
+    this.currentDeviceId = rawStream.getVideoTracks()[0]?.getSettings?.().deviceId || null;
     try {
       this.pipeline = new LiveEffectsPipeline(rawStream, this.effects);
       const outStream = await this.pipeline.start();
@@ -6360,10 +6385,11 @@ class LiveMediaController {
       toast("Camera still starting — try again in a moment");
       return;
     }
-    const nextFacing = this.facingMode === "user" ? "environment" : "user";
     try {
-      const newStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: nextFacing }, audio: false });
+      const { constraint, nextFacing } = await pickNextCameraConstraint(this.currentDeviceId, this.facingMode);
+      const newStream = await navigator.mediaDevices.getUserMedia({ video: constraint, audio: false });
       const newTrack = newStream.getVideoTracks()[0];
+      this.currentDeviceId = newTrack.getSettings?.().deviceId || null;
       if (this.pipeline) {
         // Canvas-fed pipeline: swap what feeds the canvas, the already-published
         // canvas-captured track keeps streaming unchanged, no republish needed.
