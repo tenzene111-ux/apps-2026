@@ -4601,16 +4601,22 @@ document.querySelectorAll('[data-back="home"]').forEach(btn => {
 });
 
 /* ---------------- For You (cross-series swipe discovery) ---------------- */
-function renderForYouFeed() {
+function renderForYouFeed(focusReelId) {
   const feed = document.getElementById("forYouFeed");
   feed.innerHTML = "";
 
-  const maxDramaViews = Math.max(1, ...DRAMAS.map((d) => parseFloat(d.views)));
+  // Creators don't see their own uploads in the algorithmic feed — that's
+  // what Profile > My Content is for — except the one reel a "view my reel"
+  // tap explicitly asked to jump to (focusReelId).
+  const feedDramas = DRAMAS.filter((d) => d.creatorId !== currentUser?.id);
+  const feedReels = REELS.filter((r) => r.creatorId !== currentUser?.id || r.id === focusReelId);
+
+  const maxDramaViews = Math.max(1, ...feedDramas.map((d) => parseFloat(d.views)));
 
   // Every creator's free episodes stay grouped in order (ep1, ep2, ...) so a
   // scroll never jumps mid-drama into someone else's upload; only the
   // ordering of whole dramas (and where live sessions slot in) is ranked.
-  const dramaGroups = DRAMAS.map((d) => {
+  const dramaGroups = feedDramas.map((d) => {
     const freeCount = Math.min(d.free || 0, d.episodes);
     const cards = [];
     for (let n = 1; n <= freeCount; n++) {
@@ -4625,7 +4631,7 @@ function renderForYouFeed() {
     return b.score - a.score;
   });
 
-  const reelsByRecency = [...REELS].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+  const reelsByRecency = [...feedReels].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
   const items = [
     // Real live sessions always rank as maximally "hot" — someone is live right now.
@@ -5278,7 +5284,7 @@ function renderMyContent() {
 function jumpToReelInFeed(reelId) {
   document.querySelectorAll(".nav-item").forEach((b) => b.classList.toggle("active", b.dataset.tab === "foryou"));
   switchView("foryou");
-  renderForYouFeed();
+  renderForYouFeed(reelId);
   requestAnimationFrame(() => {
     const card = document.getElementById("forYouFeed").querySelector(`[data-reel-id="${reelId}"]`);
     if (card) card.scrollIntoView();
