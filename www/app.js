@@ -3292,6 +3292,7 @@ function buildReelCard(reel) {
     <div class="player-bg" style="background:${gradientFor(reel.id, 1)}"></div>
     <video class="foryou-video" loop playsinline preload="none" src="${reel.videoUrl}" style="${reel.filterCss ? `filter:${reel.filterCss}` : ""}"></video>
     <div class="reel-overlay-layer">${overlays.map((o) => `<span class="reel-overlay-item" style="left:${o.x}%;top:${o.y}%">${o.text}</span>`).join("")}</div>
+    <div class="reel-gift-stage" id="reelGiftStage-${reel.id}"></div>
     <div class="player-vignette"></div>
     <div class="fyu-topbar">
       <div class="fyu-topbar-left">
@@ -3311,6 +3312,7 @@ function buildReelCard(reel) {
       <button class="reel-action-btn like-btn ${liked ? "liked" : ""}">${heartIconHTML(liked)}<span>${formatCount(likeCount)}</span></button>
       ${reel.allowComments === false ? "" : `<button class="reel-action-btn comment-btn" data-reel-comment-key="${reel.id}"><svg class="ic"><use href="#ic-comment"/></svg><span>${formatCount(reelCommentCounts[reel.id] || 0)}</span></button>`}
       <button class="reel-action-btn share-btn2"><svg class="ic"><use href="#ic-share"/></svg><span>Share</span></button>
+      ${reel.creatorId && reel.creatorId !== currentUser?.id ? `<button class="reel-action-btn gift-btn"><svg class="ic"><use href="#ic-gift"/></svg><span>Gift</span></button>` : ""}
       <button class="reel-action-btn more-btn"><svg class="ic"><use href="#ic-more"/></svg></button>
     </div>
     <div class="reel-bottom-info player-bottom-nav-spacer">
@@ -3353,6 +3355,13 @@ function buildReelCard(reel) {
     state.currentDrama = null;
     state.currentReel = reel;
     openModal("shareModal");
+  });
+  card.querySelector(".gift-btn")?.addEventListener("click", () => {
+    if (!currentUser) { toast("Sign in to send a gift"); openAuthModal("signin"); return; }
+    giftTargetStage = "reelGiftStage-" + reel.id;
+    giftTargetReceiverId = reel.creatorId;
+    renderGiftGrid();
+    openModal("giftModal");
   });
   card.querySelector(".fyu-explore-btn").addEventListener("click", (e) => { e.stopPropagation(); openExplore(); });
   card.querySelectorAll("[data-follow-creator]").forEach((btn) => {
@@ -5678,60 +5687,131 @@ document.getElementById("toggleAutoplay").addEventListener("click", () => {
   renderSettingsToggles();
 });
 
-/* ---------------- Gifts ---------------- */
+/* ---------------- Gifts (TikTok-style packages, combo sending) ---------------- */
 const GIFT_ITEMS = [
-  { id: "rose", name: "Rose", cost: 10, icon: "ic-rose", color: "#ff5c8a" },
-  { id: "heart", name: "Heart", cost: 50, icon: "ic-heart-filled", color: "#ff3860" },
-  { id: "crown", name: "Crown", cost: 500, icon: "ic-crown", color: "#ffc93c" },
-  { id: "rocket", name: "Rocket", cost: 1000, icon: "ic-rocket", color: "#4fc3f7" },
-  { id: "diamond", name: "Diamond", cost: 5000, icon: "ic-gem", color: "#7fd9ff" },
+  // Popular — cheap, frequent taps.
+  { id: "rose", name: "Rose", cost: 1, emoji: "🌹", tier: "popular" },
+  { id: "heart", name: "Heart", cost: 10, emoji: "❤️", tier: "popular" },
+  { id: "icecream", name: "Ice Cream", cost: 15, emoji: "🍦", tier: "popular" },
+  { id: "doughnut", name: "Doughnut", cost: 30, emoji: "🍩", tier: "popular" },
+  { id: "star", name: "Star", cost: 50, emoji: "🌟", tier: "popular" },
+  { id: "bouquet", name: "Bouquet", cost: 88, emoji: "💐", tier: "popular" },
+  // Premium — mid-tier, bigger animation.
+  { id: "crown", name: "Crown", cost: 500, emoji: "👑", tier: "premium" },
+  { id: "rocket", name: "Rocket", cost: 700, emoji: "🚀", tier: "premium" },
+  { id: "ring", name: "Diamond Ring", cost: 900, emoji: "💍", tier: "premium" },
+  { id: "sportscar", name: "Sports Car", cost: 1000, emoji: "🏎️", tier: "premium" },
+  { id: "yacht", name: "Yacht", cost: 1500, emoji: "🛥️", tier: "premium" },
+  { id: "diamond", name: "Diamond", cost: 2000, emoji: "💎", tier: "premium" },
+  // Legendary — top-tier, full-screen-style animation.
+  { id: "lion", name: "Lion", cost: 5000, emoji: "🦁", tier: "legendary" },
+  { id: "castle", name: "Castle", cost: 8888, emoji: "🏰", tier: "legendary" },
+  { id: "galaxy", name: "Galaxy", cost: 20000, emoji: "🪐", tier: "legendary" },
+  { id: "universe", name: "Universe", cost: 34999, emoji: "🌌", tier: "legendary" },
 ];
 
-let giftTargetStage = null;
+let giftTargetStage = null; // element id where the fly animation renders
+let giftTargetReceiverId = null; // profile id receiving the coins
+let giftCatTab = "popular";
+let giftHoldTimeout = null;
+let giftHoldInterval = null;
 
 function renderGiftGrid() {
   const grid = document.getElementById("giftGrid");
   grid.innerHTML = "";
-  GIFT_ITEMS.forEach((g) => {
+  document.getElementById("giftBalanceText").textContent = formatCount(state.coins);
+  GIFT_ITEMS.filter((g) => g.tier === giftCatTab).forEach((g) => {
     const card = document.createElement("button");
-    card.className = "gift-card";
+    card.className = "gift-card tier-" + g.tier;
     const affordable = state.coins >= g.cost;
     card.disabled = !affordable;
     card.innerHTML = `
-      <svg class="ic gift-icon" style="color:${g.color}"><use href="#${g.icon}"/></svg>
+      <div class="gift-emoji">${g.emoji}</div>
       <div class="gift-name">${g.name}</div>
       <div class="gift-cost"><svg class="ic ic-coin"><use href="#ic-coin"/></svg>${g.cost}</div>
     `;
-    card.addEventListener("click", () => sendGift(g));
+    card.addEventListener("pointerdown", (e) => {
+      if (card.disabled) return;
+      try { card.setPointerCapture(e.pointerId); } catch (err) {}
+      sendGift(g);
+      giftHoldTimeout = setTimeout(() => {
+        giftHoldInterval = setInterval(() => {
+          if (card.disabled || state.coins < g.cost) { clearInterval(giftHoldInterval); return; }
+          sendGift(g);
+        }, 260);
+      }, 350);
+    });
+    const stopHold = () => { clearTimeout(giftHoldTimeout); clearInterval(giftHoldInterval); };
+    card.addEventListener("pointerup", stopHold);
+    card.addEventListener("pointercancel", stopHold);
     grid.appendChild(card);
   });
 }
 
+document.querySelectorAll("#giftCatTabs .gift-cat-tab").forEach((tab) => {
+  tab.addEventListener("click", () => {
+    giftCatTab = tab.dataset.cat;
+    document.querySelectorAll("#giftCatTabs .gift-cat-tab").forEach((t) => t.classList.toggle("active", t === tab));
+    renderGiftGrid();
+  });
+});
+
 async function sendGift(gift) {
-  if (!currentLiveHostId) { closeModal("giftModal"); return; }
-  if (state.coins < gift.cost) { toast("Not enough coins"); closeModal("giftModal"); openModal("coinModal"); return; }
-  closeModal("giftModal");
-  const { error } = await supabaseClient.rpc("send_gift", { p_host_id: currentLiveHostId, p_amount: gift.cost });
-  if (error) { toast(error.message.includes("insufficient") ? "Not enough coins" : "Gift failed"); return; }
+  if (!giftTargetReceiverId) return;
+  if (state.coins < gift.cost) { toast("Not enough coins"); clearInterval(giftHoldInterval); openModal("coinModal"); return; }
+  const { error } = await supabaseClient.rpc("send_gift", { p_host_id: giftTargetReceiverId, p_amount: gift.cost });
+  if (error) {
+    clearInterval(giftHoldInterval);
+    toast(error.message.includes("insufficient") ? "Not enough coins" : "Gift failed");
+    return;
+  }
   await refreshWalletFromServer();
+  renderGiftGrid();
   const stage = document.getElementById(giftTargetStage);
-  spawnGiftFly(stage, gift);
-  const chatFeedId = giftTargetStage === "liveHostStage" ? "hostChatFeed" : "guestChatFeed";
-  addLiveChatMessage(chatFeedId, "You", `sent a ${gift.name}!`, true);
-  if (currentLiveRoom) {
-    const payload = new TextEncoder().encode(JSON.stringify({
-      type: "gift", senderId: currentUser?.id, name: currentProfile?.username || "Someone", giftId: gift.id, giftName: gift.name, cost: gift.cost,
-    }));
-    currentLiveRoom.localParticipant.publishData(payload, { reliable: true });
+  if (stage) spawnGiftFly(stage, gift);
+  if (giftTargetStage === "liveHostStage" || giftTargetStage === "liveGuestStage") {
+    const chatFeedId = giftTargetStage === "liveHostStage" ? "hostChatFeed" : "guestChatFeed";
+    addLiveChatMessage(chatFeedId, "You", `sent a ${gift.name}!`, true);
+    if (currentLiveRoom) {
+      const payload = new TextEncoder().encode(JSON.stringify({
+        type: "gift", senderId: currentUser?.id, name: currentProfile?.username || "Someone", giftId: gift.id, giftName: gift.name, cost: gift.cost,
+      }));
+      currentLiveRoom.localParticipant.publishData(payload, { reliable: true });
+    }
   }
 }
 
+let activeGiftCombo = { key: null, el: null, count: 0, timer: null };
+
 function spawnGiftFly(stage, gift) {
+  const key = stage.id + ":" + gift.id;
+  if (activeGiftCombo.key === key && activeGiftCombo.el && activeGiftCombo.el.isConnected) {
+    activeGiftCombo.count++;
+    const el = activeGiftCombo.el;
+    el.querySelector(".gift-fly-label").textContent = `${gift.name} x${activeGiftCombo.count}`;
+    el.classList.remove("gift-fly-pulse");
+    void el.offsetWidth;
+    el.classList.add("gift-fly-pulse");
+    clearTimeout(activeGiftCombo.timer);
+    activeGiftCombo.timer = setTimeout(() => finalizeGiftCombo(), 2000);
+    return;
+  }
+  finalizeGiftCombo();
   const fly = document.createElement("div");
-  fly.className = "gift-fly";
-  fly.innerHTML = `<svg class="ic" style="color:${gift.color}"><use href="#${gift.icon}"/></svg><span class="gift-fly-label">${gift.name} x1</span>`;
+  fly.className = "gift-fly tier-" + gift.tier;
+  fly.innerHTML = `<span class="gift-fly-emoji">${gift.emoji}</span><span class="gift-fly-label">${gift.name} x1</span>`;
   stage.appendChild(fly);
-  fly.addEventListener("animationend", () => fly.remove());
+  activeGiftCombo = { key, el: fly, count: 1, timer: setTimeout(() => finalizeGiftCombo(), 2000) };
+}
+
+function finalizeGiftCombo() {
+  clearTimeout(activeGiftCombo.timer);
+  const el = activeGiftCombo.el;
+  if (el && el.isConnected) {
+    el.classList.add("gift-fly-exit");
+    setTimeout(() => el.remove(), 500);
+  }
+  activeGiftCombo = { key: null, el: null, count: 0, timer: null };
 }
 
 /* ---------------- Live (real, via LiveKit Cloud + Supabase) ---------------- */
@@ -6332,6 +6412,7 @@ async function openLiveGuest(host) {
   if (!currentUser) { toast("Sign in to watch live"); openAuthModal("signin"); return; }
   switchView("live-guest");
   giftTargetStage = "liveGuestStage";
+  giftTargetReceiverId = host.hostId;
   document.getElementById("guestChatFeed").innerHTML = "";
   document.getElementById("liveHostName").textContent = host.name;
   document.getElementById("liveHostTag").textContent = host.tag;
