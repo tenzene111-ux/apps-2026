@@ -2649,7 +2649,9 @@ function showUploadStep(step) {
   document.getElementById("uploadStepPreview").style.display = step === "preview" ? "" : "none";
   document.getElementById("uploadStepPublished").style.display = step === "published" ? "" : "none";
   document.getElementById("uploadStepEdit").style.display = step === "edit" ? "" : "none";
-  const titles = { list: "My Dramas", create: "Drama Details", episodes: "Upload Episodes", episodeInfo: "Episode Info", preview: "Preview Drama", published: "Published", edit: "Edit Drama" };
+  document.getElementById("uploadStepEpisodeSettings").style.display = step === "episodeSettings" ? "" : "none";
+  document.getElementById("uploadStepEpisodeAnalytics").style.display = step === "episodeAnalytics" ? "" : "none";
+  const titles = { list: "My Dramas", create: "Drama Details", episodes: "Upload Episodes", episodeInfo: "Episode Info", preview: "Preview Drama", published: "Published", edit: "Edit Drama", episodeSettings: "Episode Settings", episodeAnalytics: "Episode Analytics" };
   document.getElementById("uploadModalTitle").textContent = titles[step];
 
   const stepNByStep = { create: 1, episodes: 2, episodeInfo: 3, preview: 4, published: 5 };
@@ -2791,12 +2793,14 @@ document.getElementById("editPublishToggleBtn").addEventListener("click", async 
   await fetchRealDramas();
 });
 
+let episodeSettingsTarget = null; // { dramaId, epNum }
+
 async function renderEditEpisodeList(dramaId) {
   const list = document.getElementById("editEpisodeList");
   list.innerHTML = '<div class="creator-empty">Loading...</div>';
   const { data: episodes } = await supabaseClient
     .from("episodes")
-    .select("episode_number, video_path, release_at")
+    .select("episode_number, video_path, release_at, title, description, allow_download")
     .eq("drama_id", dramaId)
     .order("episode_number", { ascending: true });
   list.innerHTML = "";
@@ -2811,11 +2815,12 @@ async function renderEditEpisodeList(dramaId) {
     row.className = "creator-card";
     row.innerHTML = `
       <div class="creator-info">
-        <div class="creator-name">Episode ${ep.episode_number}</div>
-        ${scheduled ? `<div class="creator-status">Scheduled for ${new Date(ep.release_at).toLocaleString()}</div>` : ""}
+        <div class="creator-name">Episode ${ep.episode_number}${ep.title ? " · " + ep.title : ""} <span class="upload-status-badge${scheduled ? "" : " published"}">${scheduled ? "Scheduled" : "Published"}</span></div>
       </div>
+      <button class="creator-follow-btn edit-episode-btn">Settings</button>
       ${ep.episode_number === lastEpNum ? '<button class="creator-follow-btn delete-episode-btn">Delete</button>' : ""}
     `;
+    row.querySelector(".edit-episode-btn").addEventListener("click", () => openEpisodeSettings(dramaId, ep, ep.episode_number === lastEpNum));
     const deleteBtn = row.querySelector(".delete-episode-btn");
     if (deleteBtn) {
       deleteBtn.addEventListener("click", async () => {
@@ -2829,6 +2834,92 @@ async function renderEditEpisodeList(dramaId) {
     list.appendChild(row);
   });
 }
+
+function openEpisodeSettings(dramaId, ep, isLast) {
+  episodeSettingsTarget = { dramaId, epNum: ep.episode_number };
+  const scheduled = ep.release_at && new Date(ep.release_at) > new Date();
+  document.getElementById("episodeSettingsStatusBadge").textContent = scheduled ? "Scheduled" : "Published";
+  document.getElementById("episodeSettingsStatusBadge").classList.toggle("published", !scheduled);
+  document.getElementById("episodeSettingsTitleInput").value = ep.title || "";
+  document.getElementById("episodeSettingsDescInput").value = ep.description || "";
+  const releaseInput = document.getElementById("episodeSettingsReleaseInput");
+  if (ep.release_at) {
+    const d = new Date(ep.release_at);
+    releaseInput.value = new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+  } else {
+    releaseInput.value = "";
+  }
+  document.getElementById("episodeSettingsDownloadToggle").classList.toggle("on", ep.allow_download !== false);
+  document.getElementById("episodeSettingsDeleteBtn").style.display = isLast ? "" : "none";
+  showUploadStep("episodeSettings");
+}
+
+document.getElementById("episodeSettingsDownloadToggle").addEventListener("click", (e) => e.currentTarget.classList.toggle("on"));
+
+document.getElementById("episodeSettingsBackBtn").addEventListener("click", () => {
+  showUploadStep("edit");
+  renderEditEpisodeList(episodeSettingsTarget.dramaId);
+});
+
+document.getElementById("episodeSettingsSaveBtn").addEventListener("click", async () => {
+  if (!episodeSettingsTarget) return;
+  const btn = document.getElementById("episodeSettingsSaveBtn");
+  btn.disabled = true;
+  const releaseInput = document.getElementById("episodeSettingsReleaseInput").value;
+  const { error } = await supabaseClient
+    .from("episodes")
+    .update({
+      title: document.getElementById("episodeSettingsTitleInput").value.trim(),
+      description: document.getElementById("episodeSettingsDescInput").value.trim(),
+      release_at: releaseInput ? new Date(releaseInput).toISOString() : null,
+      allow_download: document.getElementById("episodeSettingsDownloadToggle").classList.contains("on"),
+    })
+    .eq("drama_id", episodeSettingsTarget.dramaId)
+    .eq("episode_number", episodeSettingsTarget.epNum);
+  btn.disabled = false;
+  if (error) { toast("Couldn't save changes: " + error.message); return; }
+  toast("Episode updated!");
+  await fetchRealDramas();
+  showUploadStep("edit");
+  renderEditEpisodeList(episodeSettingsTarget.dramaId);
+});
+
+document.getElementById("episodeSettingsDeleteBtn").addEventListener("click", async () => {
+  if (!episodeSettingsTarget) return;
+  if (!confirm("Delete this episode? This cannot be undone.")) return;
+  const btn = document.getElementById("episodeSettingsDeleteBtn");
+  btn.disabled = true;
+  const { data: epRow } = await supabaseClient
+    .from("episodes")
+    .select("video_path")
+    .eq("drama_id", episodeSettingsTarget.dramaId)
+    .eq("episode_number", episodeSettingsTarget.epNum)
+    .single();
+  if (epRow) await supabaseClient.storage.from("episode-videos").remove([epRow.video_path]);
+  await supabaseClient.from("episodes").delete().eq("drama_id", episodeSettingsTarget.dramaId).eq("episode_number", episodeSettingsTarget.epNum);
+  btn.disabled = false;
+  toast("Episode deleted");
+  await fetchRealDramas();
+  showUploadStep("edit");
+  renderEditEpisodeList(episodeSettingsTarget.dramaId);
+});
+
+document.getElementById("episodeSettingsAnalyticsBtn").addEventListener("click", async () => {
+  if (!episodeSettingsTarget) return;
+  showUploadStep("episodeAnalytics");
+  const { dramaId, epNum } = episodeSettingsTarget;
+  const [{ data: viewRows }, { data: likeRows }, { data: commentRows }] = await Promise.all([
+    supabaseClient.from("episode_views").select("created_at").eq("drama_id", dramaId).eq("episode_number", epNum),
+    supabaseClient.from("episode_likes").select("created_at").eq("drama_id", dramaId).eq("episode_number", epNum),
+    supabaseClient.from("comments").select("created_at").eq("drama_id", dramaId).eq("episode_number", epNum),
+  ]);
+  document.getElementById("episodeAnalyticsViews").textContent = formatCount((viewRows || []).length);
+  document.getElementById("episodeAnalyticsLikes").textContent = formatCount((likeRows || []).length);
+  document.getElementById("episodeAnalyticsComments").textContent = formatCount((commentRows || []).length);
+  renderAnalyticsChart("episodeAnalyticsChart", (viewRows || []).map((r) => r.created_at));
+});
+
+document.getElementById("episodeAnalyticsBackBtn").addEventListener("click", () => showUploadStep("episodeSettings"));
 
 document.getElementById("editSaveBtn").addEventListener("click", async () => {
   const title = document.getElementById("editTitleInput").value.trim();
@@ -3208,7 +3299,7 @@ async function fetchRealReels() {
   if (!supabaseClient) return;
   const { data: reelRows, error: reelError } = await supabaseClient
     .from("reels")
-    .select("id, creator_id, video_path, caption, release_at, created_at, cover_path, location, visibility, allow_comments, allow_duet, allow_stitch, allow_download, content_disclosure, trim_start, trim_end, filter_css, overlays, sound_id")
+    .select("id, creator_id, video_path, caption, release_at, created_at, cover_path, location, visibility, allow_comments, allow_duet, allow_stitch, allow_download, content_disclosure, trim_start, trim_end, filter_css, overlays, sound_id, branded_content")
     .order("created_at", { ascending: false });
   if (reelError) { console.error("fetchRealReels: reels query failed", reelError); return; }
   if (!reelRows) return;
@@ -3256,6 +3347,10 @@ async function fetchRealReels() {
     reelCommentCounts[c.reel_id] = (reelCommentCounts[c.reel_id] || 0) + 1;
   });
 
+  const { data: viewRows } = await supabaseClient.from("reel_views").select("reel_id");
+  const reelViewCounts = {};
+  (viewRows || []).forEach((v) => { reelViewCounts[v.reel_id] = (reelViewCounts[v.reel_id] || 0) + 1; });
+
   REELS.length = 0;
   reelRows.forEach((row) => {
     REELS.push({
@@ -3280,6 +3375,8 @@ async function fetchRealReels() {
       overlays: row.overlays || [],
       tags: tagsByReel[row.id] || [],
       soundTitle: row.sound_id ? soundTitleById[row.sound_id] || null : null,
+      brandedContent: !!row.branded_content,
+      views: reelViewCounts[row.id] || 0,
     });
   });
 }
@@ -4255,6 +4352,7 @@ function recordWatchProgress(dramaId, epNum) {
   state.watchHistory[dramaId] = { epNum, updatedAt: Date.now() };
   saveState();
   recordRealView(dramaId);
+  recordRealEpisodeView(dramaId, epNum);
   if (currentUser && supabaseClient) {
     supabaseClient.from("watch_history").upsert(
       { user_id: currentUser.id, drama_id: dramaId, episode_number: epNum, updated_at: new Date().toISOString() },
@@ -4288,6 +4386,26 @@ async function recordRealView(dramaId) {
   if (!error) {
     drama.views = String((parseInt(drama.views, 10) || 0) + 1);
   }
+}
+
+let viewedEpisodeIds = new Set();
+async function recordRealEpisodeView(dramaId, epNum) {
+  if (!currentUser || !supabaseClient) return;
+  const key = dramaId + ":" + epNum;
+  if (viewedEpisodeIds.has(key)) return;
+  viewedEpisodeIds.add(key);
+  await supabaseClient.from("episode_views").insert({ drama_id: dramaId, episode_number: epNum, user_id: currentUser.id });
+}
+
+let viewedReelIds = new Set();
+async function recordRealReelView(reelId) {
+  if (!currentUser || !supabaseClient) return;
+  if (viewedReelIds.has(reelId)) return;
+  const reel = REELS.find((r) => r.id === reelId);
+  if (!reel) return;
+  viewedReelIds.add(reelId);
+  const { error } = await supabaseClient.from("reel_views").insert({ reel_id: reelId, user_id: currentUser.id });
+  if (!error) reel.views = (reel.views || 0) + 1;
 }
 
 function buildPlayerCard(d, epNum) {
@@ -4908,6 +5026,8 @@ function buildLiveTeaserCard(host) {
 function buildForYouCard(d, epNum) {
   const card = document.createElement("div");
   card.className = "player-card foryou-card";
+  card.dataset.dramaId = d.id;
+  card.dataset.epNum = epNum;
   const likeKey = d.id + ":" + epNum;
   const claimKey = "foryouClaim:" + d.id + ":" + epNum;
   const liked = myLikedEpisodes.has(likeKey);
@@ -5073,6 +5193,8 @@ function observeForYouCards() {
             video.play().catch(() => {});
           });
         }
+        if (entry.target.dataset.reelId) recordRealReelView(entry.target.dataset.reelId);
+        else if (entry.target.dataset.dramaId) recordRealEpisodeView(entry.target.dataset.dramaId, parseInt(entry.target.dataset.epNum, 10));
       } else {
         video.pause();
         video.currentTime = 0;
@@ -5473,6 +5595,170 @@ function renderMyContent() {
 
   dramaGrid.style.display = myContentTab === "dramas" ? "grid" : "none";
   reelGrid.style.display = myContentTab === "reels" ? "grid" : "none";
+}
+
+/* ---------------- Your Reels management (list/settings/analytics) ---------------- */
+let myReelsStatusTab = "published";
+let reelSettingsTarget = null;
+
+document.getElementById("myContentManageBtn").addEventListener("click", () => {
+  if (myContentTab === "reels") {
+    showMyReelsStep("list");
+    renderMyReelsList();
+    openModal("myReelsModal");
+  } else {
+    openUploadModal();
+  }
+});
+
+function showMyReelsStep(step) {
+  document.getElementById("myReelsStepList").style.display = step === "list" ? "" : "none";
+  document.getElementById("myReelsStepSettings").style.display = step === "settings" ? "" : "none";
+  document.getElementById("myReelsStepAnalytics").style.display = step === "analytics" ? "" : "none";
+  const titles = { list: "Your Reels", settings: "Reel Settings", analytics: "Reel Analytics" };
+  document.getElementById("myReelsModalTitle").textContent = titles[step];
+}
+
+document.querySelectorAll("#myReelsTabs .content-tab").forEach((tab) => {
+  tab.addEventListener("click", () => {
+    myReelsStatusTab = tab.dataset.reelstatus;
+    document.querySelectorAll("#myReelsTabs .content-tab").forEach((t) => t.classList.toggle("active", t === tab));
+    renderMyReelsList();
+  });
+});
+
+function renderMyReelsList() {
+  const list = document.getElementById("myReelsList");
+  list.innerHTML = "";
+  const myReels = REELS.filter((r) => r.creatorId === currentUser?.id);
+  let filtered;
+  if (myReelsStatusTab === "scheduled") {
+    filtered = myReels.filter((r) => r.releaseAt && new Date(r.releaseAt) > new Date());
+  } else if (myReelsStatusTab === "drafts") {
+    filtered = []; // Reel draft-saving isn't built yet — honest empty state below.
+  } else {
+    filtered = myReels.filter((r) => !r.releaseAt || new Date(r.releaseAt) <= new Date());
+  }
+  if (!filtered.length) {
+    const emptyText = myReelsStatusTab === "drafts" ? "Saving reels as drafts isn't available yet." : "Nothing here yet.";
+    list.innerHTML = `<div class="creator-empty">${emptyText}</div>`;
+    return;
+  }
+  filtered.forEach((r) => {
+    const row = document.createElement("div");
+    row.className = "creator-card";
+    row.innerHTML = `
+      <div class="creator-avatar" style="background:${gradientFor(r.id, 1)}">🎬</div>
+      <div class="creator-info">
+        <div class="creator-name">${r.caption || "Reel"}</div>
+        <div class="creator-status">${formatCount(r.views || 0)} views · ${formatCount(reelLikeCounts[r.id] || 0)} likes · ${formatCount(reelCommentCounts[r.id] || 0)} comments</div>
+      </div>
+      <button class="creator-follow-btn">Manage</button>
+    `;
+    row.addEventListener("click", () => openReelSettings(r));
+    list.appendChild(row);
+  });
+}
+
+function openReelSettings(reel) {
+  reelSettingsTarget = reel;
+  document.getElementById("reelSettingsCaption").value = reel.caption || "";
+  document.getElementById("reelSettingsLocation").value = reel.location || "";
+  document.querySelectorAll("#reelSettingsAudienceTabs .reel-audience-tab").forEach((t) => t.classList.toggle("active", t.dataset.visibility === (reel.visibility || "public")));
+  const releaseInput = document.getElementById("reelSettingsReleaseInput");
+  if (reel.releaseAt) {
+    const d = new Date(reel.releaseAt);
+    releaseInput.value = new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+  } else {
+    releaseInput.value = "";
+  }
+  document.getElementById("reelSettingsTimezoneText").textContent = "Time zone: " + Intl.DateTimeFormat().resolvedOptions().timeZone;
+  document.getElementById("reelSettingsMorePanel").style.display = "none";
+  document.getElementById("reelSettingsAllowComments").classList.toggle("on", reel.allowComments !== false);
+  document.getElementById("reelSettingsAllowDuet").classList.toggle("on", reel.allowDuet !== false);
+  document.getElementById("reelSettingsAllowStitch").classList.toggle("on", reel.allowStitch !== false);
+  document.getElementById("reelSettingsAllowDownload").classList.toggle("on", reel.allowDownload !== false);
+  document.getElementById("reelSettingsBrandedContent").classList.toggle("on", !!reel.brandedContent);
+  document.getElementById("reelSettingsContentDisclosure").value = reel.contentDisclosure || "none";
+  showMyReelsStep("settings");
+}
+
+document.querySelectorAll("#reelSettingsAudienceTabs .reel-audience-tab").forEach((tab) => {
+  tab.addEventListener("click", () => {
+    document.querySelectorAll("#reelSettingsAudienceTabs .reel-audience-tab").forEach((t) => t.classList.toggle("active", t === tab));
+  });
+});
+
+document.getElementById("reelSettingsMoreRow").addEventListener("click", () => {
+  const panel = document.getElementById("reelSettingsMorePanel");
+  panel.style.display = panel.style.display === "none" ? "block" : "none";
+});
+["reelSettingsAllowComments", "reelSettingsAllowDuet", "reelSettingsAllowStitch", "reelSettingsAllowDownload", "reelSettingsBrandedContent"].forEach((id) => {
+  document.getElementById(id).addEventListener("click", (e) => e.currentTarget.classList.toggle("on"));
+});
+
+document.getElementById("reelSettingsBackBtn").addEventListener("click", () => showMyReelsStep("list"));
+
+document.getElementById("reelSettingsSaveBtn").addEventListener("click", async () => {
+  if (!reelSettingsTarget) return;
+  const btn = document.getElementById("reelSettingsSaveBtn");
+  btn.disabled = true;
+  const releaseInput = document.getElementById("reelSettingsReleaseInput").value;
+  const { error } = await supabaseClient
+    .from("reels")
+    .update({
+      caption: document.getElementById("reelSettingsCaption").value.trim(),
+      location: document.getElementById("reelSettingsLocation").value.trim() || null,
+      visibility: document.querySelector("#reelSettingsAudienceTabs .reel-audience-tab.active").dataset.visibility,
+      release_at: releaseInput ? new Date(releaseInput).toISOString() : null,
+      allow_comments: document.getElementById("reelSettingsAllowComments").classList.contains("on"),
+      allow_duet: document.getElementById("reelSettingsAllowDuet").classList.contains("on"),
+      allow_stitch: document.getElementById("reelSettingsAllowStitch").classList.contains("on"),
+      allow_download: document.getElementById("reelSettingsAllowDownload").classList.contains("on"),
+      branded_content: document.getElementById("reelSettingsBrandedContent").classList.contains("on"),
+      content_disclosure: document.getElementById("reelSettingsContentDisclosure").value,
+    })
+    .eq("id", reelSettingsTarget.id);
+  btn.disabled = false;
+  if (error) { toast("Couldn't save changes: " + error.message); return; }
+  toast("Reel updated!");
+  await fetchRealReels();
+  renderMyReelsList();
+  showMyReelsStep("list");
+});
+
+document.getElementById("reelSettingsDeleteBtn").addEventListener("click", async () => {
+  if (!reelSettingsTarget) return;
+  if (!confirm("Delete this reel? This cannot be undone.")) return;
+  const btn = document.getElementById("reelSettingsDeleteBtn");
+  btn.disabled = true;
+  const { error } = await supabaseClient.from("reels").delete().eq("id", reelSettingsTarget.id);
+  btn.disabled = false;
+  if (error) { toast("Couldn't delete: " + error.message); return; }
+  toast("Reel deleted");
+  await fetchRealReels();
+  showMyReelsStep("list");
+  renderMyReelsList();
+});
+
+document.getElementById("reelSettingsAnalyticsBtn").addEventListener("click", async () => {
+  if (!reelSettingsTarget) return;
+  await openReelAnalytics(reelSettingsTarget);
+});
+
+document.getElementById("reelAnalyticsBackBtn").addEventListener("click", () => showMyReelsStep("settings"));
+
+async function openReelAnalytics(reel) {
+  showMyReelsStep("analytics");
+  const [{ data: viewRows }, { data: likeRows }, { data: commentRows }] = await Promise.all([
+    supabaseClient.from("reel_views").select("created_at").eq("reel_id", reel.id),
+    supabaseClient.from("reel_likes").select("created_at").eq("reel_id", reel.id),
+    supabaseClient.from("reel_comments").select("created_at").eq("reel_id", reel.id),
+  ]);
+  document.getElementById("reelAnalyticsViews").textContent = formatCount((viewRows || []).length);
+  document.getElementById("reelAnalyticsLikes").textContent = formatCount((likeRows || []).length);
+  document.getElementById("reelAnalyticsComments").textContent = formatCount((commentRows || []).length);
+  renderAnalyticsChart("reelAnalyticsChart", (viewRows || []).map((r) => r.created_at));
 }
 
 function jumpToReelInFeed(reelId) {

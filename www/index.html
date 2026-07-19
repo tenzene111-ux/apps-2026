@@ -12,7 +12,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="Reelflix" />
-  <link rel="stylesheet" href="style.css?v=72" />
+  <link rel="stylesheet" href="style.css?v=73" />
 </head>
 <body>
   <svg width="0" height="0" style="position:absolute" aria-hidden="true">
@@ -740,7 +740,7 @@
         <div class="section-title-row" id="profileContinueTitle" style="display:none"><h4 class="section-title">Continue Watching</h4><span class="see-all-btn" id="profileContinueSeeAll">See All</span></div>
         <div class="continue-strip" id="profileContinueStrip"></div>
 
-        <div class="section-title-row" id="myContentTitle" style="display:none"><h4 class="section-title">My Content</h4></div>
+        <div class="section-title-row" id="myContentTitle" style="display:none"><h4 class="section-title">My Content</h4><span class="see-all-btn" id="myContentManageBtn">Manage</span></div>
         <div class="mylist-subtabs" id="myContentTabs" style="display:none">
           <button class="content-tab active" data-content-tab="dramas">Dramas</button>
           <button class="content-tab" data-content-tab="reels">Reels</button>
@@ -1217,6 +1217,70 @@
     </div>
   </div>
 
+  <div class="modal-backdrop" id="myReelsModal">
+    <div class="modal upload-modal">
+      <h3 id="myReelsModalTitle">Your Reels</h3>
+
+      <div id="myReelsStepList">
+        <div class="mylist-subtabs" id="myReelsTabs">
+          <button class="content-tab active" data-reelstatus="published">Published</button>
+          <button class="content-tab" data-reelstatus="drafts">Drafts</button>
+          <button class="content-tab" data-reelstatus="scheduled">Scheduled</button>
+        </div>
+        <div id="myReelsList" class="creator-list"></div>
+      </div>
+
+      <div id="myReelsStepSettings" style="display:none">
+        <textarea id="reelSettingsCaption" class="modal-textarea" placeholder="Caption" maxlength="300"></textarea>
+        <input class="modal-input" id="reelSettingsLocation" placeholder="Location (optional)" />
+
+        <label class="upload-cover-label">Audience</label>
+        <div class="reel-audience-tabs" id="reelSettingsAudienceTabs">
+          <button class="reel-audience-tab active" data-visibility="public">Public</button>
+          <button class="reel-audience-tab" data-visibility="private">Only Me</button>
+        </div>
+
+        <label class="upload-cover-label" for="reelSettingsReleaseInput">Schedule — Publish Date &amp; Time</label>
+        <input type="datetime-local" id="reelSettingsReleaseInput" class="modal-input" />
+        <div class="upload-progress-text" id="reelSettingsTimezoneText"></div>
+
+        <div class="more-row" id="reelSettingsMoreRow">More Options ›</div>
+        <div id="reelSettingsMorePanel" style="display:none">
+          <div class="setting-row"><span>Allow Comments</span><button class="toggle-switch" id="reelSettingsAllowComments"></button></div>
+          <div class="setting-row"><span>Allow Duet</span><button class="toggle-switch" id="reelSettingsAllowDuet"></button></div>
+          <div class="setting-row"><span>Allow Stitch</span><button class="toggle-switch" id="reelSettingsAllowStitch"></button></div>
+          <div class="setting-row"><span>Save to Device</span><button class="toggle-switch" id="reelSettingsAllowDownload"></button></div>
+          <div class="setting-row"><span>Branded Content</span><button class="toggle-switch" id="reelSettingsBrandedContent"></button></div>
+          <label class="upload-cover-label" for="reelSettingsContentDisclosure">Content Disclosure</label>
+          <select id="reelSettingsContentDisclosure" class="modal-input">
+            <option value="none">None</option>
+            <option value="ai_generated">AI-generated content</option>
+            <option value="paid_promotion">Paid promotion / Branded content</option>
+            <option value="both">Both</option>
+          </select>
+        </div>
+
+        <button class="btn-primary" id="reelSettingsSaveBtn">Save Changes</button>
+        <button class="btn-ghost" id="reelSettingsAnalyticsBtn">View Analytics</button>
+        <button class="btn-ghost" id="reelSettingsDeleteBtn">Delete Reel</button>
+        <button class="btn-ghost" id="reelSettingsBackBtn">← Back to Your Reels</button>
+      </div>
+
+      <div id="myReelsStepAnalytics" style="display:none">
+        <div class="analytics-stats-row">
+          <div class="analytics-stat"><b id="reelAnalyticsViews">0</b><span>Views</span></div>
+          <div class="analytics-stat"><b id="reelAnalyticsLikes">0</b><span>Likes</span></div>
+          <div class="analytics-stat"><b id="reelAnalyticsComments">0</b><span>Comments</span></div>
+        </div>
+        <h4 class="section-title">Last 14 days</h4>
+        <div class="analytics-chart" id="reelAnalyticsChart"></div>
+        <button class="btn-ghost" id="reelAnalyticsBackBtn">← Back to Reel Settings</button>
+      </div>
+
+      <button class="modal-close" data-close="myReelsModal">✕</button>
+    </div>
+  </div>
+
   <div class="modal-backdrop" id="inviteModal">
     <div class="modal">
       <h3>Invitation Code</h3>
@@ -1387,6 +1451,33 @@
         <button class="btn-ghost" id="editDeleteDramaBtn">Delete This Drama</button>
         <button class="btn-ghost" id="editBackBtn">← Back to My Dramas</button>
       </div>
+
+      <div id="uploadStepEpisodeSettings" style="display:none">
+        <div class="upload-status-row" id="episodeSettingsStatusRow">
+          <span class="upload-status-badge" id="episodeSettingsStatusBadge">Published</span>
+        </div>
+        <input id="episodeSettingsTitleInput" class="modal-input" placeholder="Episode title" />
+        <textarea id="episodeSettingsDescInput" class="modal-textarea" placeholder="Episode description"></textarea>
+        <label class="upload-cover-label" for="episodeSettingsReleaseInput">Release date &amp; time</label>
+        <input type="datetime-local" id="episodeSettingsReleaseInput" class="modal-input" />
+        <div class="setting-row"><span>Allow Download</span><button class="toggle-switch" id="episodeSettingsDownloadToggle"></button></div>
+        <button class="btn-primary" id="episodeSettingsSaveBtn">Save Changes</button>
+        <button class="btn-ghost" id="episodeSettingsAnalyticsBtn">View Episode Analytics</button>
+        <button class="btn-ghost" id="episodeSettingsDeleteBtn" style="display:none">Delete Episode</button>
+        <button class="btn-ghost" id="episodeSettingsBackBtn">← Back to Manage Episodes</button>
+      </div>
+
+      <div id="uploadStepEpisodeAnalytics" style="display:none">
+        <div class="analytics-stats-row">
+          <div class="analytics-stat"><b id="episodeAnalyticsViews">0</b><span>Views</span></div>
+          <div class="analytics-stat"><b id="episodeAnalyticsLikes">0</b><span>Likes</span></div>
+          <div class="analytics-stat"><b id="episodeAnalyticsComments">0</b><span>Comments</span></div>
+        </div>
+        <h4 class="section-title">Last 14 days</h4>
+        <div class="analytics-chart" id="episodeAnalyticsChart"></div>
+        <button class="btn-ghost" id="episodeAnalyticsBackBtn">← Back to Episode Settings</button>
+      </div>
+
       <button class="modal-close" data-close="uploadModal">✕</button>
     </div>
   </div>
@@ -1475,8 +1566,8 @@
     </div>
   </div>
 
-  <script src="vendor/supabase.js?v=72"></script>
-  <script src="vendor/livekit-client.js?v=72"></script>
-  <script src="app.js?v=72"></script>
+  <script src="vendor/supabase.js?v=73"></script>
+  <script src="vendor/livekit-client.js?v=73"></script>
+  <script src="app.js?v=73"></script>
 </body>
 </html>
