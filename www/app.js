@@ -2808,22 +2808,38 @@ async function renderEditEpisodeList(dramaId) {
     list.innerHTML = '<div class="creator-empty">No episodes uploaded yet.</div>';
     return;
   }
+  const drama = DRAMAS.find((d) => d.id === dramaId);
+  const { data: viewRows } = await supabaseClient.from("episode_views").select("episode_number").eq("drama_id", dramaId);
+  const epViewCounts = {};
+  (viewRows || []).forEach((v) => { epViewCounts[v.episode_number] = (epViewCounts[v.episode_number] || 0) + 1; });
+
   const lastEpNum = episodes[episodes.length - 1].episode_number;
   episodes.forEach((ep) => {
     const scheduled = ep.release_at && new Date(ep.release_at) > new Date();
+    const likeKey = dramaId + ":" + ep.episode_number;
     const row = document.createElement("div");
-    row.className = "creator-card";
+    row.className = "reel-manage-row";
     row.innerHTML = `
-      <div class="creator-info">
-        <div class="creator-name">Episode ${ep.episode_number}${ep.title ? " · " + ep.title : ""} <span class="upload-status-badge${scheduled ? "" : " published"}">${scheduled ? "Scheduled" : "Published"}</span></div>
+      <div class="reel-manage-thumb" style="${drama?.coverUrl ? `background-image:url('${drama.coverUrl}')` : `background:${gradientFor(dramaId, ep.episode_number)}`}">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
       </div>
-      <button class="creator-follow-btn edit-episode-btn">Settings</button>
+      <div class="reel-manage-info">
+        <span class="reel-manage-badge${scheduled ? "" : " published"}">${scheduled ? "Scheduled" : "Published"}</span>
+        <div class="reel-manage-title">Episode ${ep.episode_number}${ep.title ? " · " + ep.title : ""}</div>
+        <div class="reel-manage-stats">
+          <span><svg class="ic"><use href="#ic-play"/></svg>${formatCount(epViewCounts[ep.episode_number] || 0)}</span>
+          <span><svg class="ic"><use href="#ic-heart"/></svg>${formatCount(episodeLikeCounts[likeKey] || 0)}</span>
+          <span><svg class="ic"><use href="#ic-comment"/></svg>${formatCount(episodeCommentCounts[likeKey] || 0)}</span>
+        </div>
+      </div>
       ${ep.episode_number === lastEpNum ? '<button class="creator-follow-btn delete-episode-btn">Delete</button>' : ""}
+      <span class="reel-manage-chevron">›</span>
     `;
-    row.querySelector(".edit-episode-btn").addEventListener("click", () => openEpisodeSettings(dramaId, ep, ep.episode_number === lastEpNum));
+    row.addEventListener("click", () => openEpisodeSettings(dramaId, ep, ep.episode_number === lastEpNum));
     const deleteBtn = row.querySelector(".delete-episode-btn");
     if (deleteBtn) {
-      deleteBtn.addEventListener("click", async () => {
+      deleteBtn.addEventListener("click", async (e) => {
+        e.stopPropagation();
         deleteBtn.disabled = true;
         await supabaseClient.storage.from("episode-videos").remove([ep.video_path]);
         await supabaseClient.from("episodes").delete().eq("drama_id", dramaId).eq("episode_number", ep.episode_number);
@@ -5645,15 +5661,23 @@ function renderMyReelsList() {
     return;
   }
   filtered.forEach((r) => {
+    const scheduled = r.releaseAt && new Date(r.releaseAt) > new Date();
     const row = document.createElement("div");
-    row.className = "creator-card";
+    row.className = "reel-manage-row";
     row.innerHTML = `
-      <div class="creator-avatar" style="background:${gradientFor(r.id, 1)}">🎬</div>
-      <div class="creator-info">
-        <div class="creator-name">${r.caption || "Reel"}</div>
-        <div class="creator-status">${formatCount(r.views || 0)} views · ${formatCount(reelLikeCounts[r.id] || 0)} likes · ${formatCount(reelCommentCounts[r.id] || 0)} comments</div>
+      <div class="reel-manage-thumb" style="${r.coverUrl ? `background-image:url('${r.coverUrl}')` : `background:${gradientFor(r.id, 1)}`}">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
       </div>
-      <button class="creator-follow-btn">Manage</button>
+      <div class="reel-manage-info">
+        <span class="reel-manage-badge${scheduled ? "" : " published"}">${scheduled ? "Scheduled" : "Published"}</span>
+        <div class="reel-manage-title">${r.caption || "Reel"}</div>
+        <div class="reel-manage-stats">
+          <span><svg class="ic"><use href="#ic-play"/></svg>${formatCount(r.views || 0)}</span>
+          <span><svg class="ic"><use href="#ic-heart"/></svg>${formatCount(reelLikeCounts[r.id] || 0)}</span>
+          <span><svg class="ic"><use href="#ic-comment"/></svg>${formatCount(reelCommentCounts[r.id] || 0)}</span>
+        </div>
+      </div>
+      <span class="reel-manage-chevron">›</span>
     `;
     row.addEventListener("click", () => openReelSettings(r));
     list.appendChild(row);

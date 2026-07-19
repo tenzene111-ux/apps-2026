@@ -1573,10 +1573,64 @@ input { font: inherit; color: inherit; }
 .analytics-bar {
   flex: 1;
   min-height: 4px;
-  background: var(--accent);
+  background: linear-gradient(180deg, var(--accent-2), var(--accent));
   border-radius: 3px 3px 0 0;
-  opacity: 0.85;
+  opacity: 0.9;
 }
+
+.reel-manage-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 10px;
+  margin-bottom: 8px;
+  cursor: pointer;
+}
+.reel-manage-thumb {
+  position: relative;
+  width: 52px; height: 68px;
+  border-radius: 8px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background-size: cover;
+  background-position: center;
+}
+.reel-manage-thumb svg { width: 20px; height: 20px; color: rgba(255,255,255,0.9); filter: drop-shadow(0 1px 3px rgba(0,0,0,0.5)); }
+.reel-manage-thumb .poster-badge { position: absolute; top: 3px; left: 3px; right: 3px; font-size: 8.5px; padding: 2px 4px; text-align: center; }
+.reel-manage-info { flex: 1; min-width: 0; }
+.reel-manage-title {
+  font-weight: 700;
+  font-size: 13.5px;
+  margin-bottom: 5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.reel-manage-badge {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--panel-2);
+  color: var(--text-dim);
+  margin-bottom: 5px;
+}
+.reel-manage-badge.published { background: rgba(34,197,94,0.15); color: #4ade80; }
+.reel-manage-stats { display: flex; gap: 12px; }
+.reel-manage-stats span { display: flex; align-items: center; gap: 4px; font-size: 11.5px; color: var(--text-dim); font-weight: 600; }
+.reel-manage-stats .ic { width: 13px; height: 13px; }
+.reel-manage-chevron { color: var(--text-dim); font-size: 20px; flex-shrink: 0; }
+
+.setting-row-text { display: flex; flex-direction: column; gap: 3px; }
+.setting-row-title { font-weight: 600; }
+.setting-row-desc { font-size: 11px; color: var(--text-dim); font-weight: 400; }
 
 /* ---------- Creator profile ---------- */
 .creator-profile-scroll { flex: 1; overflow-y: auto; padding-bottom: 90px; }

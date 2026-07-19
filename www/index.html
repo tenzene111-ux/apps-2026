@@ -12,7 +12,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="Reelflix" />
-  <link rel="stylesheet" href="style.css?v=73" />
+  <link rel="stylesheet" href="style.css?v=74" />
 </head>
 <body>
   <svg width="0" height="0" style="position:absolute" aria-hidden="true">
@@ -1124,10 +1124,10 @@
 
         <div class="more-row" id="reelMoreOptionsRow">More Options ›</div>
         <div id="reelMoreOptionsPanel" style="display:none">
-          <div class="setting-row"><span>Allow Comments</span><button class="toggle-switch on" id="reelAllowCommentsToggle"></button></div>
-          <div class="setting-row"><span>Allow Duet</span><button class="toggle-switch on" id="reelAllowDuetToggle"></button></div>
-          <div class="setting-row"><span>Allow Stitch</span><button class="toggle-switch on" id="reelAllowStitchToggle"></button></div>
-          <div class="setting-row"><span>Save to Device</span><button class="toggle-switch on" id="reelAllowDownloadToggle"></button></div>
+          <div class="setting-row"><div class="setting-row-text"><span class="setting-row-title">Allow Comments</span><span class="setting-row-desc">Let people comment on your reel</span></div><button class="toggle-switch on" id="reelAllowCommentsToggle"></button></div>
+          <div class="setting-row"><div class="setting-row-text"><span class="setting-row-title">Allow Duet</span><span class="setting-row-desc">Let others make duet with your reel</span></div><button class="toggle-switch on" id="reelAllowDuetToggle"></button></div>
+          <div class="setting-row"><div class="setting-row-text"><span class="setting-row-title">Allow Stitch</span><span class="setting-row-desc">Let others stitch your reel</span></div><button class="toggle-switch on" id="reelAllowStitchToggle"></button></div>
+          <div class="setting-row"><div class="setting-row-text"><span class="setting-row-title">Save to Device</span><span class="setting-row-desc">Let others download your reel</span></div><button class="toggle-switch on" id="reelAllowDownloadToggle"></button></div>
           <label class="upload-cover-label" for="reelContentDisclosureSelect">Content Disclosure</label>
           <select id="reelContentDisclosureSelect" class="modal-input">
             <option value="none">None</option>
@@ -1246,11 +1246,11 @@
 
         <div class="more-row" id="reelSettingsMoreRow">More Options ›</div>
         <div id="reelSettingsMorePanel" style="display:none">
-          <div class="setting-row"><span>Allow Comments</span><button class="toggle-switch" id="reelSettingsAllowComments"></button></div>
-          <div class="setting-row"><span>Allow Duet</span><button class="toggle-switch" id="reelSettingsAllowDuet"></button></div>
-          <div class="setting-row"><span>Allow Stitch</span><button class="toggle-switch" id="reelSettingsAllowStitch"></button></div>
-          <div class="setting-row"><span>Save to Device</span><button class="toggle-switch" id="reelSettingsAllowDownload"></button></div>
-          <div class="setting-row"><span>Branded Content</span><button class="toggle-switch" id="reelSettingsBrandedContent"></button></div>
+          <div class="setting-row"><div class="setting-row-text"><span class="setting-row-title">Allow Comments</span><span class="setting-row-desc">Let people comment on your reel</span></div><button class="toggle-switch" id="reelSettingsAllowComments"></button></div>
+          <div class="setting-row"><div class="setting-row-text"><span class="setting-row-title">Allow Duet</span><span class="setting-row-desc">Let others make duet with your reel</span></div><button class="toggle-switch" id="reelSettingsAllowDuet"></button></div>
+          <div class="setting-row"><div class="setting-row-text"><span class="setting-row-title">Allow Stitch</span><span class="setting-row-desc">Let others stitch your reel</span></div><button class="toggle-switch" id="reelSettingsAllowStitch"></button></div>
+          <div class="setting-row"><div class="setting-row-text"><span class="setting-row-title">Save to Device</span><span class="setting-row-desc">Let others download your reel</span></div><button class="toggle-switch" id="reelSettingsAllowDownload"></button></div>
+          <div class="setting-row"><div class="setting-row-text"><span class="setting-row-title">Branded Content</span><span class="setting-row-desc">Add paid partnership label</span></div><button class="toggle-switch" id="reelSettingsBrandedContent"></button></div>
           <label class="upload-cover-label" for="reelSettingsContentDisclosure">Content Disclosure</label>
           <select id="reelSettingsContentDisclosure" class="modal-input">
             <option value="none">None</option>
@@ -1460,7 +1460,7 @@
         <textarea id="episodeSettingsDescInput" class="modal-textarea" placeholder="Episode description"></textarea>
         <label class="upload-cover-label" for="episodeSettingsReleaseInput">Release date &amp; time</label>
         <input type="datetime-local" id="episodeSettingsReleaseInput" class="modal-input" />
-        <div class="setting-row"><span>Allow Download</span><button class="toggle-switch" id="episodeSettingsDownloadToggle"></button></div>
+        <div class="setting-row"><div class="setting-row-text"><span class="setting-row-title">Allow Download</span><span class="setting-row-desc">Let viewers download this episode</span></div><button class="toggle-switch" id="episodeSettingsDownloadToggle"></button></div>
         <button class="btn-primary" id="episodeSettingsSaveBtn">Save Changes</button>
         <button class="btn-ghost" id="episodeSettingsAnalyticsBtn">View Episode Analytics</button>
         <button class="btn-ghost" id="episodeSettingsDeleteBtn" style="display:none">Delete Episode</button>
@@ -1566,8 +1566,8 @@
     </div>
   </div>
 
-  <script src="vendor/supabase.js?v=73"></script>
-  <script src="vendor/livekit-client.js?v=73"></script>
-  <script src="app.js?v=73"></script>
+  <script src="vendor/supabase.js?v=74"></script>
+  <script src="vendor/livekit-client.js?v=74"></script>
+  <script src="app.js?v=74"></script>
 </body>
 </html>
